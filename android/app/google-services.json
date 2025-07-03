@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:630455606233:android:12694be91e2bc3da03d7c8",
+        "mobilesdk_app_id": "1:630455606233:android:336d7a226079353a03d7c8",
         "android_client_info": {
-          "package_name": "com.example.abc_e_mart"
+          "package_name": "com.abc.emart"
         }
       },
       "oauth_client": [],
