@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.abc_e_mart"
+    namespace = "com.abc.emart"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.abc_e_mart"
+        applicationId = "com.abc.emart"
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
