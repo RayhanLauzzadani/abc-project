@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'signup_page.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -85,7 +86,9 @@ class _LoginPageState extends State<LoginPage> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).push(_createRouteToForgotPassword());
+                    },
                     style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     child: Text(
                       "Lupa Password?",
@@ -285,6 +288,21 @@ Route _createRouteToSignUp() {
         position: animation.drive(tween),
         child: child,
       );
+    },
+  );
+}
+
+Route _createRouteToForgotPassword() {
+  return PageRouteBuilder(
+    pageBuilder: (context, animation, secondaryAnimation) =>
+        const ForgotPasswordPage(),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      const begin = Offset(1.0, 0.0);
+      const end = Offset.zero;
+      const curve = Curves.ease;
+      final tween =
+          Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+      return SlideTransition(position: animation.drive(tween), child: child);
     },
   );
 }
