@@ -1,0 +1,213 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'forgot_password_success_page.dart';
+
+class ForgotPasswordResetPage extends StatefulWidget {
+  const ForgotPasswordResetPage({super.key});
+
+  @override
+  State<ForgotPasswordResetPage> createState() => _ForgotPasswordResetPageState();
+}
+
+class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
+  final TextEditingController newPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
+
+  static const colorPrimary = Color(0xFF1C55C0);
+  static const colorPlaceholder = Color(0xFF757575);
+  static const colorInput = Color(0xFF404040);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Back Button
+              InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(100),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: colorPrimary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Title
+              Text(
+                "Atur Ulang Password",
+                style: GoogleFonts.dmSans(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colorInput,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Buat kata sandi baru. Pastikan kata sandi tersebut berbeda dari yang sebelumnya demi keamanan.",
+                style: GoogleFonts.dmSans(
+                  fontSize: 16,
+                  color: colorPlaceholder,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Password Baru
+              _CustomTextField(
+                controller: newPasswordController,
+                label: "Password Baru",
+                iconPath: "assets/icons/lock-icon.png",
+                obscureText: _obscureNewPassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureNewPassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureNewPassword = !_obscureNewPassword;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Konfirmasi Password Baru
+              _CustomTextField(
+                controller: confirmPasswordController,
+                label: "Konfirmasi Password Baru",
+                iconPath: "assets/icons/lock-icon.png",
+                obscureText: _obscureConfirmPassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureConfirmPassword = !_obscureConfirmPassword;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Tombol Atur Ulang Password
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final newPassword = newPasswordController.text;
+                    final confirmPassword = confirmPasswordController.text;
+
+                    if (newPassword.isEmpty || confirmPassword.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Mohon isi semua kolom password")),
+                      );
+                      return;
+                    }
+
+                    if (newPassword != confirmPassword) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Password tidak cocok")),
+                      );
+                      return;
+                    }
+
+                    // Jika validasi berhasil
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ForgotPasswordSuccessPage()),
+                    );
+
+                    // TODO: Hubungkan ke backend atau pindah ke halaman login
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    "Atur Ulang Password",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String iconPath;
+  final Widget? suffixIcon;
+  final bool obscureText;
+
+  const _CustomTextField({
+    super.key,
+    required this.controller,
+    required this.label,
+    required this.iconPath,
+    this.suffixIcon,
+    this.obscureText = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const colorPlaceholder = Color(0xFF757575);
+
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      style: GoogleFonts.dmSans(fontSize: 16),
+      decoration: InputDecoration(
+        hintText: label,
+        labelText: label,
+        hintStyle: GoogleFonts.dmSans(color: colorPlaceholder),
+        labelStyle: GoogleFonts.dmSans(color: colorPlaceholder),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Image.asset(iconPath, width: 20, height: 20),
+        ),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+    );
+  }
+}
