@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'screens/splash_screen.dart'; // pastikan file ini sudah ada
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,9 +16,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'ABC e-Mart',
-      home: Scaffold(
-        body: Center(child: Text('Halo! Firebase is Ready')),
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        textTheme: GoogleFonts.dmSansTextTheme(),
+        scaffoldBackgroundColor: Colors.white, // Splash kamu pakai bg putih
       ),
+      home: const SplashScreen(),
     );
   }
 }
