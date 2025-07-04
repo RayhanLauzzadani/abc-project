@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'forgot_password_otp_page.dart';
+import '../widgets/custom_textfield.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -11,10 +13,86 @@ class ForgotPasswordPage extends StatefulWidget {
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController emailController = TextEditingController();
+  final FocusNode emailFocusNode = FocusNode();
 
   static const Color colorPlaceholder = Color(0xFF757575);
   static const Color colorInput = Color(0xFF404040);
   static const Color colorPrimary = Color(0xFF1C55C0);
+
+  bool _isLoading = false;
+
+  Future<void> _validateAndSendCode() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        // Email ditemukan, lanjut ke halaman OTP
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ForgotPasswordOtpPage(email: email),
+          ),
+        );
+      } else {
+        // Email tidak ditemukan
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("Email Tidak Ditemukan"),
+            content: Text(
+              "Kami tidak menemukan akun dengan email \"$email\".\n"
+              "Silakan periksa kembali atau daftar akun baru.",
+              style: GoogleFonts.dmSans(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("Terjadi Kesalahan"),
+            content: Text(
+              "Gagal memverifikasi email. Silakan coba lagi.",
+              style: GoogleFonts.dmSans(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    emailFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +104,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Tombol back manual
+              // Tombol back
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: InkWell(
@@ -46,7 +124,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24), // Spacer bawah tombol back
+              const SizedBox(height: 24),
               Text(
                 "Lupa Password",
                 style: GoogleFonts.dmSans(
@@ -65,14 +143,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
               const SizedBox(height: 32),
 
-              // Input email
-              _CustomTextField(
+              // Email input
+              CustomTextField(
                 controller: emailController,
                 label: "Email",
                 iconPath: "assets/icons/mail-icon.png",
                 colorPlaceholder: colorPlaceholder,
                 colorInput: colorInput,
+                focusNode: emailFocusNode,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
               ),
               const SizedBox(height: 24),
 
@@ -81,94 +161,29 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
-                    final email = emailController.text.trim();
-                    if (email.isNotEmpty) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ForgotPasswordOtpPage(email: emailController.text),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: _isLoading ? null : _validateAndSendCode,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    "Kirim Kode",
-                    style: GoogleFonts.dmSans(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          "Kirim Kode",
+                          style: GoogleFonts.dmSans(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                          ),
+                        ),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-// Widget untuk textfield
-class _CustomTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String iconPath;
-  final TextInputType? keyboardType;
-  final Color colorPlaceholder;
-  final Color colorInput;
-
-  const _CustomTextField({
-    super.key,
-    required this.controller,
-    required this.label,
-    required this.iconPath,
-    required this.colorPlaceholder,
-    required this.colorInput,
-    this.keyboardType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      style: GoogleFonts.dmSans(
-        fontSize: 16,
-        color: controller.text.isEmpty ? colorPlaceholder : colorInput,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.dmSans(
-          fontWeight: FontWeight.w500,
-          color: colorPlaceholder,
-        ),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Image.asset(iconPath, width: 20, height: 20),
-        ),
-        filled: true,
-        fillColor: const Color(0xFFF5F5F5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        hintText: label,
-        hintStyle: GoogleFonts.dmSans(color: colorPlaceholder),
-      ),
-      onChanged: (_) {
-        (context as Element).markNeedsBuild();
-      },
     );
   }
 }
