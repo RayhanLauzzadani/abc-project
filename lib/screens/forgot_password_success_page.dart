@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lottie/lottie.dart';
 
 class ForgotPasswordSuccessPage extends StatelessWidget {
   const ForgotPasswordSuccessPage({super.key});
@@ -8,7 +8,6 @@ class ForgotPasswordSuccessPage extends StatelessWidget {
   static const colorPrimary = Color(0xFF1C55C0);
   static const colorInput = Color(0xFF404040);
   static const colorPlaceholder = Color(0xFF757575);
-  static const colorSuccess = Color(0xFF2DD36F);
 
   @override
   Widget build(BuildContext context) {
@@ -16,26 +15,21 @@ class ForgotPasswordSuccessPage extends StatelessWidget {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 108),
-              // BadgeCheck icon
-              Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: colorSuccess,
-                ),
-                padding: const EdgeInsets.all(28),
-                child: const Icon(
-                  LucideIcons.badgeCheck,
-                  size: 70,
-                  color: Colors.white,
+              const SizedBox(height: 96),
+              // Lottie animation
+              SizedBox(
+                height: 180,
+                width: 180,
+                child: Lottie.asset(
+                  'assets/lottie/success_check.json',
+                  repeat: false,
                 ),
               ),
               const SizedBox(height: 36),
-              // Title
               Text(
                 "Berhasil",
                 style: GoogleFonts.dmSans(
@@ -45,7 +39,6 @@ class ForgotPasswordSuccessPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              // Subtitle
               Text(
                 "Password anda telah berhasil diubah.",
                 textAlign: TextAlign.center,
@@ -55,7 +48,6 @@ class ForgotPasswordSuccessPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 40),
-              // Button
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -80,7 +72,7 @@ class ForgotPasswordSuccessPage extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 16), 
+              const SizedBox(height: 16),
             ],
           ),
         ),
