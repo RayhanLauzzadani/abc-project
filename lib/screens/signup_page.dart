@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'login_page.dart';
-import '../data/services/auth_service.dart'; // Pastikan path benar
+import '../widgets/custom_textfield.dart';
+import '../data/services/auth_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -18,15 +19,38 @@ class _SignupPageState extends State<SignupPage> {
   final TextEditingController passwordController = TextEditingController();
   final AuthService _authService = AuthService();
 
+  final FocusNode firstNameFocus = FocusNode();
+  final FocusNode lastNameFocus = FocusNode();
+  final FocusNode emailFocus = FocusNode();
+  final FocusNode passwordFocus = FocusNode();
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
-  // Untuk validasi sederhana
+  bool get _isEmailValid {
+    final email = emailController.text.trim();
+    final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$');
+    return emailRegex.hasMatch(email);
+  }
+
   bool get _formValid =>
       firstNameController.text.trim().isNotEmpty &&
       lastNameController.text.trim().isNotEmpty &&
-      emailController.text.trim().isNotEmpty &&
-      passwordController.text.isNotEmpty;
+      _isEmailValid &&
+      passwordController.text.length >= 8;
+
+  @override
+  void dispose() {
+    firstNameController.dispose();
+    lastNameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    firstNameFocus.dispose();
+    lastNameFocus.dispose();
+    emailFocus.dispose();
+    passwordFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,47 +87,70 @@ class _SignupPageState extends State<SignupPage> {
                 const SizedBox(height: 32),
 
                 // Nama Depan
-                _CustomTextField(
+                CustomTextField(
                   controller: firstNameController,
                   label: "Nama Depan",
                   iconPath: "assets/icons/user-icon.png",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
+                  focusNode: firstNameFocus,
+                  textInputAction: TextInputAction.next,
+                  nextFocusNode: lastNameFocus,
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 16),
 
                 // Nama Belakang
-                _CustomTextField(
+                CustomTextField(
                   controller: lastNameController,
                   label: "Nama Belakang",
                   iconPath: "assets/icons/user-icon.png",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
+                  focusNode: lastNameFocus,
+                  textInputAction: TextInputAction.next,
+                  nextFocusNode: emailFocus,
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 16),
 
                 // Email
-                _CustomTextField(
+                CustomTextField(
                   controller: emailController,
                   label: "Email",
                   iconPath: "assets/icons/mail-icon.png",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   keyboardType: TextInputType.emailAddress,
+                  focusNode: emailFocus,
+                  textInputAction: TextInputAction.next,
+                  nextFocusNode: passwordFocus,
                   onChanged: (_) => setState(() {}),
                 ),
+
+                if (emailController.text.isNotEmpty && !_isEmailValid)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      "Format email tidak valid",
+                      style: GoogleFonts.dmSans(
+                        color: Colors.red.shade600,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 16),
 
                 // Password
-                _CustomTextField(
+                CustomTextField(
                   controller: passwordController,
                   label: "Password",
                   iconPath: "assets/icons/lock-icon.png",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   obscureText: _obscurePassword,
+                  focusNode: passwordFocus,
+                  textInputAction: TextInputAction.done,
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword
@@ -117,6 +164,19 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
+
+                if (passwordController.text.isNotEmpty &&
+                    passwordController.text.length < 8)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      "Password minimal 8 karakter",
+                      style: GoogleFonts.dmSans(
+                        color: Colors.red.shade600,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 16),
 
                 // Terms & Privacy
@@ -187,7 +247,6 @@ class _SignupPageState extends State<SignupPage> {
                             setState(() => _isLoading = false);
 
                             if (result == null) {
-                              // Sukses! Navigasi ke login
                               if (mounted) {
                                 showDialog(
                                   context: context,
@@ -209,7 +268,6 @@ class _SignupPageState extends State<SignupPage> {
                                 );
                               }
                             } else {
-                              // Gagal! Show pesan error
                               if (mounted) {
                                 showDialog(
                                   context: context,
@@ -287,12 +345,14 @@ class _SignupPageState extends State<SignupPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {},
+                    onPressed: () {
+                      // TODO: Google auth
+                    },
                   ),
                 ),
                 const SizedBox(height: 32),
 
-                // Already have an account? Login
+                // Sudah punya akun? Login
                 Center(
                   child: GestureDetector(
                     onTap: () {
@@ -305,7 +365,7 @@ class _SignupPageState extends State<SignupPage> {
                           fontSize: 15,
                         ),
                         children: [
-                          const TextSpan(text: "Already have an account? "),
+                          const TextSpan(text: "Sudah punya akun? "),
                           TextSpan(
                             text: "Login",
                             style: TextStyle(
@@ -329,71 +389,7 @@ class _SignupPageState extends State<SignupPage> {
   }
 }
 
-// Custom TextField Widget sama seperti login page, kini support onChanged
-class _CustomTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String iconPath;
-  final Widget? suffixIcon;
-  final bool obscureText;
-  final TextInputType? keyboardType;
-  final Color colorPlaceholder;
-  final Color colorInput;
-  final ValueChanged<String>? onChanged;
-
-  const _CustomTextField({
-    super.key,
-    required this.controller,
-    required this.label,
-    required this.iconPath,
-    required this.colorPlaceholder,
-    required this.colorInput,
-    this.suffixIcon,
-    this.obscureText = false,
-    this.keyboardType,
-    this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      style: GoogleFonts.dmSans(
-        fontSize: 16,
-        color: controller.text.isEmpty ? colorPlaceholder : colorInput,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.dmSans(
-          fontWeight: FontWeight.w500,
-          color: colorPlaceholder,
-        ),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Image.asset(iconPath, width: 20, height: 20),
-        ),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: const Color(0xFFF5F5F5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        hintText: label,
-        hintStyle: GoogleFonts.dmSans(color: colorPlaceholder),
-      ),
-      onChanged: onChanged,
-    );
-  }
-}
-
-// Transisi animasi ke login page
+// Transisi ke Login Page
 Route _createRouteToLogin() {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
