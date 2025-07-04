@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'signup_page.dart';
 import 'forgot_password_page.dart';
+import '../widgets/custom_textfield.dart';
+import '../data/services/google_auth_service.dart';
+import 'home_page.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,7 +18,19 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
+  final FocusNode emailFocusNode = FocusNode();
+  final FocusNode passwordFocusNode = FocusNode();
+
   bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    emailFocusNode.dispose();
+    passwordFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,23 +67,29 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 32),
 
                 // Email Field
-                _CustomTextField(
+                CustomTextField(
                   controller: emailController,
                   label: "Email",
                   iconPath: "assets/icons/mail-icon.png",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  focusNode: emailFocusNode,
+                  nextFocusNode: passwordFocusNode,
                 ),
                 const SizedBox(height: 16),
 
                 // Password Field
-                _CustomTextField(
+                CustomTextField(
                   controller: passwordController,
                   label: "Password",
                   iconPath: "assets/icons/lock-icon.png",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   obscureText: _obscurePassword,
+                  focusNode: passwordFocusNode,
+                  textInputAction: TextInputAction.done,
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword
@@ -113,7 +135,9 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {},
+                    onPressed: () {
+                      // TODO: Implementasi login
+                    },
                     child: Text(
                       "Masuk",
                       style: GoogleFonts.dmSans(
@@ -169,7 +193,26 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {},
+                    onPressed: () async {
+                      try {
+                        final userCredential = await GoogleAuthService.signInWithGoogle();
+                        if (userCredential != null) {
+                          // Navigasi ke halaman utama setelah login berhasil
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (context) => const HomePage()),
+                          );
+                        } else {
+                          // Pengguna batal login
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Login dibatalkan")),
+                          );
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Gagal login dengan Google: $e")),
+                        );
+                      }
+                    },
                   ),
                 ),
                 const SizedBox(height: 36),
@@ -191,7 +234,7 @@ class _LoginPageState extends State<LoginPage> {
                           TextSpan(
                             text: "Daftar",
                             style: TextStyle(
-                              color: Color(0xFF1C55C0),
+                              color: colorPrimary,
                               fontWeight: FontWeight.bold,
                               decoration: TextDecoration.underline,
                             ),
@@ -211,87 +254,21 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// Custom TextField Widget sesuai revisi
-class _CustomTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String iconPath;
-  final Widget? suffixIcon;
-  final bool obscureText;
-  final TextInputType? keyboardType;
-  final Color colorPlaceholder;
-  final Color colorInput;
-
-  const _CustomTextField({
-    super.key,
-    required this.controller,
-    required this.label,
-    required this.iconPath,
-    required this.colorPlaceholder,
-    required this.colorInput,
-    this.suffixIcon,
-    this.obscureText = false,
-    this.keyboardType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      style: GoogleFonts.dmSans(
-        fontSize: 16,
-        color: controller.text.isEmpty ? colorPlaceholder : colorInput,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.dmSans(
-          fontWeight: FontWeight.w500,
-          color: colorPlaceholder,
-        ),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Image.asset(iconPath, width: 20, height: 20),
-        ),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: const Color(0xFFF5F5F5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        hintText: label,
-        hintStyle: GoogleFonts.dmSans(color: colorPlaceholder),
-      ),
-      onChanged: (_) {
-        // supaya warna input berubah saat user mengetik
-        (context as Element).markNeedsBuild();
-      },
-    );
-  }
-}
-
+// Transisi ke Signup
 Route _createRouteToSignUp() {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => const SignupPage(),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      const begin = Offset(1.0, 0.0); // Slide dari kanan
+      const begin = Offset(1.0, 0.0);
       const end = Offset.zero;
       const curve = Curves.ease;
       var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-      return SlideTransition(
-        position: animation.drive(tween),
-        child: child,
-      );
+      return SlideTransition(position: animation.drive(tween), child: child);
     },
   );
 }
 
+// Transisi ke Forgot Password
 Route _createRouteToForgotPassword() {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) =>
