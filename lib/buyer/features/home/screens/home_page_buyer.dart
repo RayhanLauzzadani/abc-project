@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../widgets/search_bar.dart' as custom;
-import '../widgets/banner/promo_banner_carousel.dart'; // Cukup carousel saja
+import '../../../widgets/search_bar.dart' as custom;
+import '../../auth/widgets/banner/promo_banner_carousel.dart'; // Cukup carousel saja
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
