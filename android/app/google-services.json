@@ -29,6 +29,13 @@
             {
               "client_id": "787417913447-rjfcicdqk9ha9opfqtu0b3aga4uv6v9a.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "787417913447-2bsctdek412kpsvcp7595disptfmsrnv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.abcEMart"
+              }
             }
           ]
         }

@@ -169,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Login dengan Google
+                // Masuk dengan Google
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -197,14 +197,14 @@ class _LoginPageState extends State<LoginPage> {
                       try {
                         final userCredential = await GoogleAuthService.signInWithGoogle();
                         if (userCredential != null) {
-                          // Navigasi ke halaman utama setelah login berhasil
-                          // Navigator.of(context).pushReplacement(
-                          //   MaterialPageRoute(builder: (context) => const HomePage()),
-                          // );
+                          if (mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const HomePage()),
+                            );
+                          }
                         } else {
-                          // Pengguna batal login
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Login dibatalkan")),
+                            const SnackBar(content: Text("Login dengan Google dibatalkan.")),
                           );
                         }
                       } catch (e) {
