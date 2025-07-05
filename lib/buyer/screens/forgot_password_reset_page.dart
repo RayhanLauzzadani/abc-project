@@ -1,37 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../widgets/custom_textfield.dart';
 import 'forgot_password_success_page.dart';
 
 class ForgotPasswordResetPage extends StatefulWidget {
   const ForgotPasswordResetPage({super.key});
 
   @override
-  State<ForgotPasswordResetPage> createState() =>
-      _ForgotPasswordResetPageState();
+  State<ForgotPasswordResetPage> createState() => _ForgotPasswordResetPageState();
 }
 
 class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
-  final FocusNode newPasswordFocus = FocusNode();
-  final FocusNode confirmPasswordFocus = FocusNode();
   final TextEditingController newPasswordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
-
+  final TextEditingController confirmPasswordController = TextEditingController();
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
 
   static const colorPrimary = Color(0xFF1C55C0);
   static const colorPlaceholder = Color(0xFF757575);
   static const colorInput = Color(0xFF404040);
-
-  bool get isFormValid {
-    final newPassword = newPasswordController.text.trim();
-    final confirmPassword = confirmPasswordController.text.trim();
-    return newPassword.length >= 8 &&
-        confirmPassword.length >= 8 &&
-        newPassword == confirmPassword;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +68,7 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
               const SizedBox(height: 32),
 
               // Password Baru
-              CustomTextField(
+              _CustomTextField(
                 controller: newPasswordController,
                 label: "Password Baru",
                 iconPath: "assets/icons/lock-icon.png",
@@ -100,29 +86,11 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                     });
                   },
                 ),
-                colorPlaceholder: colorPlaceholder,
-                colorInput: colorInput,
-                focusNode: newPasswordFocus,
-                nextFocusNode: confirmPasswordFocus,
-                textInputAction: TextInputAction.next,
-                onChanged: (_) => setState(() {}),
               ),
-              if (newPasswordController.text.isNotEmpty &&
-                  newPasswordController.text.length < 8)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    "Password minimal 8 karakter",
-                    style: GoogleFonts.dmSans(
-                      color: Colors.red.shade600,
-                      fontSize: 13.5,
-                    ),
-                  ),
-                ),
               const SizedBox(height: 16),
 
               // Konfirmasi Password Baru
-              CustomTextField(
+              _CustomTextField(
                 controller: confirmPasswordController,
                 label: "Konfirmasi Password Baru",
                 iconPath: "assets/icons/lock-icon.png",
@@ -140,11 +108,6 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                     });
                   },
                 ),
-                colorPlaceholder: colorPlaceholder,
-                colorInput: colorInput,
-                focusNode: confirmPasswordFocus,
-                textInputAction: TextInputAction.done,
-                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 32),
 
@@ -153,20 +116,34 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: isFormValid
-                      ? () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const ForgotPasswordSuccessPage(),
-                            ),
-                          );
-                        }
-                      : null,
+                  onPressed: () {
+                    final newPassword = newPasswordController.text;
+                    final confirmPassword = confirmPasswordController.text;
+
+                    if (newPassword.isEmpty || confirmPassword.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Mohon isi semua kolom password")),
+                      );
+                      return;
+                    }
+
+                    if (newPassword != confirmPassword) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Password tidak cocok")),
+                      );
+                      return;
+                    }
+
+                    // Jika validasi berhasil
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ForgotPasswordSuccessPage()),
+                    );
+
+                    // TODO: Hubungkan ke backend atau pindah ke halaman login
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorPrimary,
-                    disabledBackgroundColor: colorPrimary.withOpacity(0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -187,12 +164,50 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
       ),
     );
   }
+}
+
+class _CustomTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String iconPath;
+  final Widget? suffixIcon;
+  final bool obscureText;
+
+  const _CustomTextField({
+    super.key,
+    required this.controller,
+    required this.label,
+    required this.iconPath,
+    this.suffixIcon,
+    this.obscureText = false,
+  });
+
   @override
-    void dispose() {
-      newPasswordController.dispose();
-      confirmPasswordController.dispose();
-      newPasswordFocus.dispose();
-      confirmPasswordFocus.dispose();
-      super.dispose();
-    }
+  Widget build(BuildContext context) {
+    const colorPlaceholder = Color(0xFF757575);
+
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      style: GoogleFonts.dmSans(fontSize: 16),
+      decoration: InputDecoration(
+        hintText: label,
+        labelText: label,
+        hintStyle: GoogleFonts.dmSans(color: colorPlaceholder),
+        labelStyle: GoogleFonts.dmSans(color: colorPlaceholder),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Image.asset(iconPath, width: 20, height: 20),
+        ),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: const Color(0xFFF5F5F5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+    );
+  }
 }
