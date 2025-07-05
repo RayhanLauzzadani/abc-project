@@ -31,7 +31,6 @@ class StoreProductCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ Gambar fleksibel dan tidak fixed aspect ratio → tidak bikin overflow
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.only(
@@ -48,7 +47,7 @@ class StoreProductCard extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          // ✅ Nama produk
+          //  Nama produk
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
@@ -65,7 +64,7 @@ class StoreProductCard extends StatelessWidget {
 
           const SizedBox(height: 4),
 
-          // ✅ Harga produk
+          //  Harga produk
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
             child: Text(
