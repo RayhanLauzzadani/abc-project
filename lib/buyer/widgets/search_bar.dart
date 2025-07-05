@@ -11,7 +11,7 @@ class SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 46,
+      height: 40,
       width: double.infinity,
       child: TextField(
         controller: controller,
@@ -21,19 +21,17 @@ class SearchBar extends StatelessWidget {
           color: const Color(0xFF404040),
         ),
         decoration: InputDecoration(
-          // Placeholder
           hintText: "Cari yang anda inginkan....",
           hintStyle: GoogleFonts.dmSans(
-            fontSize: 18,
+            fontSize: 16,
             color: const Color(0xFF9B9B9B),
           ),
-          // Prefix icon pakai SVG
           prefixIcon: Padding(
             padding: const EdgeInsets.only(left: 16, right: 8),
             child: SvgPicture.asset(
               'assets/icons/search-icon.svg',
-              width: 24,
-              height: 24,
+              width: 22,
+              height: 22,
               color: const Color(0xFF9B9B9B),
             ),
           ),
