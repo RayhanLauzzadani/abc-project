@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'forgot_password_reset_page.dart';
 
 class ForgotPasswordOtpPage extends StatefulWidget {
@@ -57,6 +59,63 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
     final minutes = seconds ~/ 60;
     final secs = seconds % 60;
     return "${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}";
+  }
+
+  Future<void> _verifyOtp() async {
+    final otp = _otpControllers.map((c) => c.text).join();
+
+    if (otp.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Kode OTP tidak lengkap.")),
+      );
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('otp_codes')
+          .doc(widget.email)
+          .get();
+
+      if (!snapshot.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kode OTP tidak ditemukan.")),
+        );
+        return;
+      }
+
+      final data = snapshot.data()!;
+      final correctOtp = data['otp'];
+      final expiresAt = (data['expiresAt'] as Timestamp).toDate();
+      final now = DateTime.now();
+
+      if (now.isAfter(expiresAt)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kode OTP telah kedaluwarsa.")),
+        );
+        return;
+      }
+
+      if (otp != correctOtp) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kode OTP salah.")),
+        );
+        return;
+      }
+
+      // OTP valid
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ForgotPasswordResetPage(email: widget.email),
+        ),
+      );
+    } catch (e) {
+      print("Error saat verifikasi OTP: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Terjadi kesalahan saat verifikasi.")),
+      );
+    }
   }
 
   @override
@@ -186,26 +245,7 @@ class _ForgotPasswordOtpPageState extends State<ForgotPasswordOtpPage> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: () {
-                            final otp = _otpControllers.map((c) => c.text).join();
-                            print("Kode OTP: $otp");
-
-                            // TODO: Ganti validasi dummy ini dengan verifikasi ke backend nanti
-                            if (otp.length == 4) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ForgotPasswordResetPage(),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Kode OTP tidak lengkap."),
-                                ),
-                              );
-                            }
-                          },
+                          onPressed: _verifyOtp,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colorPrimary,
                             shape: RoundedRectangleBorder(

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'forgot_password_success_page.dart';
 import 'package:abc_e_mart/buyer/widgets/custom_textfield.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'forgot_password_success_page.dart';
 
 class ForgotPasswordResetPage extends StatefulWidget {
-  const ForgotPasswordResetPage({super.key});
+  final String email;
+
+  const ForgotPasswordResetPage({super.key, required this.email});
 
   @override
   State<ForgotPasswordResetPage> createState() => _ForgotPasswordResetPageState();
@@ -25,6 +28,7 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
   static const colorInput = Color(0xFF404040);
 
   bool _isButtonEnabled = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -44,6 +48,40 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
     setState(() {
       _isButtonEnabled = isValid;
     });
+  }
+
+  Future<void> _handleResetPassword() async {
+    final email = widget.email.trim();
+    final newPassword = newPasswordController.text;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Simpan password baru ke Firestore (bisa disesuaikan kalau pakai Firebase Auth)
+      await FirebaseFirestore.instance.collection('users').doc(email).update({
+        'password': newPassword,
+      });
+
+      // Hapus dokumen OTP
+      await FirebaseFirestore.instance.collection('otp_codes').doc(email).delete();
+
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ForgotPasswordSuccessPage(),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Gagal mengatur ulang password: $e"),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -92,7 +130,6 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Judul
                       Text(
                         "Atur Ulang Password",
                         style: GoogleFonts.dmSans(
@@ -111,7 +148,6 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Password baru
                       CustomTextField(
                         controller: newPasswordController,
                         label: "Password Baru",
@@ -148,7 +184,6 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                         ),
                       const SizedBox(height: 16),
 
-                      // Konfirmasi password
                       CustomTextField(
                         controller: confirmPasswordController,
                         label: "Konfirmasi Password Baru",
@@ -172,21 +207,11 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Tombol submit
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: _isButtonEnabled
-                              ? () {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const ForgotPasswordSuccessPage(),
-                                    ),
-                                  );
-                                }
-                              : null,
+                          onPressed: _isButtonEnabled && !_isLoading ? _handleResetPassword : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                                 _isButtonEnabled ? colorPrimary : colorPrimary.withOpacity(0.5),
@@ -194,14 +219,16 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: Text(
-                            "Atur Ulang Password",
-                            style: GoogleFonts.dmSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                                  "Atur Ulang Password",
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 24),
