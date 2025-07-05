@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'login_page.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/google_auth_service.dart'; 
+import '../home/home_page_buyer.dart'; 
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -345,8 +347,25 @@ class _SignupPageState extends State<SignupPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {
-                      // TODO: Google auth
+                    onPressed: () async {
+                      try {
+                        final userCredential = await GoogleAuthService.signInWithGoogle();
+                        if (userCredential != null) {
+                          if (mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const HomePage()),
+                            );
+                          }
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Login dengan Google dibatalkan.")),
+                          );
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Gagal login dengan Google: $e")),
+                        );
+                      }
                     },
                   ),
                 ),
