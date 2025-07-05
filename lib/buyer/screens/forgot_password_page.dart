@@ -99,89 +99,102 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Tombol back
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: InkWell(
-                  onTap: () => Navigator.of(context).pop(),
-                  borderRadius: BorderRadius.circular(100),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colorPrimary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 20,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                "Lupa Password",
-                style: GoogleFonts.dmSans(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: colorInput,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Kami akan membantu Anda memulihkan akun Anda.",
-                style: GoogleFonts.dmSans(
-                  fontSize: 16,
-                  color: colorPlaceholder,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Email input
-              CustomTextField(
-                controller: emailController,
-                label: "Email",
-                iconPath: "assets/icons/mail-icon.png",
-                colorPlaceholder: colorPlaceholder,
-                colorInput: colorInput,
-                focusNode: emailFocusNode,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.done,
-              ),
-              const SizedBox(height: 24),
-
-              // Tombol Kirim Kode
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _validateAndSendCode,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          "Kirim Kode",
-                          style: GoogleFonts.dmSans(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Tombol back
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: InkWell(
+                          onTap: () => Navigator.of(context).pop(),
+                          borderRadius: BorderRadius.circular(100),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: colorPrimary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 20,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Judul
+                      Text(
+                        "Lupa Password",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: colorInput,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Kami akan membantu Anda memulihkan akun Anda.",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 16,
+                          color: colorPlaceholder,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Input email
+                      CustomTextField(
+                        controller: emailController,
+                        label: "Email",
+                        iconPath: "assets/icons/mail-icon.png",
+                        colorPlaceholder: colorPlaceholder,
+                        colorInput: colorInput,
+                        focusNode: emailFocusNode,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Tombol kirim kode
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _validateAndSendCode,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colorPrimary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                                  "Kirim Kode",
+                                  style: GoogleFonts.dmSans(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                        ),
+                      ),
+
+                      const Spacer(), // Untuk mendorong konten agar tidak numpuk ke bawah
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
