@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'signup_page.dart';
-import 'forgot_password_page.dart';
+import 'forgot_password/forgot_password_page.dart';
 import '../widgets/custom_textfield.dart';
-import '../data/services/google_auth_service.dart';
-import 'home_page.dart';
+import '../../../data/services/google_auth_service.dart';
+import '../../home/screens/home_page_buyer.dart';
 
 
 class LoginPage extends StatefulWidget {

@@ -47,30 +47,30 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAkVCGTKqCtG9_4pn4STMFDF4rxh-yHtvU',
-    appId: '1:251957838828:web:4ae48aca3a0a54532936c9',
-    messagingSenderId: '251957838828',
-    projectId: 'abc-e-mart-74fde',
-    authDomain: 'abc-e-mart-74fde.firebaseapp.com',
-    storageBucket: 'abc-e-mart-74fde.firebasestorage.app',
-    measurementId: 'G-TFPTWP76J0',
+    apiKey: 'AIzaSyCF_ce64qjg74nWmbG-oD482ROAOL2j3IE',
+    appId: '1:787417913447:web:19ecd281bbc473d6fa5cc2',
+    messagingSenderId: '787417913447',
+    projectId: 'abc-e-mart-b0e05',
+    authDomain: 'abc-e-mart-b0e05.firebaseapp.com',
+    storageBucket: 'abc-e-mart-b0e05.firebasestorage.app',
+    measurementId: 'G-240BXY6WPS',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAu_WOrrKRtpiuBciXHG2Qqyea8ENU9k2A',
-    appId: '1:251957838828:android:cecdd4eae51ba0012936c9',
-    messagingSenderId: '251957838828',
-    projectId: 'abc-e-mart-74fde',
-    storageBucket: 'abc-e-mart-74fde.firebasestorage.app',
+    apiKey: 'AIzaSyBAmkD7hFTd5GkQm8YDDEtSssUjTi99Rqk',
+    appId: '1:787417913447:android:8fbbc78a96823ceefa5cc2',
+    messagingSenderId: '787417913447',
+    projectId: 'abc-e-mart-b0e05',
+    storageBucket: 'abc-e-mart-b0e05.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAMj8Gr-ud19Bxlp8eBCh6KWCSzLnjfdx0',
-    appId: '1:251957838828:ios:50c58c12aec1e9fc2936c9',
-    messagingSenderId: '251957838828',
-    projectId: 'abc-e-mart-74fde',
-    storageBucket: 'abc-e-mart-74fde.firebasestorage.app',
-    iosClientId: '251957838828-o61de0n61unp6qoi0omru8a5m4rkkgsf.apps.googleusercontent.com',
+    apiKey: 'AIzaSyA92q3HQutzl0B-4udLFKmqetj6ur2lOew',
+    appId: '1:787417913447:ios:1b2276e6efbe5813fa5cc2',
+    messagingSenderId: '787417913447',
+    projectId: 'abc-e-mart-b0e05',
+    storageBucket: 'abc-e-mart-b0e05.firebasestorage.app',
+    iosClientId: '787417913447-2bsctdek412kpsvcp7595disptfmsrnv.apps.googleusercontent.com',
     iosBundleId: 'com.example.abcEMart',
   );
 }
