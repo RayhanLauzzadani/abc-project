@@ -3,8 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 import 'package:google_fonts/google_fonts.dart';
-// import 'package:abc_e_mart/buyer/screens/splash_screen.dart';
-import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart'; // tambahkan ini, nanti hapus
+import 'buyer/features/home/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,8 +31,7 @@ class MyApp extends StatelessWidget {
         textTheme: GoogleFonts.dmSansTextTheme(),
         scaffoldBackgroundColor: Colors.white,
       ),
-      // home: const SplashScreen(),
-      home: const StoreDetailPage(),
+      home: const SplashScreen(),
     );
   }
 }
