@@ -242,6 +242,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
                             right: i == categories.length - 1 ? 0 : 6,
                           ),
                           child: ChoiceChip(
+                            showCheckmark: false,
                             label: Text(
                               categories[i],
                               style: GoogleFonts.dmSans(
