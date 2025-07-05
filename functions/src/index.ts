@@ -1,7 +1,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
-import * as sgMail from "@sendgrid/mail";
+import sgMail from "@sendgrid/mail";
+import type {Request, Response} from "express";
 
 dotenv.config();
 admin.initializeApp();
@@ -13,29 +14,22 @@ const SENDER_EMAIL = process.env.SENDGRID_SENDER_EMAIL!;
 
 sgMail.setApiKey(SENDGRID_API_KEY);
 
-// Fungsi untuk generate 4 digit OTP
 function generateOTP(): string {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-// Tipe data untuk permintaan OTP
-interface RequestData {
-  email: string;
-}
+export const sendOtpToEmail = functions.https.onRequest(
+  async (req: Request, res: Response): Promise<void> => {
+    if (req.method !== "POST") {
+      res.status(405).send({success: false, message: "Method not allowed"});
+      return;
+    }
 
-// Fungsi utama untuk mengirim OTP ke email
-export const sendOtpToEmail = functions.https.onCall(
-  async (
-    data: unknown,
-    _context
-  ): Promise<{ success: boolean; message: string }> => {
-    const {email} = data as RequestData;
+    const {email} = req.body;
 
-    if (!email) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Email wajib diisi."
-      );
+    if (!email || typeof email !== "string") {
+      res.status(400).send({success: false, message: "Email wajib diisi."});
+      return;
     }
 
     const otp = generateOTP();
@@ -44,32 +38,27 @@ export const sendOtpToEmail = functions.https.onCall(
       createdAt.toMillis() + 5 * 60 * 1000
     );
 
-    await db.collection("otp_codes").doc(email).set({
-      email,
-      otp,
-      createdAt,
-      expiresAt,
-    });
-
-    const msg = {
-      to: email,
-      from: SENDER_EMAIL,
-      subject: "Kode OTP Verifikasi Anda",
-      text: `Kode OTP Anda adalah ${otp}. Berlaku selama 5 menit.`,
-      html:
-        `<p>Kode OTP Anda adalah <strong>${otp}</strong>.<br />` +
-        "Berlaku selama 5 menit.</p>",
-    };
-
     try {
+      await db.collection("otp_codes").doc(email).set({
+        email,
+        otp,
+        createdAt,
+        expiresAt,
+      });
+
+      const msg = {
+        to: email,
+        from: SENDER_EMAIL,
+        subject: "Kode OTP Verifikasi Anda",
+        text: `Kode OTP Anda adalah ${otp}. Berlaku selama 5 menit.`,
+        html: `<p>Kode OTP Anda adalah <strong>${otp}</strong>.<br />Berlaku selama 5 menit.</p>`,
+      };
+
       await sgMail.send(msg);
-      return {success: true, message: "OTP berhasil dikirim."};
+      res.status(200).send({success: true, message: "OTP berhasil dikirim."});
     } catch (error) {
       console.error("Gagal mengirim email:", error);
-      throw new functions.https.HttpsError(
-        "internal",
-        "Gagal mengirim email."
-      );
+      res.status(500).send({success: false, message: "Gagal mengirim email."});
     }
   }
 );
