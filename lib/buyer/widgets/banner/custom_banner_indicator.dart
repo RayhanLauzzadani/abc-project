@@ -17,7 +17,7 @@ class CustomBannerIndicator extends StatelessWidget {
       children: List.generate(count, (index) {
         bool isActive = index == activeIndex;
         return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 500),
           margin: EdgeInsets.symmetric(horizontal: 4),
           width: 16,
           height: 3,

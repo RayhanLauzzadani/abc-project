@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 class CategorySection extends StatelessWidget {
   const CategorySection({super.key});
 
-  // List kategori beserta label, icon, dan warna background
   final List<Map<String, dynamic>> categories = const [
     {
       "label": "Makanan",
@@ -34,39 +33,46 @@ class CategorySection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Title & "Lihat Semua"
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              "Kategori",
-              style: GoogleFonts.dmSans(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: const Color(0xFF232323),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8, right: 23), // right:23px
-              child: Text(
-                "Lihat Semua",
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Kategori",
                 style: GoogleFonts.dmSans(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                  color: const Color(0xFF757575),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: const Color(0xFF232323),
                 ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  "Lihat Semua",
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: const Color(0xFF757575),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 18),
-        // List kategori horizontal
+
+        // List kategori horizontal tanpa padding kiri
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
             children: List.generate(categories.length, (i) {
               final cat = categories[i];
-              return Padding(
-                padding: EdgeInsets.only(left: i == 0 ? 0 : 16),
+              return Container(
+                margin: EdgeInsets.only(
+                  left: i == 0 ? 20 : 0, // margin kiri untuk item pertama
+                  right: 12,
+                ),
                 child: CategoryCard(
                   label: cat['label'],
                   icon: cat['icon'],
@@ -107,7 +113,7 @@ class CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap, // Supaya navigasi berfungsi
+      onTap: onTap,
       child: Container(
         width: 100,
         height: 100,
@@ -118,7 +124,7 @@ class CategoryCard extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Setengah lingkaran di kanan bawah (digeser bawah & kanan)
+            // Background half circle
             Positioned(
               right: -8,
               bottom: -10,
@@ -131,7 +137,7 @@ class CategoryCard extends StatelessWidget {
                 ),
               ),
             ),
-            // Icon PNG di pojok kanan bawah (padding kanan 13px)
+            // Icon
             Positioned(
               right: 13,
               bottom: 12,
@@ -142,7 +148,7 @@ class CategoryCard extends StatelessWidget {
                 fit: BoxFit.contain,
               ),
             ),
-            // Label kiri atas
+            // Label
             Padding(
               padding: const EdgeInsets.fromLTRB(15, 14, 0, 0),
               child: Text(
@@ -161,12 +167,10 @@ class CategoryCard extends StatelessWidget {
   }
 }
 
-// Custom clipper setengah lingkaran kanan bawah
 class _HalfCircleClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path();
-    // Mulai dari kiri bawah, buat arc ke kanan bawah, hanya kuadran kanan bawah lingkaran
     path.moveTo(10, size.height);
     path.arcToPoint(
       Offset(size.width, 10),
@@ -183,7 +187,6 @@ class _HalfCircleClipper extends CustomClipper<Path> {
   bool shouldReclip(_HalfCircleClipper oldClipper) => false;
 }
 
-// --- Dummy Halaman Detail Kategori ---
 class CategoryDetailPage extends StatelessWidget {
   final String categoryLabel;
 
@@ -192,9 +195,7 @@ class CategoryDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(categoryLabel),
-      ),
+      appBar: AppBar(title: Text(categoryLabel)),
       body: Center(
         child: Text(
           'Ini halaman detail kategori: $categoryLabel',
