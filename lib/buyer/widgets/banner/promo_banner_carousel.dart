@@ -37,19 +37,19 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
     },
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _autoSlideTimer = Timer.periodic(const Duration(milliseconds: 4000), (timer) {
-      if (promoBanners.isEmpty) return;
-      int nextPage = (_currentIndex + 1) % promoBanners.length;
-      _controller.animateToPage(
-        nextPage,
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeInOut,
-      );
-    });
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _autoSlideTimer = Timer.periodic(const Duration(milliseconds: 4000), (timer) {
+  //     if (promoBanners.isEmpty) return;
+  //     int nextPage = (_currentIndex + 1) % promoBanners.length;
+  //     _controller.animateToPage(
+  //       nextPage,
+  //       duration: const Duration(milliseconds: 800),
+  //       curve: Curves.easeInOut,
+  //     );
+  //   });
+  // }
 
   @override
   void dispose() {
