@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "787417913447",
+    "project_id": "abc-e-mart-b0e05",
+    "storage_bucket": "abc-e-mart-b0e05.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:787417913447:android:8fbbc78a96823ceefa5cc2",
+        "android_client_info": {
+          "package_name": "com.example.abc_e_mart"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "787417913447-rjfcicdqk9ha9opfqtu0b3aga4uv6v9a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBAmkD7hFTd5GkQm8YDDEtSssUjTi99Rqk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "787417913447-rjfcicdqk9ha9opfqtu0b3aga4uv6v9a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

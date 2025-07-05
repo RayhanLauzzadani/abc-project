@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'forgot_password_success_page.dart';
-import '../widgets/custom_textfield.dart';
+import 'package:abc_e_mart/buyer/features/auth/widgets/custom_textfield.dart';
 
 class ForgotPasswordResetPage extends StatefulWidget {
   const ForgotPasswordResetPage({super.key});
