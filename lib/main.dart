@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart'; 
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:abc_e_mart/buyer/screens/splash_screen.dart';
-import 'package:abc_e_mart/buyer/features/home/home_page_buyer.dart';
+import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart'; // tambahkan ini, nanti hapus
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white, // Splash kamu pakai bg putih
       ),
       // home: const SplashScreen(),
-      home: HomePage(),
+      home: const StoreDetailPage(),
     );
   }
 }
