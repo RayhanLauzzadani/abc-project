@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'login_page.dart';
 import '../widgets/custom_textfield.dart';
-import '../data/services/auth_service.dart';
+import '../../../data/services/auth_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
