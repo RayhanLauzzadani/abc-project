@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'forgot_password_otp_page.dart';
 import '../../../widgets/custom_textfield.dart';
+import '../../../data/services/otp_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -35,56 +37,53 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-        // Email ditemukan, lanjut ke halaman OTP
-        if (!mounted) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ForgotPasswordOtpPage(email: email),
-          ),
-        );
-      } else {
-        // Email tidak ditemukan
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("Email Tidak Ditemukan"),
-            content: Text(
-              "Kami tidak menemukan akun dengan email \"$email\".\n"
-              "Silakan periksa kembali atau daftar akun baru.",
-              style: GoogleFonts.dmSans(),
+        // Email ditemukan, kirim kode OTP
+        final success = await OtpService.sendOtpToEmail(email);
+
+        if (success) {
+          if (!mounted) return;
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ForgotPasswordOtpPage(email: email),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
+          );
+        } else {
+          _showErrorDialog(
+            title: "Gagal Mengirim Kode",
+            message: "Terjadi kesalahan saat mengirim kode OTP.\nSilakan coba beberapa saat lagi.",
+          );
+        }
+      } else {
+        _showErrorDialog(
+          title: "Email Tidak Ditemukan",
+          message: "Kami tidak menemukan akun dengan email \"$email\".\nSilakan periksa kembali atau daftar akun baru.",
         );
       }
     } catch (e) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("Terjadi Kesalahan"),
-            content: Text(
-              "Gagal memverifikasi email. Silakan coba lagi.",
-              style: GoogleFonts.dmSans(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-        );
-      }
+      _showErrorDialog(
+        title: "Terjadi Kesalahan",
+        message: "Gagal memverifikasi email atau mengirim OTP.\n\nDetail: $e",
+      );
     }
 
     setState(() => _isLoading = false);
+  }
+
+  void _showErrorDialog({required String title, required String message}) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(message, style: GoogleFonts.dmSans()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -188,7 +187,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         ),
                       ),
 
-                      const Spacer(), // Untuk mendorong konten agar tidak numpuk ke bawah
+                      const Spacer(),
                     ],
                   ),
                 ),
