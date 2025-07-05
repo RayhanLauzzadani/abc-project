@@ -29,8 +29,7 @@ class PromoBannerCard extends StatelessWidget {
           height: 160,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10), // Ubah jadi 10
-            // boxShadow: [], // Hapus shadow!
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             children: [
@@ -65,25 +64,29 @@ class PromoBannerCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      SizedBox(
-                        width: 91,
-                        height: 28,
+                      // Responsive Button
+                      Flexible(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1C55C0),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(100),
                             ),
-                            padding: EdgeInsets.zero,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             elevation: 0,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            minimumSize: Size.zero,
                           ),
                           onPressed: onPressed,
-                          child: Text(
-                            buttonText,
-                            style: GoogleFonts.dmSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              buttonText,
+                              style: GoogleFonts.dmSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -109,16 +112,15 @@ class PromoBannerCard extends StatelessWidget {
                           fit: BoxFit.cover,
                         ),
                       ),
-                      // Logo bulat 40x40 di kanan atas
                       Positioned(
                         top: 14,
                         right: 14,
                         child: Container(
                           width: 40,
                           height: 40,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: Colors.white,
-                            shape: BoxShape.circle, // Biar bulat
+                            shape: BoxShape.circle,
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(7),
