@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "abc-e-mart-b0e05"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }
