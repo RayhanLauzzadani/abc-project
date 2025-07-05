@@ -198,9 +198,9 @@ class _LoginPageState extends State<LoginPage> {
                         final userCredential = await GoogleAuthService.signInWithGoogle();
                         if (userCredential != null) {
                           // Navigasi ke halaman utama setelah login berhasil
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => const HomePage()),
-                          );
+                          // Navigator.of(context).pushReplacement(
+                          //   MaterialPageRoute(builder: (context) => const HomePage()),
+                          // );
                         } else {
                           // Pengguna batal login
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -269,21 +269,6 @@ Route _createRouteToSignUp() {
 }
 
 // Transisi ke Forgot Password
-Route _createRouteToForgotPassword() {
-  return PageRouteBuilder(
-    pageBuilder: (context, animation, secondaryAnimation) =>
-        const ForgotPasswordPage(),
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      const begin = Offset(1.0, 0.0);
-      const end = Offset.zero;
-      const curve = Curves.ease;
-      final tween =
-          Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-      return SlideTransition(position: animation.drive(tween), child: child);
-    },
-  );
-}
-
 Route _createRouteToForgotPassword() {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) =>
