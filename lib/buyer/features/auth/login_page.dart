@@ -5,6 +5,7 @@ import 'forgot_password/forgot_password_page.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../data/services/google_auth_service.dart';
 import '../home/home_page_buyer.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 class LoginPage extends StatefulWidget {
@@ -135,8 +136,47 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {
-                      // TODO: Implementasi login
+                    onPressed: () async {
+                      final email = emailController.text.trim();
+                      final password = passwordController.text.trim();
+
+                      if (email.isEmpty || password.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Email dan password wajib diisi")),
+                        );
+                        return;
+                      }
+
+                      try {
+                        final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+                          email: email,
+                          password: password,
+                        );
+                        if (credential.user != null) {
+                          if (mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const HomePage()),
+                            );
+                          }
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        String message = "Gagal login. Silakan coba lagi.";
+                        if (e.code == 'user-not-found') {
+                          message = "Email tidak ditemukan.";
+                        } else if (e.code == 'wrong-password') {
+                          message = "Password salah.";
+                        } else if (e.code == 'invalid-email') {
+                          message = "Format email tidak valid.";
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(message)),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Terjadi kesalahan: $e")),
+                        );
+                      }
                     },
                     child: Text(
                       "Masuk",
