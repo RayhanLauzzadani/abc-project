@@ -5,17 +5,21 @@ class StoreProductCard extends StatelessWidget {
   final String name;
   final String price;
   final String imagePath;
+  final VoidCallback? onTap;
 
   const StoreProductCard({
     super.key,
     required this.name,
     required this.price,
     required this.imagePath,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.all(6), // Memberi ruang antar card
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -77,6 +81,7 @@ class StoreProductCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

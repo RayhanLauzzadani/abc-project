@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-import 'forgot_password_otp_page.dart';
 import '../../../widgets/custom_textfield.dart';
-import '../../../data/services/otp_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -23,67 +21,77 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   bool _isLoading = false;
 
-  Future<void> _validateAndSendCode() async {
+  Future<void> _sendResetEmail() async {
     final email = emailController.text.trim();
     if (email.isEmpty) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
 
-      if (snapshot.docs.isNotEmpty) {
-        // Email ditemukan, kirim kode OTP
-        final success = await OtpService.sendOtpToEmail(email);
-
-        if (success) {
-          if (!mounted) return;
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ForgotPasswordOtpPage(email: email),
+      // Tampilkan dialog sukses
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("Email Terkirim"),
+            content: Text(
+              "Link reset password sudah dikirim ke:\n\n$email\n\n"
+              "Silakan cek email kamu (inbox atau spam) dan klik link tersebut untuk mengatur ulang password.",
+              style: GoogleFonts.dmSans(),
             ),
-          );
-        } else {
-          _showErrorDialog(
-            title: "Gagal Mengirim Kode",
-            message: "Terjadi kesalahan saat mengirim kode OTP.\nSilakan coba beberapa saat lagi.",
-          );
-        }
-      } else {
-        _showErrorDialog(
-          title: "Email Tidak Ditemukan",
-          message: "Kami tidak menemukan akun dengan email \"$email\".\nSilakan periksa kembali atau daftar akun baru.",
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context)
+                    ..pop()
+                    ..pop(); // Kembali ke halaman login
+                },
+                child: const Text("OK"),
+              ),
+            ],
+          ),
         );
       }
-    } catch (e) {
-      _showErrorDialog(
-        title: "Terjadi Kesalahan",
-        message: "Gagal memverifikasi email atau mengirim OTP.\n\nDetail: $e",
+    } on FirebaseAuthException catch (e) {
+      String message = "Gagal mengirim email reset password.";
+      if (e.code == "user-not-found") {
+        message = "Email tidak terdaftar.";
+      } else if (e.code == "invalid-email") {
+        message = "Format email tidak valid.";
+      }
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Gagal"),
+          content: Text(message, style: GoogleFonts.dmSans()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
       );
+    } catch (e) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Error"),
+          content: Text("Terjadi kesalahan: $e", style: GoogleFonts.dmSans()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
-  }
-
-  void _showErrorDialog({required String title, required String message}) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: Text(message, style: GoogleFonts.dmSans()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text("OK"),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -141,7 +149,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "Kami akan membantu Anda memulihkan akun Anda.",
+                        "Masukkan email akun kamu, kami akan kirimkan link untuk mengatur ulang password.",
                         style: GoogleFonts.dmSans(
                           fontSize: 16,
                           color: colorPlaceholder,
@@ -167,7 +175,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _validateAndSendCode,
+                          onPressed: _isLoading ? null : _sendResetEmail,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colorPrimary,
                             shape: RoundedRectangleBorder(
@@ -177,7 +185,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           child: _isLoading
                               ? const CircularProgressIndicator(color: Colors.white)
                               : Text(
-                                  "Kirim Kode",
+                                  "Kirim Link Reset",
                                   style: GoogleFonts.dmSans(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
@@ -186,7 +194,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 ),
                         ),
                       ),
-
                       const Spacer(),
                     ],
                   ),
