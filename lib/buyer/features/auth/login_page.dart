@@ -5,7 +5,7 @@ import 'forgot_password/forgot_password_page.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../data/services/google_auth_service.dart';
 import '../home/home_page_buyer.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,6 +22,7 @@ class _LoginPageState extends State<LoginPage> {
   final FocusNode passwordFocusNode = FocusNode();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -135,17 +136,57 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {
-                      // TODO: Implementasi login
-                    },
-                    child: Text(
-                      "Masuk",
-                      style: GoogleFonts.dmSans(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                      ),
-                    ),
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            final email = emailController.text.trim();
+                            final password = passwordController.text;
+
+                            if (email.isEmpty || password.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Please fill in all fields.")),
+                              );
+                              return;
+                            }
+
+                            setState(() => _isLoading = true);
+
+                            try {
+                              final credential = await FirebaseAuth.instance
+                                  .signInWithEmailAndPassword(email: email, password: password);
+
+                              if (credential.user != null && mounted) {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(builder: (_) => const HomePage()),
+                                );
+                              }
+                            } on FirebaseAuthException catch (e) {
+                              String message = "Login failed.";
+                              if (e.code == 'user-not-found') {
+                                message = "No user found with this email.";
+                              } else if (e.code == 'wrong-password') {
+                                message = "Incorrect password.";
+                              }
+
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("An error occurred: $e")),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _isLoading = false);
+                            }
+                          },
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : Text(
+                            "Masuk",
+                            style: GoogleFonts.dmSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -196,12 +237,10 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: () async {
                       try {
                         final userCredential = await GoogleAuthService.signInWithGoogle();
-                        if (userCredential != null) {
-                          if (mounted) {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const HomePage()),
-                            );
-                          }
+                        if (userCredential != null && mounted) {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const HomePage()),
+                          );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Login dengan Google dibatalkan.")),
