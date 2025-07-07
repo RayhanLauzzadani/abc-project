@@ -7,7 +7,6 @@ import '../../data/services/google_auth_service.dart';
 import '../home/home_page_buyer.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -23,6 +22,7 @@ class _LoginPageState extends State<LoginPage> {
   final FocusNode passwordFocusNode = FocusNode();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -237,12 +237,10 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: () async {
                       try {
                         final userCredential = await GoogleAuthService.signInWithGoogle();
-                        if (userCredential != null) {
-                          if (mounted) {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const HomePage()),
-                            );
-                          }
+                        if (userCredential != null && mounted) {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const HomePage()),
+                          );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Login dengan Google dibatalkan.")),
