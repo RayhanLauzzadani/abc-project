@@ -141,6 +141,7 @@ class _LoginPageState extends State<LoginPage> {
                       final password = passwordController.text.trim();
 
                       if (email.isEmpty || password.isEmpty) {
+                        if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text("Email dan password wajib diisi")),
                         );
@@ -153,11 +154,10 @@ class _LoginPageState extends State<LoginPage> {
                           password: password,
                         );
                         if (credential.user != null) {
-                          if (mounted) {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const HomePage()),
-                            );
-                          }
+                          if (!mounted) return;
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (_) => const HomePage()),
+                          );
                         }
                       } on FirebaseAuthException catch (e) {
                         String message = "Gagal login. Silakan coba lagi.";
@@ -168,11 +168,12 @@ class _LoginPageState extends State<LoginPage> {
                         } else if (e.code == 'invalid-email') {
                           message = "Format email tidak valid.";
                         }
-
+                        if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(message)),
                         );
                       } catch (e) {
+                        if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text("Terjadi kesalahan: $e")),
                         );

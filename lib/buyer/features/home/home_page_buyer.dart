@@ -7,6 +7,8 @@ import '../../widgets/bottom_navbar.dart';
 import 'package:abc_e_mart/buyer/features/store/store_card.dart';
 import 'package:abc_e_mart/buyer/features/product/product_card.dart';
 import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
+import 'package:abc_e_mart/buyer/features/favorite/favorite_page.dart';
+import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -54,7 +56,7 @@ class _HomeMainContent extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 31),
-              _buildHeader(),
+              _buildHeader(context),
               const SizedBox(height: 31),
               custom.SearchBar(),
               const SizedBox(height: 24),
@@ -84,7 +86,7 @@ class _HomeMainContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            children: availableStores.map((store) {
+            children: dummyStores.map((store) {
               return StoreCard(
                 imagePath: store['image'],
                 storeName: store['name'],
@@ -120,12 +122,12 @@ class _HomeMainContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            children: recommendedProducts.map((product) {
+            children: dummyProducts.map((product) {
               return ProductCard(
                 imagePath: product['image'],
                 name: product['name'],
                 price: product['price'],
-                rating: product['rating'],
+                rating: product['rating'].toDouble(),
                 onTap: () {},
               );
             }).toList(),
@@ -136,7 +138,7 @@ class _HomeMainContent extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -177,7 +179,11 @@ class _HomeMainContent extends StatelessWidget {
           child: IconButton(
             icon: const Icon(Icons.favorite, color: Colors.white),
             iconSize: 22,
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const FavoritePage()),
+              );
+            },
             splashRadius: 24,
           ),
         ),
@@ -196,51 +202,3 @@ class _HomeMainContent extends StatelessWidget {
     );
   }
 }
-
-// MOCK STORE
-final List<Map<String, dynamic>> availableStores = [
-  {
-    'image': 'assets/images/nihonmart.png',
-    'name': 'Nippon Mart',
-    'distance': '4 km',
-    'duration': '15 mins',
-    'rating': 4.8,
-  },
-  {
-    'image': 'assets/images/nihonmart.png',
-    'name': 'Fresh Mart',
-    'distance': '8 km',
-    'duration': '30 mins',
-    'rating': 4.7,
-  },
-  {
-    'image': 'assets/images/nihonmart.png',
-    'name': 'Jaya Mart',
-    'distance': '12 km',
-    'duration': '36 mins',
-    'rating': 4.3,
-  },
-  {
-    'image': 'assets/images/nihonmart.png',
-    'name': 'Nihonggo Mart',
-    'distance': '16 km',
-    'duration': '15 mins',
-    'rating': 3.9,
-  },
-];
-
-// MOCK PRODUK
-final List<Map<String, dynamic>> recommendedProducts = [
-  {
-    'image': 'assets/images/geprek.png',
-    'name': 'Ayam Geprek',
-    'price': 15000,
-    'rating': 4.8,
-  },
-  {
-    'image': 'assets/images/geprek.png',
-    'name': 'Keripik Kentang',
-    'price': 12000,
-    'rating': 4.7,
-  },
-];
