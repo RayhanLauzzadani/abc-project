@@ -136,57 +136,56 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: _isLoading
-                        ? null
-                        : () async {
-                            final email = emailController.text.trim();
-                            final password = passwordController.text;
+                    onPressed: () async {
+                      final email = emailController.text.trim();
+                      final password = passwordController.text.trim();
 
-                            if (email.isEmpty || password.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Please fill in all fields.")),
-                              );
-                              return;
-                            }
+                      if (email.isEmpty || password.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Email dan password wajib diisi")),
+                        );
+                        return;
+                      }
 
-                            setState(() => _isLoading = true);
+                      try {
+                        final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+                          email: email,
+                          password: password,
+                        );
+                        if (credential.user != null) {
+                          if (mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const HomePage()),
+                            );
+                          }
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        String message = "Gagal login. Silakan coba lagi.";
+                        if (e.code == 'user-not-found') {
+                          message = "Email tidak ditemukan.";
+                        } else if (e.code == 'wrong-password') {
+                          message = "Password salah.";
+                        } else if (e.code == 'invalid-email') {
+                          message = "Format email tidak valid.";
+                        }
 
-                            try {
-                              final credential = await FirebaseAuth.instance
-                                  .signInWithEmailAndPassword(email: email, password: password);
-
-                              if (credential.user != null && mounted) {
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(builder: (_) => const HomePage()),
-                                );
-                              }
-                            } on FirebaseAuthException catch (e) {
-                              String message = "Login failed.";
-                              if (e.code == 'user-not-found') {
-                                message = "No user found with this email.";
-                              } else if (e.code == 'wrong-password') {
-                                message = "Incorrect password.";
-                              }
-
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("An error occurred: $e")),
-                              );
-                            } finally {
-                              if (mounted) setState(() => _isLoading = false);
-                            }
-                          },
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
-                            "Masuk",
-                            style: GoogleFonts.dmSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          ),
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(message)),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Terjadi kesalahan: $e")),
+                        );
+                      }
+                    },
+                    child: Text(
+                      "Masuk",
+                      style: GoogleFonts.dmSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

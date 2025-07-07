@@ -1,11 +1,13 @@
-// Tetap pakai import yang sama
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/widgets/search_bar.dart' as custom_widgets;
 import 'package:abc_e_mart/buyer/widgets/store_product_card.dart';
+import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 
 class StoreDetailPage extends StatefulWidget {
-  const StoreDetailPage({super.key});
+  final Map<String, dynamic> store;
+
+  const StoreDetailPage({super.key, required this.store});
 
   @override
   State<StoreDetailPage> createState() => _StoreDetailPageState();
@@ -31,38 +33,44 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
     {
       "name": "Buku Tulis",
       "price": "Rp 12.000",
-      "image": "assets/images/geprek.png",
+      "image": "assets/images/logo.png",
       "category": "Lainnya",
+      "description": "Buku tulis yang terbuat dari bahan yang terjamin kualitasnya, terbuat dari pohon yang berasal dari antartika yang pastinya merupakan kualitas pohon terbaik di dunia.",
     },
     {
       "name": "Pulpen Sarasa",
       "price": "Rp 18.000",
       "image": "assets/images/geprek.png",
       "category": "Lainnya",
+      "description": "Deskripsi buku tulis yang cukup panjang... (isi sesuai kebutuhan)",
     },
     {
       "name": "Es Doger",
       "price": "Rp 5.000",
       "image": "assets/images/geprek.png",
       "category": "Minuman",
+      "description": "Deskripsi buku tulis yang cukup panjang... (isi sesuai kebutuhan)",
     },
     {
       "name": "Club 500ml",
       "price": "Rp 3.500",
       "image": "assets/images/geprek.png",
       "category": "Minuman",
+      "description": "Deskripsi buku tulis yang cukup panjang... (isi sesuai kebutuhan)",
     },
     {
       "name": "Roti Aoka",
       "price": "Rp 5.000",
       "image": "assets/images/geprek.png",
       "category": "Makanan",
+      "description": "Deskripsi buku tulis yang cukup panjang... (isi sesuai kebutuhan)",
     },
     {
       "name": "Oreo Mini",
       "price": "Rp 2.000",
       "image": "assets/images/geprek.png",
       "category": "Snacks",
+      "description": "Deskripsi buku tulis yang cukup panjang... (isi sesuai kebutuhan)",
     },
   ];
 
@@ -109,7 +117,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
                           child: Image.asset(
                             'assets/images/logo.png',
                             width: 240,
-                            height: 160, // <-- diperbesar
+                            height: 160,
                             fit: BoxFit.contain,
                           ),
                         ),
@@ -150,16 +158,16 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Nippon Mart",
+                                widget.store['name'] ?? '',
                                 style: GoogleFonts.dmSans(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: colorInput,
+                                  color: Colors.black,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "4 km • 15 mins",
+                                "${widget.store['distance']} • ${widget.store['duration']}",
                                 style: GoogleFonts.dmSans(
                                   fontSize: 13.5,
                                   color: colorPlaceholder,
@@ -171,7 +179,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
                                   const Icon(Icons.star, color: Colors.amber, size: 17),
                                   const SizedBox(width: 2),
                                   Text(
-                                    "4.8 ",
+                                    "${widget.store['rating']} ",
                                     style: GoogleFonts.dmSans(
                                       fontWeight: FontWeight.bold,
                                       color: Colors.orange[700],
@@ -284,6 +292,13 @@ class _StoreDetailPageState extends State<StoreDetailPage> {
                       name: product["name"]!,
                       price: product["price"]!,
                       imagePath: product["image"]!,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProductDetailPage(product: product),
+                          ),
+                        );
+                      },
                     );
                   },
                   childCount: filteredProducts.length,

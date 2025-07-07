@@ -6,6 +6,7 @@ import 'package:abc_e_mart/buyer/features/home/widgets/category_section.dart';
 import '../../widgets/bottom_navbar.dart';
 import 'package:abc_e_mart/buyer/features/store/store_card.dart';
 import 'package:abc_e_mart/buyer/features/product/product_card.dart';
+import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -90,7 +91,13 @@ class _HomeMainContent extends StatelessWidget {
                 distance: store['distance'],
                 duration: store['duration'],
                 rating: store['rating'],
-                onTap: () {},
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => StoreDetailPage(store: store),
+                    ),
+                  );
+                },
               );
             }).toList(),
           ),
