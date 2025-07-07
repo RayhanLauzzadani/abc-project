@@ -3,10 +3,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'buyer/features/home/splash_screen.dart';
+// import 'buyer/features/home/splash_screen.dart';
 // import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 // import 'package:abc_e_mart/buyer/features/home/home_page_buyer.dart';
-import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
+// import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
+import 'package:abc_e_mart/seller/features/registration/registration_welcome_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +38,8 @@ class MyApp extends StatelessWidget {
       // home: const SplashScreen(),
       // home: const StoreDetailPage(),
       // home: HomePage(),
-      home: const HomePageSeller(),
+      // home: const HomePageSeller(),
+      home: const RegistrationWelcomePage(),
       
 
     );
