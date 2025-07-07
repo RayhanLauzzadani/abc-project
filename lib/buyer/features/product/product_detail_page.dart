@@ -1,6 +1,7 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -22,11 +23,63 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   final List<String> variants = ["Pedas", "Sedang", "Tidak Pedas"];
   static const int descLimit = 160;
 
+  bool isFavoritedProduct = false;
+  bool favLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIsFavoritedProduct();
+  }
+
+  Future<void> _checkIsFavoritedProduct() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final favDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('favoriteProducts')
+        .doc(widget.product['name']) // GANTI KE ID JIKA ADA
+        .get();
+    setState(() {
+      isFavoritedProduct = favDoc.exists;
+    });
+  }
+
+  Future<void> _toggleFavoriteProduct() async {
+    setState(() => favLoading = true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('favoriteProducts')
+        .doc(widget.product['name']); // GANTI KE ID JIKA ADA
+
+    if (isFavoritedProduct) {
+      await docRef.delete();
+    } else {
+      await docRef.set({
+        'createdAt': DateTime.now(),
+        'name': widget.product['name'],
+        'image': widget.product['image'],
+        'price': widget.product['price'],
+        'rating': widget.product['rating'],
+        'storeId': widget.product['storeId'], // opsional
+        // tambahkan jika ada field lain
+      });
+    }
+    setState(() {
+      isFavoritedProduct = !isFavoritedProduct;
+      favLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final String image = widget.product['image'] ?? '';
     final String name = widget.product['name'] ?? '';
-    final String price = widget.product['price'] ?? '';
+    final int price = widget.product['price'] ?? 0;
     final String description = widget.product['description'] ?? '';
 
     final bool isLongDesc = description.length > descLimit;
@@ -63,7 +116,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(price,
+                              Text(
+                                "Rp ${price.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}",
                                 style: GoogleFonts.dmSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
@@ -77,7 +131,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           children: [
                             _circleIcon(icon: Icons.chat_bubble_outline, onTap: () {}),
                             const SizedBox(width: 8),
-                            _circleIcon(icon: Icons.favorite_border, onTap: () {}),
+                            _circleIcon(
+                              icon: isFavoritedProduct ? Icons.favorite : Icons.favorite_border,
+                              iconColor: isFavoritedProduct ? Colors.red : colorPrimary,
+                              onTap: favLoading ? null : _toggleFavoriteProduct,
+                            ),
                           ],
                         ),
                       ],
@@ -141,51 +199,44 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-
-                    // ✅ Chips dengan padding
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 0),
-                      child: SizedBox(
-                        height: 36,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          itemCount: variants.length,
-                          itemBuilder: (context, i) => Padding(
-                            padding: EdgeInsets.only(
-                              left: i == 0 ? 0 : 6,
-                              right: i == variants.length - 1 ? 0 : 6,
-                            ),
-                            child: ChoiceChip(
-                              label: Text(
-                                variants[i],
-                                style: GoogleFonts.dmSans(
-                                  color: _selectedVariant == i ? Colors.white : colorPrimary,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              selected: _selectedVariant == i,
-                              onSelected: (selected) {
-                                setState(() => _selectedVariant = i);
-                              },
-                              showCheckmark: false,
-                              selectedColor: colorPrimary,
-                              backgroundColor: const Color(0xFFF2F2F2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 2),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 90),
                   ],
                 ),
               ),
+              // CHIPS VARIAN: DI LUAR PADDING!
+              SizedBox(
+                height: 36,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 18), // <= supaya rata tepi
+                  itemCount: variants.length,
+                  itemBuilder: (context, i) => Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
+                    child: ChoiceChip(
+                      label: Text(
+                        variants[i],
+                        style: GoogleFonts.dmSans(
+                          color: _selectedVariant == i ? Colors.white : colorPrimary,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                      selected: _selectedVariant == i,
+                      onSelected: (selected) {
+                        setState(() => _selectedVariant = i);
+                      },
+                      showCheckmark: false,
+                      selectedColor: colorPrimary,
+                      backgroundColor: const Color(0xFFF2F2F2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 90),
             ],
           ),
 
@@ -280,7 +331,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  Widget _circleIcon({required IconData icon, required VoidCallback onTap, double size = 44}) {
+  Widget _circleIcon({
+    required IconData icon,
+    required VoidCallback? onTap,
+    Color? iconColor,
+    double size = 44,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -290,7 +346,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           color: Colors.grey.shade200,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: colorPrimary, size: 22),
+        child: Icon(icon, color: iconColor ?? colorPrimary, size: 22),
       ),
     );
   }
