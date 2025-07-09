@@ -9,6 +9,7 @@ import 'package:abc_e_mart/buyer/features/product/product_card.dart';
 import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/favorite/favorite_page.dart';
 import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
+import 'package:abc_e_mart/buyer/features/notification/notification_page.dart';
 import '../profile/profile_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -195,7 +196,11 @@ class _HomeMainContent extends StatelessWidget {
           child: IconButton(
             icon: const Icon(Icons.notifications, color: Colors.white),
             iconSize: 22,
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              );
+            },
             splashRadius: 24,
           ),
         ),

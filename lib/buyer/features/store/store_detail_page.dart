@@ -85,39 +85,44 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- BACK + LOGO
+            // --- BACK + LOGO in Stack
             Padding(
-              padding: const EdgeInsets.only(top: 24),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Stack(
                 children: [
-                  const SizedBox(width: 14),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: colorPrimary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 22,
-                        color: Colors.white,
+                  // LOGO TOKO - diturunkan sedikit biar gak mentok ke atas
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Image.asset(
+                        widget.store['image'] ?? 'assets/images/logo.png',
+                        height: 100,
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Image.asset(
-                      widget.store['image'] ?? 'assets/images/logo.png',
-                      width: 140,
-                      height: 100,
-                      fit: BoxFit.contain,
+
+                  // BACK BUTTON - responsif terhadap notch
+                  Positioned(
+                    top: 8, // JANGAN terlalu besar
+                    left: 16,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          color: colorPrimary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 20),
                 ],
               ),
             ),
