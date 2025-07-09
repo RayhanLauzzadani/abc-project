@@ -233,9 +233,9 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFF6D6D6D)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       dense: true,
-      horizontalTitleGap: 12,
+      horizontalTitleGap: 10,
     );
   }
 }
