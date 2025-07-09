@@ -9,6 +9,8 @@ import 'package:abc_e_mart/buyer/features/product/product_card.dart';
 import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/favorite/favorite_page.dart';
 import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
+import 'package:abc_e_mart/buyer/features/notification/notification_page.dart';
+import '../profile/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,7 +27,7 @@ class _HomePageState extends State<HomePage> {
     const Center(child: Text("Katalog")),
     const Center(child: Text("Keranjang")),
     const Center(child: Text("Obrolan")),
-    const Center(child: Text("Profil")),
+    const ProfilePage(), // Ini!
   ];
 
   @override
@@ -194,7 +196,11 @@ class _HomeMainContent extends StatelessWidget {
           child: IconButton(
             icon: const Icon(Icons.notifications, color: Colors.white),
             iconSize: 22,
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              );
+            },
             splashRadius: 24,
           ),
         ),

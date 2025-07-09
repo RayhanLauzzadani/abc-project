@@ -18,7 +18,7 @@ class _FavoritePageState extends State<FavoritePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
+    _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
         setState(() => selectedIndex = _tabController.index);
@@ -36,64 +36,73 @@ class _FavoritePageState extends State<FavoritePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Favorit
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 14, 6, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    "Favorit",
-                    style: GoogleFonts.dmSans(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 19,
-                    ),
-                  ),
-                ],
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFF2056D3),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 21), // Tambah jarak dari header ke tab bar
-            Padding(
-              padding: const EdgeInsets.only(left: 20, right: 30),
-              child: _AnimatedTabBar(
-                selectedIndex: selectedIndex,
-                onTabChanged: (idx) {
-                  setState(() {
-                    selectedIndex = idx;
-                    _tabController.animateTo(idx);
-                  });
-                },
-              ),
-            ),
-            const SizedBox(height: 6), // Tambah jarak agar tab & underline lebih proporsional
-            // Content
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: const [
-                  FavoriteProductPage(),
-                  FavoriteStorePage(),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
+        title: Text(
+          'Favorit',
+          style: GoogleFonts.dmSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 19,
+            color: Colors.black,
+          ),
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _AnimatedTabBar(
+              selectedIndex: selectedIndex,
+              onTabChanged: (idx) {
+                setState(() {
+                  selectedIndex = idx;
+                  _tabController.animateTo(idx);
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              physics: const NeverScrollableScrollPhysics(),
+              children: const [
+                FavoriteProductPage(),
+                FavoriteStorePage(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// Custom Animated Tab Bar
+// Custom Animated Tab Bar (unchanged)
 class _AnimatedTabBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onTabChanged;
@@ -137,6 +146,7 @@ class _AnimatedTabBar extends StatelessWidget {
           tabLefts.add(left);
           left += textPainters[i].width + tabSpacing;
         }
+
         final underlineLeft = selectedIndex == 0
             ? tabLefts[0]
             : tabLefts[1] - 3.0;
@@ -148,7 +158,6 @@ class _AnimatedTabBar extends StatelessWidget {
           child: Stack(
             alignment: Alignment.bottomLeft,
             children: [
-              // Garis abu-abu transparan
               Positioned(
                 left: 0,
                 right: 0,
@@ -158,7 +167,6 @@ class _AnimatedTabBar extends StatelessWidget {
                   color: const Color(0x11B2B2B2),
                 ),
               ),
-              // Tab text row
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(tabs.length, (i) {
@@ -186,7 +194,6 @@ class _AnimatedTabBar extends StatelessWidget {
                   );
                 }),
               ),
-              // Underline kuning animasi tepat di bawah text
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.ease,
@@ -195,7 +202,6 @@ class _AnimatedTabBar extends StatelessWidget {
                 child: Container(
                   width: underlineWidth,
                   height: 3,
-                  margin: const EdgeInsets.only(bottom: 0),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFD600),
                     borderRadius: BorderRadius.circular(6),
