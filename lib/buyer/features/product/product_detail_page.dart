@@ -39,7 +39,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         .collection('users')
         .doc(user.uid)
         .collection('favoriteProducts')
-        .doc(widget.product['name']) // GANTI KE ID JIKA ADA
+        .doc(widget.product['name'])
         .get();
     setState(() {
       isFavoritedProduct = favDoc.exists;
@@ -54,7 +54,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         .collection('users')
         .doc(user.uid)
         .collection('favoriteProducts')
-        .doc(widget.product['name']); // GANTI KE ID JIKA ADA
+        .doc(widget.product['name']);
 
     if (isFavoritedProduct) {
       await docRef.delete();
@@ -65,8 +65,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         'image': widget.product['image'],
         'price': widget.product['price'],
         'rating': widget.product['rating'],
-        'storeId': widget.product['storeId'], // opsional
-        // tambahkan jika ada field lain
+        'storeId': widget.product['storeId'],
       });
     }
     setState(() {
@@ -94,13 +93,15 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           ListView(
             padding: EdgeInsets.zero,
             children: [
-              _ProductImage(imagePath: image),
+              _ProductImageWithBackButton(
+                imagePath: image,
+                onBackTap: () => Navigator.of(context).pop(),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 15, 18, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nama produk, harga, tombol
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -143,8 +144,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     const SizedBox(height: 22),
                     Container(width: double.infinity, height: 1.3, color: colorDivider),
                     const SizedBox(height: 18),
-
-                    // Deskripsi
                     Text("Deskripsi",
                       style: GoogleFonts.dmSans(
                         fontWeight: FontWeight.w600,
@@ -189,7 +188,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           ),
                         ),
                       ),
-
                     const SizedBox(height: 24),
                     Text("Pilih Varian",
                       style: GoogleFonts.dmSans(
@@ -202,13 +200,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   ],
                 ),
               ),
-              // CHIPS VARIAN: DI LUAR PADDING!
               SizedBox(
                 height: 36,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 18), // <= supaya rata tepi
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
                   itemCount: variants.length,
                   itemBuilder: (context, i) => Padding(
                     padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
@@ -240,29 +237,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             ],
           ),
 
-          // Tombol kembali
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
-            left: 16,
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
-                  color: colorPrimary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 22,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-
-          // Bottom Buttons
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -352,24 +326,51 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 }
 
-class _ProductImage extends StatelessWidget {
+class _ProductImageWithBackButton extends StatelessWidget {
   final String imagePath;
-  const _ProductImage({required this.imagePath});
+  final VoidCallback onBackTap;
+  const _ProductImageWithBackButton({
+    required this.imagePath,
+    required this.onBackTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final topPadding = MediaQuery.of(context).padding.top;
+    return Stack(
       children: [
-        SizedBox(height: MediaQuery.of(context).padding.top + 16),
-        Center(
-          child: Container(
-            width: 240,
-            height: 160,
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage(imagePath),
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
+        Padding(
+          padding: EdgeInsets.only(top: topPadding + 12),
+          child: Center(
+            child: Container(
+              width: 240,
+              height: 160,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(imagePath),
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: topPadding + 12,
+          left: 16,
+          child: GestureDetector(
+            onTap: onBackTap,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: _ProductDetailPageState.colorPrimary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 22,
+                color: Colors.white,
               ),
             ),
           ),
