@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/services/user_service.dart';
 import '../../data/models/user.dart';
+import 'package:abc_e_mart/seller/features/registration/registration_welcome_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -42,7 +43,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -67,7 +71,11 @@ class _ProfilePageState extends State<ProfilePage> {
                           const CircleAvatar(
                             radius: 28,
                             backgroundColor: Color(0xFFE0E0E0),
-                            child: Icon(Icons.person, color: Colors.white, size: 28),
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 28,
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -84,7 +92,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  FirebaseAuth.instance.currentUser?.email ?? "-",
+                                  FirebaseAuth.instance.currentUser?.email ??
+                                      "-",
                                   style: GoogleFonts.dmSans(
                                     fontSize: 14,
                                     color: const Color(0xFF6D6D6D),
@@ -107,18 +116,42 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildOptionCard([
                       _buildListTile('location.svg', "Detail Alamat", size: 22),
                       _buildDivider(),
-                      _buildListTile('tampilan.svg', "Tampilan", size: 19), // diperbesar sedikit
+                      _buildListTile(
+                        'tampilan.svg',
+                        "Tampilan",
+                        size: 19,
+                      ), // diperbesar sedikit
                       _buildDivider(),
                       _buildListTile('lock.svg', "Ganti Password", size: 21),
                       _buildDivider(),
-                      _buildListTile('store.svg', "Toko Saya", size: 21),
+                      _buildListTile(
+                        'store.svg',
+                        "Toko Saya",
+                        size: 21,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RegistrationWelcomePage(),
+                            ),
+                          );
+                        },
+                      ),
                     ]),
                     const SizedBox(height: 28),
                     _buildSectionTitle("Bantuan"),
                     _buildOptionCard([
-                      _buildListTile('policy.svg', "Kebijakan Privasi", size: 21),
+                      _buildListTile(
+                        'policy.svg',
+                        "Kebijakan Privasi",
+                        size: 21,
+                      ),
                       _buildDivider(),
-                      _buildListTile('syarat.svg', "Syarat Penggunaan", size: 21),
+                      _buildListTile(
+                        'syarat.svg',
+                        "Syarat Penggunaan",
+                        size: 21,
+                      ),
                     ]),
                     const SizedBox(height: 28),
                     _buildOptionCard([
@@ -126,7 +159,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         onTap: () async {
                           await FirebaseAuth.instance.signOut();
                           if (context.mounted) {
-                            Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/login',
+                              (route) => false,
+                            );
                           }
                         },
                         leading: SizedBox(
@@ -150,7 +186,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             color: const Color(0xFFFF3B30),
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
                         dense: true,
                         horizontalTitleGap: 12,
                       ),
@@ -186,9 +224,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE0E0E0)),
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -202,7 +238,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildListTile(String iconAsset, String text, {double size = 22, VoidCallback? onTap}) {
+  Widget _buildListTile(
+    String iconAsset,
+    String text, {
+    double size = 22,
+    VoidCallback? onTap,
+  }) {
     return ListTile(
       onTap: onTap,
       leading: SizedBox(
@@ -220,10 +261,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       title: Text(
         text,
-        style: GoogleFonts.dmSans(
-          fontSize: 14,
-          color: const Color(0xFF212121),
-        ),
+        style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF212121)),
       ),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFF6D6D6D)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12),
