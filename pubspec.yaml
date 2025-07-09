@@ -45,6 +45,7 @@ dependencies:
   google_sign_in: ^6.1.0
   flutter_svg: ^2.2.0
   http: ^1.2.0
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -70,7 +71,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    - assets/icons/registration
+    - assets/icons/registration/
     - assets/lottie/
 
   # To add assets to your application, add an assets section, like this:
