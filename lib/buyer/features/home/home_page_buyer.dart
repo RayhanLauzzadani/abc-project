@@ -14,38 +14,54 @@ import '../profile/profile_page.dart';
 import 'package:abc_e_mart/buyer/features/cart/cart_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int initialIndex;
+  const HomePage({super.key, this.initialIndex = 0});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
 
   final List<Widget> _pages = [
     const _HomeMainContent(),
     const Center(child: Text("Katalog")),
+    const CartPage(),
     const Center(child: Text("Obrolan")),
-    const ProfilePage(), // Ini!
+    const ProfilePage(),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(child: _pages[_selectedIndex]),
-      bottomNavigationBar: BottomNavbar(
-      currentIndex: _selectedIndex,
-      onTap: (index) {
-          if (index == 2) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CartPage()),
-            );
-          } else {
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: _pages,
+          ),
+        ),
+        bottomNavigationBar: BottomNavbar(
+          currentIndex: _selectedIndex,
+          onTap: (index) {
             setState(() => _selectedIndex = index);
-          }
-        },
+          },
+        ),
       ),
     );
   }
@@ -76,7 +92,7 @@ class _HomeMainContent extends StatelessWidget {
         ),
         const SizedBox(height: 24),
 
-        // Kategori (tanpa padding kiri, diganti margin di dalam widget)
+        // Kategori
         const CategorySection(),
         const SizedBox(height: 32),
 

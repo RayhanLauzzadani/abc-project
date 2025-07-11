@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+// Ganti path sesuai folder project kamu
+import 'address_detail_page.dart';
 
 class AddressMapPickerPage extends StatefulWidget {
   const AddressMapPickerPage({super.key});
@@ -40,6 +42,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
     final currentLatLng = LatLng(position.latitude, position.longitude);
 
+    if (!mounted) return;
     setState(() {
       _center = currentLatLng;
       _selectedLocation = currentLatLng;
@@ -58,7 +61,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         setState(() {
           _streetName = place.street ?? '';
           _fullAddress =
-              '${place.name}, ${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}, ${place.postalCode}, ${place.country}';
+              '${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}, ${place.postalCode}, ${place.country}';
         });
       }
     } catch (e) {
@@ -142,12 +145,12 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                   ),
                 ),
                 Positioned(
-                  bottom: 100,
-                  right: 12, // sebelumnya 20, agar lebih kanan
+                  top: 10,
+                  right: 12,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1C55C0),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), // lebih kecil
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -157,7 +160,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                     label: Text(
                       'Gunakan Lokasi Saat Ini',
                       style: GoogleFonts.dmSans(
-                        fontSize: 12, // lebih kecil sedikit
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: Colors.white,
                       ),
@@ -186,7 +189,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                   readOnly: true,
                   decoration: InputDecoration(
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 7), // lebih gepeng
+                    contentPadding: const EdgeInsets.symmetric(vertical: 7),
                     prefixIcon: SvgPicture.asset(
                       'assets/icons/search-icon.svg',
                       fit: BoxFit.scaleDown,
@@ -234,8 +237,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF5F5F5),
                     borderRadius: BorderRadius.circular(6),
@@ -262,7 +264,23 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      print('Selected Location: $_selectedLocation');
+                      if (_selectedLocation != null && _fullAddress != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddressDetailPage(
+                              fullAddress: _fullAddress,
+                              locationTitle: _streetName,
+                              latitude: _selectedLocation!.latitude,
+                              longitude: _selectedLocation!.longitude,
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Silakan pilih lokasi terlebih dahulu.')),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1C55C0),
@@ -289,4 +307,3 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     );
   }
 }
-  
