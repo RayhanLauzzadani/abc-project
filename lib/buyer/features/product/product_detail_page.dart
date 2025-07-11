@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../data/models/cart/cart_item.dart';
+import '../../data/repositories/cart_repository.dart';
+import '../../data/dummy/dummy_data.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -20,11 +23,15 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool _isDescExpanded = false;
   int _selectedVariant = 0;
 
+  // Dummy varian produk
   final List<String> variants = ["Pedas", "Sedang", "Tidak Pedas"];
   static const int descLimit = 160;
 
   bool isFavoritedProduct = false;
   bool favLoading = false;
+  bool isAddCartLoading = false;
+
+  final CartRepository cartRepo = CartRepository();
 
   @override
   void initState() {
@@ -74,13 +81,68 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     });
   }
 
+  Future<void> _addToCart() async {
+    setState(() => isAddCartLoading = true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Anda belum login!"))
+      );
+      setState(() => isAddCartLoading = false);
+      return;
+    }
+
+    // Ambil storeName dari dummyStores berdasarkan storeId
+    final String storeId = widget.product['storeId'];
+    final String storeName = dummyStores.firstWhere(
+      (store) => store['id'] == storeId,
+      orElse: () => {'name': ''}
+    )['name'] ?? '';
+
+    final selectedVariantName = variants.isNotEmpty ? variants[_selectedVariant] : '';
+    final cartItem = CartItem(
+      id: widget.product['id'],
+      name: widget.product['name'],
+      image: widget.product['image'],
+      price: widget.product['price'],
+      quantity: 1,
+      variant: selectedVariantName,
+    );
+
+    try {
+      await cartRepo.addOrUpdateCartItem(
+        userId: user.uid,
+        item: cartItem,
+        storeId: storeId,
+        storeName: storeName,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Produk berhasil ditambahkan ke keranjang!"),
+          backgroundColor: colorPrimary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Gagal menambah ke keranjang: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    setState(() => isAddCartLoading = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final String image = widget.product['image'] ?? '';
     final String name = widget.product['name'] ?? '';
     final int price = widget.product['price'] ?? 0;
     final String description = widget.product['description'] ?? '';
-
     final bool isLongDesc = description.length > descLimit;
     final String descShort = isLongDesc
         ? description.substring(0, descLimit) + '...'
@@ -258,7 +320,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () {},
+                        onPressed: isAddCartLoading ? null : _addToCart,
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: colorPrimary, width: 1.3),
                           padding: const EdgeInsets.symmetric(vertical: 15),
@@ -266,19 +328,25 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             borderRadius: BorderRadius.circular(22),
                           ),
                         ),
-                        child: Text("+ Keranjang",
-                          style: GoogleFonts.dmSans(
-                            fontWeight: FontWeight.bold,
-                            color: colorPrimary,
-                            fontSize: 16,
-                          ),
-                        ),
+                        child: isAddCartLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: colorPrimary),
+                            )
+                          : Text("+ Keranjang",
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.bold,
+                                color: colorPrimary,
+                                fontSize: 16,
+                              ),
+                            ),
                       ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {}, // TODO: Beli langsung
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorPrimary,
                           padding: const EdgeInsets.symmetric(vertical: 15),
