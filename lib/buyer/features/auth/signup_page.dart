@@ -92,7 +92,7 @@ class _SignupPageState extends State<SignupPage> {
                 CustomTextField(
                   controller: firstNameController,
                   label: "Nama Depan",
-                  iconPath: "assets/icons/user-icon.png",
+                  iconPath: "assets/icons/user.svg",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   focusNode: firstNameFocus,
@@ -106,7 +106,7 @@ class _SignupPageState extends State<SignupPage> {
                 CustomTextField(
                   controller: lastNameController,
                   label: "Nama Belakang",
-                  iconPath: "assets/icons/user-icon.png",
+                  iconPath: "assets/icons/user.svg",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   focusNode: lastNameFocus,
