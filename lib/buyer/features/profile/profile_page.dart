@@ -6,7 +6,8 @@ import '../../data/services/user_service.dart';
 import '../../data/models/user.dart';
 import 'package:abc_e_mart/seller/features/registration/registration_welcome_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
-
+// Tambahkan import ini!
+import 'package:abc_e_mart/buyer/features/profile/appearance_setting_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -30,14 +31,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
       final user = await _userService.getUserById(currentUser.uid);
-      if (!mounted) return; // <--- TAMBAH INI
+      if (!mounted) return;
       setState(() {
         _userModel = user;
         _isLoading = false;
       });
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -118,15 +118,26 @@ class _ProfilePageState extends State<ProfilePage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const AddressListPage(), 
+                              builder: (_) => const AddressListPage(),
                             ),
                           );
                         },
                       ),
                       _buildDivider(),
-                      _buildListTile('tampilan.svg', "Tampilan", size: 18),
-                      _buildDivider(),
-                      _buildListTile('lock.svg', "Ganti Password", size: 21),
+                      // UBAH bagian ini:
+                      _buildListTile(
+                        'tampilan.svg',
+                        "Tampilan",
+                        size: 18,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AppearanceSettingPage(),
+                            ),
+                          );
+                        },
+                      ),
                       _buildDivider(),
                       _buildListTile('store.svg', "Toko Saya", size: 21, onTap: () {
                         Navigator.push(

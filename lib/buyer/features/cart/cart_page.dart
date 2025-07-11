@@ -3,9 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'cart_tab_mine.dart';
 import 'cart_tab_inprogress.dart';
 import 'cart_tab_history.dart';
-import '../../widgets/bottom_navbar.dart';
-import 'package:abc_e_mart/buyer/features/home/home_page_buyer.dart';
-import 'package:abc_e_mart/buyer/features/profile/profile_page.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -44,71 +41,49 @@ class _CartPageState extends State<CartPage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
-              child: Text(
-                "Keranjang Anda",
-                style: GoogleFonts.dmSans(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF373E3C),
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+            child: Text(
+              "Keranjang Anda",
+              style: GoogleFonts.dmSans(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _AnimatedCartTabBar(
+              selectedIndex: selectedIndex,
+              onTabChanged: (idx) {
+                setState(() {
+                  selectedIndex = idx;
+                  _tabController.animateTo(idx);
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                CartTabMine(
+                  storeChecked: storeChecked,
+                  onStoreCheckedChanged: onStoreCheckedChanged,
                 ),
-              ),
+                CartTabInProgress(),
+                CartTabHistory(),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _AnimatedCartTabBar(
-                selectedIndex: selectedIndex,
-                onTabChanged: (idx) {
-                  setState(() {
-                    selectedIndex = idx;
-                    _tabController.animateTo(idx);
-                  });
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  CartTabMine(
-                    storeChecked: storeChecked,
-                    onStoreCheckedChanged: onStoreCheckedChanged,
-                  ),
-                  CartTabInProgress(),
-                  CartTabHistory(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavbar(
-        currentIndex: 2,
-        onTap: (index) {
-          if (index != 2) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) {
-                  if (index == 0) return const HomePage();
-                  if (index == 1) return const HomePage();
-                  if (index == 3) return const HomePage();
-                  if (index == 4) return const ProfilePage();
-                  return const HomePage();
-                },
-              ),
-              (route) => false,
-            );
-          }
-        },
+          ),
+        ],
       ),
     );
   }
@@ -156,7 +131,6 @@ class _AnimatedCartTabBar extends StatelessWidget {
           left += textPainters[i].width + tabSpacing;
         }
 
-        // Offset supaya sejajar
         double underlineLeft;
         if (selectedIndex == 0) {
           underlineLeft = tabLefts[0];
