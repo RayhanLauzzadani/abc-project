@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/services/user_service.dart';
 import '../../data/models/user.dart';
 import 'package:abc_e_mart/seller/features/registration/registration_welcome_page.dart';
+import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -43,10 +45,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 24,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -55,7 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       style: GoogleFonts.dmSans(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF212121),
+                        color: const Color(0xFF373E3C),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -71,11 +70,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           const CircleAvatar(
                             radius: 28,
                             backgroundColor: Color(0xFFE0E0E0),
-                            child: Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 28,
-                            ),
+                            child: Icon(Icons.person, color: Colors.white, size: 28),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -87,13 +82,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   style: GoogleFonts.dmSans(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF212121),
+                                    color: const Color(0xFF373E3C),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  FirebaseAuth.instance.currentUser?.email ??
-                                      "-",
+                                  FirebaseAuth.instance.currentUser?.email ?? "-",
                                   style: GoogleFonts.dmSans(
                                     fontSize: 14,
                                     color: const Color(0xFF6D6D6D),
@@ -111,72 +105,55 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
                     _buildSectionTitle("Umum"),
                     _buildOptionCard([
-                      _buildListTile('location.svg', "Detail Alamat", size: 22),
-                      _buildDivider(),
                       _buildListTile(
-                        'tampilan.svg',
-                        "Tampilan",
-                        size: 19,
-                      ), // diperbesar sedikit
-                      _buildDivider(),
-                      _buildListTile('lock.svg', "Ganti Password", size: 21),
-                      _buildDivider(),
-                      _buildListTile(
-                        'store.svg',
-                        "Toko Saya",
-                        size: 21,
+                        'location.svg',
+                        "Detail Alamat",
+                        size: 22,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const RegistrationWelcomePage(),
+                              builder: (_) => const AddressListPage(), 
                             ),
                           );
                         },
                       ),
+                      _buildDivider(),
+                      _buildListTile('tampilan.svg', "Tampilan", size: 18),
+                      _buildDivider(),
+                      _buildListTile('lock.svg', "Ganti Password", size: 21),
+                      _buildDivider(),
+                      _buildListTile('store.svg', "Toko Saya", size: 21, onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RegistrationWelcomePage()),
+                        );
+                      }),
                     ]),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
                     _buildSectionTitle("Bantuan"),
                     _buildOptionCard([
-                      _buildListTile(
-                        'policy.svg',
-                        "Kebijakan Privasi",
-                        size: 21,
-                      ),
+                      _buildListTile('policy.svg', "Kebijakan Privasi", size: 20),
                       _buildDivider(),
-                      _buildListTile(
-                        'syarat.svg',
-                        "Syarat Penggunaan",
-                        size: 21,
-                      ),
+                      _buildListTile('syarat.svg', "Syarat Penggunaan", size: 20),
                     ]),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
                     _buildOptionCard([
                       ListTile(
                         onTap: () async {
                           await FirebaseAuth.instance.signOut();
                           if (context.mounted) {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              '/login',
-                              (route) => false,
-                            );
+                            Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
                           }
                         },
-                        leading: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: SvgPicture.asset(
-                              'assets/icons/logout.svg',
-                              width: 21,
-                              height: 21,
-                              color: const Color(0xFFFF3B30),
-                            ),
-                          ),
+                        leading: SvgPicture.asset(
+                          'assets/icons/logout.svg',
+                          width: 21,
+                          height: 21,
+                          color: const Color(0xFFFF3B30),
                         ),
                         title: Text(
                           "Keluar",
@@ -186,9 +163,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             color: const Color(0xFFFF3B30),
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                         dense: true,
                         horizontalTitleGap: 12,
                       ),
@@ -201,19 +176,16 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.dmSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF212121),
-          ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        title,
+        style: GoogleFonts.dmSans(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF373E3C),
         ),
-        const SizedBox(height: 8),
-      ],
+      ),
     );
   }
 
@@ -230,7 +202,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildDivider() {
     return const Divider(
-      height: 1,
+      height: 20,
       thickness: 1,
       color: Color(0xFFE0E0E0),
       indent: 12,
@@ -238,19 +210,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildListTile(
-    String iconAsset,
-    String text, {
-    double size = 22,
-    VoidCallback? onTap,
-  }) {
+  Widget _buildListTile(String iconAsset, String text, {double size = 22, VoidCallback? onTap}) {
     return ListTile(
       onTap: onTap,
       leading: SizedBox(
-        width: size,
-        height: size,
-        child: Align(
-          alignment: Alignment.center,
+        width: 28,
+        height: 28,
+        child: Center(
           child: SvgPicture.asset(
             'assets/icons/$iconAsset',
             width: size,
@@ -261,12 +227,15 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       title: Text(
         text,
-        style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF212121)),
+        style: GoogleFonts.dmSans(
+          fontSize: 14,
+          color: const Color(0xFF373E3C),
+        ),
       ),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFF6D6D6D)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       dense: true,
-      horizontalTitleGap: 12,
+      horizontalTitleGap: 10,
     );
   }
 }
