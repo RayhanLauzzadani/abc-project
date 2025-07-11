@@ -30,12 +30,14 @@ class _ProfilePageState extends State<ProfilePage> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
       final user = await _userService.getUserById(currentUser.uid);
+      if (!mounted) return; // <--- TAMBAH INI
       setState(() {
         _userModel = user;
         _isLoading = false;
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

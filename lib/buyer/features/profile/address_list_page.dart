@@ -1,13 +1,22 @@
+import 'package:abc_e_mart/buyer/data/models/address.dart';
+import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_map_picker_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class AddressListPage extends StatelessWidget {
+class AddressListPage extends StatefulWidget {
   const AddressListPage({super.key});
 
   @override
+  State<AddressListPage> createState() => _AddressListPageState();
+}
+
+class _AddressListPageState extends State<AddressListPage> {
+  @override
   Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -45,60 +54,129 @@ class AddressListPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        children: [
-          const SizedBox(height: 10),
-          _buildAddressCard(
-            label: 'Rumah',
-            name: 'Ahmad Nabil',
-            phone: '+62 895 6210 49433',
-            address: 'Jl. Johor, Kec. Pabean Cantikan, Kota SBY, Jawa Timur',
-            onEdit: () {},
-          ),
-          const SizedBox(height: 16),
-          _buildAddressCard(
-            label: 'Kantor',
-            name: 'Rayhan Lauzzadani',
-            phone: '+62 888 1234 5678',
-            address:
-                'Kemang, Sudirman Central Business District, Jakarta, Indonesia',
-            onEdit: () {},
-          ),
-          const SizedBox(height: 28),
-          Center(
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddressMapPickerPage(),
-                  ),
+      body: userId == null
+          ? Center(
+              child: Text(
+                'Kamu belum login!',
+                style: GoogleFonts.dmSans(
+                  fontSize: 16,
+                  color: const Color(0xFF9A9A9A),
+                ),
+              ),
+            )
+          : StreamBuilder<List<AddressModel>>(
+              stream: AddressService().getAddresses(userId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                // Handle jika data kosong, tampilkan tombol tambah tetap ada
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    children: [
+                      const SizedBox(height: 100),
+                      Center(
+                        child: Column(
+                          children: [
+                            Text(
+                              'Belum ada alamat.\nTambah dulu ya!',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                color: const Color(0xFF9A9A9A),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 40),
+                            GestureDetector(
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const AddressMapPickerPage(),
+                                  ),
+                                );
+                              },
+                              child: Column(
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/icons/plus.svg',
+                                    width: 32,
+                                    height: 32,
+                                    color: const Color(0xFF9A9A9A),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Tambah Alamat Baru',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF9A9A9A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                final addresses = snapshot.data!;
+                return ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  children: [
+                    const SizedBox(height: 10),
+                    ...addresses.map((address) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildAddressCard(
+                            label: address.label,
+                            name: address.name,
+                            phone: address.phone,
+                            address: address.address,
+                            onEdit: () {
+                              // TODO: Buka halaman edit alamat kalau mau (optional)
+                            },
+                          ),
+                        )),
+                    const SizedBox(height: 28),
+                    Center(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddressMapPickerPage(),
+                            ),
+                          );
+                          // Tidak perlu setState, StreamBuilder auto update
+                        },
+                        child: Column(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/plus.svg',
+                              width: 32,
+                              height: 32,
+                              color: const Color(0xFF9A9A9A),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tambah Alamat Baru',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF9A9A9A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               },
-              child: Column(
-                children: [
-                  SvgPicture.asset(
-                    'assets/icons/plus.svg',
-                    width: 32,
-                    height: 32,
-                    color: const Color(0xFF9A9A9A),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tambah Alamat Baru',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF9A9A9A),
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-        ],
-      ),
     );
   }
 
