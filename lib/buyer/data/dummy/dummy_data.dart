@@ -1,5 +1,3 @@
-// lib/buyer/data/dummy_data.dart
-
 final List<Map<String, dynamic>> dummyStores = [
   {
     'id': 'store1',
