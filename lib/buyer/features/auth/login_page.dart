@@ -5,7 +5,9 @@ import 'forgot_password/forgot_password_page.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../data/services/google_auth_service.dart';
 import '../home/home_page_buyer.dart';
+import '../../../admin/features/home/home_page_admin.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,12 +19,12 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-
   final FocusNode emailFocusNode = FocusNode();
   final FocusNode passwordFocusNode = FocusNode();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  String? _errorText;
 
   @override
   void dispose() {
@@ -31,6 +33,136 @@ class _LoginPageState extends State<LoginPage> {
     emailFocusNode.dispose();
     passwordFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    setState(() {
+      _errorText = null;
+      _isLoading = true;
+    });
+
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+    FocusScope.of(context).unfocus();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorText = "Email dan password wajib diisi";
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+
+      final user = credential.user;
+      if (user != null) {
+        // Ambil data user di Firestore berdasarkan UID
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final data = userDoc.data()!;
+          final role = data['role'] ?? 'buyer'; // Default buyer jika role tidak ada
+          final isActive = data['isActive'] ?? true;
+
+          // Optional: Update lastLogin
+          await userDoc.reference.update({'lastLogin': FieldValue.serverTimestamp()});
+
+          if (!isActive) {
+            setState(() {
+              _errorText = "Akun Anda tidak aktif. Hubungi admin.";
+              _isLoading = false;
+            });
+            return;
+          }
+
+          if (role == 'admin') {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomePageAdmin()),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomePage()),
+            );
+          }
+        } else {
+          setState(() {
+            _errorText = "Data user tidak ditemukan di database.";
+            _isLoading = false;
+          });
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = "Gagal login. Silakan coba lagi.";
+      if (e.code == 'user-not-found') {
+        message = "Email tidak ditemukan.";
+      } else if (e.code == 'wrong-password') {
+        message = "Password salah.";
+      } else if (e.code == 'invalid-email') {
+        message = "Format email tidak valid.";
+      }
+      setState(() {
+        _errorText = message;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorText = "Terjadi kesalahan: $e";
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    FocusScope.of(context).unfocus();
+    try {
+      final userCredential = await GoogleAuthService.signInWithGoogle();
+      if (userCredential != null && mounted) {
+        final user = userCredential.user;
+        if (user != null) {
+          // Pastikan data user sudah ada di Firestore, jika belum, buat baru
+          final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+          final snapshot = await userDoc.get();
+          if (!snapshot.exists) {
+            await userDoc.set({
+              'uid': user.uid,
+              'email': user.email,
+              'name': user.displayName ?? '',
+              'role': 'buyer',
+              'createdAt': FieldValue.serverTimestamp(),
+              'isActive': true,
+              'lastLogin': FieldValue.serverTimestamp(),
+            });
+          } else {
+            // Update lastLogin setiap login Google
+            await userDoc.update({'lastLogin': FieldValue.serverTimestamp()});
+          }
+        }
+
+        // Untuk Google, selalu Buyer
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login dengan Google dibatalkan.")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal login dengan Google: $e")),
+      );
+    }
+    setState(() => _isLoading = false);
   }
 
   @override
@@ -78,6 +210,10 @@ class _LoginPageState extends State<LoginPage> {
                   textInputAction: TextInputAction.next,
                   focusNode: emailFocusNode,
                   nextFocusNode: passwordFocusNode,
+                  enabled: !_isLoading,
+                  onFieldSubmitted: (_) {
+                    passwordFocusNode.requestFocus();
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -91,27 +227,43 @@ class _LoginPageState extends State<LoginPage> {
                   obscureText: _obscurePassword,
                   focusNode: passwordFocusNode,
                   textInputAction: TextInputAction.done,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: Colors.grey,
+                  enabled: !_isLoading,
+                  onFieldSubmitted: (_) => _handleLogin(),
+                  suffixIcon: Tooltip(
+                    message: _obscurePassword ? "Tampilkan Password" : "Sembunyikan Password",
+                    child: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.grey,
+                      ),
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              setState(() => _obscurePassword = !_obscurePassword);
+                            },
                     ),
-                    onPressed: () {
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
                   ),
                 ),
-                const SizedBox(height: 8),
 
-                // Lupa Password
+                if (_errorText != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorText!,
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ],
+
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(_createRouteToForgotPassword());
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.of(context).push(_createRouteToForgotPassword());
+                          },
                     style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     child: Text(
                       "Lupa Password?",
@@ -136,57 +288,24 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () async {
-                      final email = emailController.text.trim();
-                      final password = passwordController.text.trim();
-
-                      if (email.isEmpty || password.isEmpty) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Email dan password wajib diisi")),
-                        );
-                        return;
-                      }
-
-                      try {
-                        final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-                          email: email,
-                          password: password,
-                        );
-                        if (credential.user != null) {
-                          if (!mounted) return;
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (_) => const HomePage()),
-                          );
-                        }
-                      } on FirebaseAuthException catch (e) {
-                        String message = "Gagal login. Silakan coba lagi.";
-                        if (e.code == 'user-not-found') {
-                          message = "Email tidak ditemukan.";
-                        } else if (e.code == 'wrong-password') {
-                          message = "Password salah.";
-                        } else if (e.code == 'invalid-email') {
-                          message = "Format email tidak valid.";
-                        }
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(message)),
-                        );
-                      } catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Terjadi kesalahan: $e")),
-                        );
-                      }
-                    },
-                    child: Text(
-                      "Masuk",
-                      style: GoogleFonts.dmSans(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                      ),
-                    ),
+                    onPressed: _isLoading ? null : _handleLogin,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            "Masuk",
+                            style: GoogleFonts.dmSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -234,24 +353,7 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () async {
-                      try {
-                        final userCredential = await GoogleAuthService.signInWithGoogle();
-                        if (userCredential != null && mounted) {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (_) => const HomePage()),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Login dengan Google dibatalkan.")),
-                          );
-                        }
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Gagal login dengan Google: $e")),
-                        );
-                      }
-                    },
+                    onPressed: _isLoading ? null : _handleGoogleLogin,
                   ),
                 ),
                 const SizedBox(height: 36),
@@ -259,9 +361,11 @@ class _LoginPageState extends State<LoginPage> {
                 // Belum punya akun? Daftar
                 Center(
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(_createRouteToSignUp());
-                    },
+                    onTap: _isLoading
+                        ? null
+                        : () {
+                            Navigator.of(context).push(_createRouteToSignUp());
+                          },
                     child: RichText(
                       text: TextSpan(
                         style: GoogleFonts.dmSans(
