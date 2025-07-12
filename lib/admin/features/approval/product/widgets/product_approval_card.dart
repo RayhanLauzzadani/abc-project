@@ -1,52 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:abc_e_mart/data/models/category_type.dart';
+import 'package:abc_e_mart/admin/data/models/admin_product_data.dart';
 
-// Data class untuk 1 toko
-class AdminStoreApprovalData {
-  final String imagePath;
-  final String storeName;
-  final String storeAddress;
-  final String submitter;
-  final String date;
-  const AdminStoreApprovalData({
-    required this.imagePath,
-    required this.storeName,
-    required this.storeAddress,
-    required this.submitter,
-    required this.date,
-  });
-}
-
-class AdminStoreApprovalCard extends StatelessWidget {
-  final AdminStoreApprovalData data;
+class ProductApprovalCard extends StatelessWidget {
+  final AdminProductData data;
   final VoidCallback? onDetail;
 
-  const AdminStoreApprovalCard({
-    super.key,
-    required this.data,
-    this.onDetail,
-  });
+  const ProductApprovalCard({super.key, required this.data, this.onDetail});
 
   @override
   Widget build(BuildContext context) {
+    final type = data.categoryType;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white, // Bukan dark mode
+        color: Colors.white,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Row: Gambar + Info
+            // Gambar + Info Produk
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Gambar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.asset(
@@ -57,14 +39,12 @@ class AdminStoreApprovalCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 14),
-                // Info toko
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Nama toko
                       Text(
-                        data.storeName,
+                        data.productName,
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -73,36 +53,54 @@ class AdminStoreApprovalCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
-                      // Alamat
-                      Text(
-                        data.storeAddress,
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.normal,
-                          fontSize: 12,
-                          color: const Color(0xFF373E3C),
+                      const SizedBox(height: 10),
+                      // Badge kategori (dengan border!)
+                      IntrinsicWidth(
+                        child: Container(
+                          height: 18,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: getCategoryBgColor(type),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                              color: getCategoryColor(type),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              categoryLabels[type]!,
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 10,
+                                color: getCategoryColor(type),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      // User
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           SvgPicture.asset(
-                            'assets/icons/user.svg',
-                            width: 14,
-                            height: 14,
-                            color: const Color(0xFF9A9A9A),
+                            'assets/icons/store.svg',
+                            width: 16,
+                            height: 16,
+                            colorFilter: const ColorFilter.mode(
+                              Color(0xFF373E3C),
+                              BlendMode.srcIn,
+                            ),
                           ),
-                          const SizedBox(width: 6),
-                          Flexible(
+                          const SizedBox(width: 5),
+                          Expanded(
                             child: Text(
-                              data.submitter,
+                              data.storeName,
                               style: GoogleFonts.dmSans(
-                                fontWeight: FontWeight.normal,
                                 fontSize: 12,
-                                color: const Color(0xFF9A9A9A),
+                                color: const Color(0xFF373E3C),
+                                fontWeight: FontWeight.w400,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -116,20 +114,17 @@ class AdminStoreApprovalCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            // Row: date kiri, detail kanan
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Date
                 Text(
                   data.date,
                   style: GoogleFonts.dmSans(
                     fontWeight: FontWeight.normal,
                     fontSize: 12,
-                    color: const Color(0xFFBDBDBD),
+                    color: const Color(0xFF9A9A9A),
                   ),
                 ),
-                // Detail Ajuan
                 GestureDetector(
                   onTap: onDetail,
                   child: Row(
@@ -142,8 +137,12 @@ class AdminStoreApprovalCard extends StatelessWidget {
                           color: const Color(0xFF1C55C0),
                         ),
                       ),
-                      const SizedBox(width: 3),
-                      const Icon(Icons.chevron_right, size: 18, color: Color(0xFF1C55C0)),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: Color(0xFF2066CF),
+                      ),
                     ],
                   ),
                 ),

@@ -16,6 +16,9 @@ class CustomTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final FocusNode? nextFocusNode;
 
+  final bool? enabled; // <-- tambahan
+  final ValueChanged<String>? onFieldSubmitted; // <-- tambahan
+
   const CustomTextField({
     super.key,
     required this.controller,
@@ -30,6 +33,8 @@ class CustomTextField extends StatefulWidget {
     this.focusNode,
     this.textInputAction,
     this.nextFocusNode,
+    this.enabled,
+    this.onFieldSubmitted,
   });
 
   @override
@@ -68,8 +73,11 @@ class _CustomTextFieldState extends State<CustomTextField> {
       obscureText: widget.obscureText,
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction ?? TextInputAction.done,
-      onSubmitted: (_) {
-        if (widget.nextFocusNode != null) {
+      enabled: widget.enabled ?? true,
+      onSubmitted: (val) {
+        if (widget.onFieldSubmitted != null) {
+          widget.onFieldSubmitted!(val);
+        } else if (widget.nextFocusNode != null) {
           FocusScope.of(context).requestFocus(widget.nextFocusNode);
         } else {
           _focusNode.unfocus();
