@@ -1,0 +1,439 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:uuid/uuid.dart';
+// Import model & service
+import 'package:abc_e_mart/buyer/data/models/address.dart';
+import 'package:abc_e_mart/buyer/data/services/address_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+
+class AddressDetailPage extends StatefulWidget {
+  final String? fullAddress;
+  final String? label;
+  final String? name;
+  final String? phone;
+  final String? locationTitle;
+  final double? latitude;
+  final double? longitude;
+
+  const AddressDetailPage({
+    super.key,
+    this.fullAddress,
+    this.label,
+    this.name,
+    this.phone,
+    this.locationTitle,
+    this.latitude,
+    this.longitude,
+  });
+
+  @override
+  State<AddressDetailPage> createState() => _AddressDetailPageState();
+}
+
+class _AddressDetailPageState extends State<AddressDetailPage> {
+  late final TextEditingController _labelController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _labelController = TextEditingController(text: widget.label ?? '');
+    _nameController = TextEditingController(text: widget.name ?? '');
+    _phoneController = TextEditingController(text: widget.phone ?? '');
+  }
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  OutlineInputBorder getInputBorder() {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+    );
+  }
+
+  Widget buildFieldLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 4),
+      child: Text(
+        label,
+        style: GoogleFonts.dmSans(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF9A9A9A),
+        ),
+      ),
+    );
+  }
+
+  Widget buildMapPreview(LatLng markerLatLng) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      height: 100,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFF5F5F5),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: AbsorbPointer(
+          child: GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: markerLatLng,
+              zoom: 16,
+            ),
+            markers: {
+              Marker(
+                markerId: const MarkerId('selected-location'),
+                position: markerLatLng,
+                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+              ),
+            },
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            myLocationEnabled: false,
+            tiltGesturesEnabled: false,
+            scrollGesturesEnabled: false,
+            zoomGesturesEnabled: false,
+            rotateGesturesEnabled: false,
+            mapToolbarEnabled: false,
+            liteModeEnabled: true,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> saveAddress() async {
+    // Validasi field
+    if (_labelController.text.trim().isEmpty ||
+        _nameController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty ||
+        widget.fullAddress == null ||
+        widget.fullAddress!.isEmpty ||
+        widget.locationTitle == null ||
+        widget.latitude == null ||
+        widget.longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lengkapi semua data sebelum menyimpan.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Pakai UUID untuk id unik
+      final addressId = const Uuid().v4();
+      final address = AddressModel(
+        id: addressId,
+        label: _labelController.text.trim(),
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: widget.fullAddress!,
+        locationTitle: widget.locationTitle!,
+        latitude: widget.latitude!,
+        longitude: widget.longitude!,
+        createdAt: DateTime.now(),
+      );
+
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kamu belum login!'))
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+      await AddressService().addAddress(userId, address);
+
+      if (mounted) {
+        Navigator.pop(context, true); // true = success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Alamat berhasil disimpan.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final LatLng? markerLatLng = (widget.latitude != null && widget.longitude != null)
+        ? LatLng(widget.latitude!, widget.longitude!)
+        : null;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1C55C0),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icons/back.svg',
+                  width: 20,
+                  height: 20,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          'Detail Alamat',
+          style: GoogleFonts.dmSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF373E3C),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // CARD: Lokasi & Map Preview
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 4,
+                  )
+                ],
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: SvgPicture.asset(
+                            'assets/icons/location.svg',
+                            width: 18,
+                            height: 18,
+                            colorFilter: const ColorFilter.mode(Color(0xFF9A9A9A), BlendMode.srcIn),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.locationTitle ?? "-",
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF373E3C),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.fullAddress ?? "-",
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 12,
+                                  color: const Color(0xFF9A9A9A),
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 32,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1C55C0),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Ubah',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (markerLatLng != null) buildMapPreview(markerLatLng),
+                  const SizedBox(height: 14),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // FIELD: Alamat Lengkap
+            buildFieldLabel('Alamat Lengkap'),
+            TextField(
+              controller: TextEditingController(text: widget.fullAddress ?? ""),
+              enabled: false,
+              maxLines: 2,
+              readOnly: true,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: getInputBorder(),
+                enabledBorder: getInputBorder(),
+                disabledBorder: getInputBorder(),
+                focusedBorder: getInputBorder(),
+                filled: true,
+                fillColor: const Color(0xFFF5F5F5),
+              ),
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // FIELD: Label Alamat
+            buildFieldLabel('Label Alamat'),
+            TextField(
+              controller: _labelController,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: getInputBorder(),
+                enabledBorder: getInputBorder(),
+                disabledBorder: getInputBorder(),
+                focusedBorder: getInputBorder(),
+                filled: true,
+                fillColor: const Color(0xFFF5F5F5),
+              ),
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // FIELD: Nama Penerima
+            buildFieldLabel('Nama Penerima'),
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: getInputBorder(),
+                enabledBorder: getInputBorder(),
+                disabledBorder: getInputBorder(),
+                focusedBorder: getInputBorder(),
+                filled: true,
+                fillColor: const Color(0xFFF5F5F5),
+              ),
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // FIELD: Nomor HP
+            buildFieldLabel('Nomor HP'),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: getInputBorder(),
+                enabledBorder: getInputBorder(),
+                disabledBorder: getInputBorder(),
+                focusedBorder: getInputBorder(),
+                filled: true,
+                fillColor: const Color(0xFFF5F5F5),
+              ),
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // BUTTON: Simpan
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : saveAddress,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1C55C0),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.3,
+                        ),
+                      )
+                    : Text(
+                        'Simpan',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
