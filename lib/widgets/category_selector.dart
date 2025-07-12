@@ -15,7 +15,7 @@ class CategorySelector extends StatelessWidget {
     required this.categories,
     required this.selectedIndex,
     required this.onSelected,
-    this.height = 30,
+    this.height = 20,
     this.gap = 10,
     this.padding,
   });

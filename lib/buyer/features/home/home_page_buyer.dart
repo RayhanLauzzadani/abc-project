@@ -12,6 +12,8 @@ import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
 import 'package:abc_e_mart/buyer/features/notification/notification_page.dart';
 import '../profile/profile_page.dart';
 import 'package:abc_e_mart/buyer/features/cart/cart_page.dart';
+import 'package:abc_e_mart/buyer/features/catalog/catalog_page.dart';
+import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   final int initialIndex;
@@ -26,7 +28,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Widget> _pages = [
     const _HomeMainContent(),
-    const Center(child: Text("Katalog")),
+    const CatalogPage(),
     const CartPage(),
     const Center(child: Text("Obrolan")),
     const ProfilePage(),
@@ -154,7 +156,13 @@ class _HomeMainContent extends StatelessWidget {
                 name: product['name'],
                 price: product['price'],
                 rating: product['rating'].toDouble(),
-                onTap: () {},
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProductDetailPage(product: product),
+                    ),
+                  );
+                },
               );
             }).toList(),
           ),
