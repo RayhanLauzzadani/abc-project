@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/buyer/features/store/store_card.dart';
+import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class FavoriteStorePage extends StatelessWidget {
   const FavoriteStorePage({super.key});
@@ -11,7 +14,36 @@ class FavoriteStorePage extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Center(child: Text('Silakan login untuk melihat favorit'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_off_outlined,
+              size: 108,
+              color: Colors.grey[300],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Anda belum login",
+              style: GoogleFonts.dmSans(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              "Silakan login untuk melihat toko favorit Anda.",
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
     }
 
     final favStoresRef = FirebaseFirestore.instance
@@ -26,7 +58,36 @@ class FavoriteStorePage extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('Belum ada toko favorit.'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  LucideIcons.store,
+                  size: 104,
+                  color: Colors.grey[300],
+                ),
+                const SizedBox(height: 25),
+                Text(
+                  "Belum ada toko favorit",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  "Toko yang Anda favoritkan akan muncul di sini.",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
         }
 
         final docs = snapshot.data!.docs;
@@ -35,14 +96,19 @@ class FavoriteStorePage extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final favData = docs[index].data() as Map<String, dynamic>;
-            // Simpan detail store lengkap ke dalam favorit saat add favorite, atau ambil dari koleksi store by id
             return StoreCard(
               imagePath: favData['image'] ?? '',
               storeName: favData['name'] ?? '',
               distance: favData['distance'] ?? '',
               duration: favData['duration'] ?? '',
               rating: (favData['rating'] as num?)?.toDouble() ?? 0,
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StoreDetailPage(store: favData),
+                  ),
+                );
+              },
             );
           },
         );

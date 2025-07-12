@@ -5,13 +5,13 @@ import 'widgets/admin_product_approval_detail_page.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
 import 'package:abc_e_mart/admin/data/models/admin_product_data.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
+import 'package:abc_e_mart/widgets/category_selector.dart'; // PENTING: gunakan widget global!
 
 class AdminProductApprovalPage extends StatefulWidget {
   const AdminProductApprovalPage({super.key});
 
   @override
-  State<AdminProductApprovalPage> createState() =>
-      _AdminProductApprovalPageState();
+  State<AdminProductApprovalPage> createState() => _AdminProductApprovalPageState();
 }
 
 class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
@@ -99,19 +99,17 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Filtering produk berdasarkan kategori dan search (jika perlu)
-    List<AdminProductData> filteredProducts = products
-        .where((p) {
-          final matchCategory = _selectedCategory == 0
-              ? true
-              : p.categoryType == categories[_selectedCategory - 1];
-          final matchSearch = _searchText.isEmpty
-              ? true
-              : p.productName.toLowerCase().contains(_searchText.toLowerCase()) ||
-                p.storeName.toLowerCase().contains(_searchText.toLowerCase());
-          return matchCategory && matchSearch;
-        })
-        .toList();
+    // Filtering produk berdasarkan kategori dan search
+    List<AdminProductData> filteredProducts = products.where((p) {
+      final matchCategory = _selectedCategory == 0
+          ? true
+          : p.categoryType == categories[_selectedCategory - 1];
+      final matchSearch = _searchText.isEmpty
+          ? true
+          : p.productName.toLowerCase().contains(_searchText.toLowerCase()) ||
+            p.storeName.toLowerCase().contains(_searchText.toLowerCase());
+      return matchCategory && matchSearch;
+    }).toList();
 
     return Column(
       children: [
@@ -130,8 +128,7 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
           ),
         ),
         const SizedBox(height: 23),
-
-        /// === REPLACE SEARCH BAR HERE ===
+        // Search Bar
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: AdminSearchBar(
@@ -141,96 +138,15 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
             }),
           ),
         ),
-
         const SizedBox(height: 21),
-
-        // KATEGORI HORIZONTAL (LABEL PALING KANAN MUNCUL FULL)
-        SizedBox(
-          height: 40,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(left: 20, right: 20),
-            itemCount: categories.length + 1,
-            itemBuilder: (context, idx) {
-              if (idx == 0) {
-                final isSelected = _selectedCategory == 0;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = 0),
-                    child: Container(
-                      height: 30, // <-- Fixed height
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF2066CF)
-                            : Colors.white,
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFF2066CF)
-                              : const Color(0xFF9A9A9A),
-                        ),
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Text(
-                        'Semua',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                          color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF9A9A9A),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              final realIdx = idx - 1;
-              final type = categories[realIdx];
-              final isSelected = _selectedCategory == (realIdx + 1);
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: realIdx == categories.length - 1
-                      ? 0
-                      : 10, // gap 10px antar label
-                ),
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedCategory = realIdx + 1),
-                  child: Container(
-                    height: 30, // <-- Fixed height
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFF2066CF)
-                          : Colors.white,
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF2066CF)
-                            : const Color(0xFF9A9A9A),
-                      ),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(
-                      categoryLabels[type]!,
-                      style: GoogleFonts.dmSans(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                        color: isSelected
-                            ? Colors.white
-                            : const Color(0xFF9A9A9A),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+        // KATEGORI: GANTI DENGAN WIDGET GLOBAL TANPA SET HEIGHT/GAP MANUAL!
+        CategorySelector(
+          categories: categories,
+          selectedIndex: _selectedCategory,
+          onSelected: (i) => setState(() => _selectedCategory = i),
         ),
         const SizedBox(height: 21),
+        // LIST PRODUK
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 20),

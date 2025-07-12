@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/buyer/features/product/product_card.dart';
+import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class FavoriteProductPage extends StatelessWidget {
   const FavoriteProductPage({super.key});
@@ -11,8 +14,36 @@ class FavoriteProductPage extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      // Kalau user belum login, bisa tampilkan empty state
-      return const Center(child: Text('Silakan login untuk melihat favorit'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_off_outlined,
+              size: 108,
+              color: Colors.grey[300],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Anda belum login",
+              style: GoogleFonts.dmSans(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              "Silakan login untuk melihat produk favorit Anda.",
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
     }
 
     final favProductsRef = FirebaseFirestore.instance
@@ -27,7 +58,36 @@ class FavoriteProductPage extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('Belum ada produk favorit.'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  LucideIcons.heartOff,
+                  size: 104,
+                  color: Colors.grey[300],
+                ),
+                const SizedBox(height: 25),
+                Text(
+                  "Belum ada produk favorit",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  "Produk yang Anda favoritkan akan muncul di sini.",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
         }
 
         final docs = snapshot.data!.docs;
@@ -36,14 +96,18 @@ class FavoriteProductPage extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final favData = docs[index].data() as Map<String, dynamic>;
-            // Simpan detail produk lengkap ke dalam favorit saat add favorite, atau ambil dari koleksi produk by id
-            // Asumsi data favorit menyimpan field: image, name, price, rating (atau id produk untuk fetch detail)
             return ProductCard(
-              imagePath: favData['image'] ?? '', // Sesuaikan dengan field di Firestore
+              imagePath: favData['image'] ?? '',
               name: favData['name'] ?? '',
               price: favData['price'] ?? 0,
               rating: (favData['rating'] as num?)?.toDouble() ?? 0,
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailPage(product: favData),
+                  ),
+                );
+              },
             );
           },
         );
