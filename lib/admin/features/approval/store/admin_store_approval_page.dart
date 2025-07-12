@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
-import 'package:abc_e_mart/admin/features/approval/widgets/admin_store_approval_card.dart';
-import 'package:abc_e_mart/admin/features/approval/admin_store_approval_detail_page.dart'; // <-- Import detail page
+import 'package:abc_e_mart/admin/features/approval/store/widgets/admin_store_approval_card.dart';
+import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart'; // <-- Import detail page
 
 class AdminStoreApprovalPage extends StatelessWidget {
   const AdminStoreApprovalPage({super.key});
