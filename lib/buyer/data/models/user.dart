@@ -8,6 +8,7 @@ class UserModel {
   final DateTime createdAt;
   final List<Map<String, dynamic>> addressList;
   final Map<String, List<String>>? favorites;
+  final String? photoUrl;
 
   UserModel({
     required this.uid,
@@ -18,6 +19,7 @@ class UserModel {
     required this.createdAt,
     required this.addressList,
     this.favorites,
+    this.photoUrl,
   });
 
   factory UserModel.fromMap(String id, Map<String, dynamic> map) {
@@ -34,6 +36,7 @@ class UserModel {
               (map['favorites'] as Map<String, dynamic>).map((key, value) =>
                   MapEntry(key, List<String>.from(value ?? []))))
           : null,
+      photoUrl: map['photoUrl'],
     );
   }
 
@@ -46,6 +49,7 @@ class UserModel {
       'createdAt': createdAt,
       'addressList': addressList,
       if (favorites != null) 'favorites': favorites,
+      if (photoUrl != null) 'photoUrl': photoUrl,
     };
   }
 }
