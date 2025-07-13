@@ -7,6 +7,7 @@ import 'package:abc_e_mart/seller/widgets/seller_transaction_section.dart';
 import 'package:abc_e_mart/seller/data/models/seller_transaction_card_data.dart';
 import 'package:abc_e_mart/seller/features/products/products_page.dart';
 import 'package:abc_e_mart/seller/features/profile/edit_profile_page.dart';
+import 'package:abc_e_mart/seller/features/rating/store_rating_page.dart';
 
 class HomePageSeller extends StatelessWidget {
   const HomePageSeller({super.key});
@@ -66,12 +67,12 @@ class HomePageSeller extends StatelessWidget {
                       //     MaterialPageRoute(builder: (_) => const SellerChatPage()),
                       //   );
                       //   break;
-                      // case 3:
-                      //   Navigator.of(context).push(
-                      //     MaterialPageRoute(builder: (_) => const SellerRatingPage()),
-                      //   );
-                      //   break;
-                      // case 4:
+                      case 3:
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const StoreRatingPage()),
+                        );
+                        break;
+                      case 4:
                       //   Navigator.of(context).push(
                       //     MaterialPageRoute(builder: (_) => const SellerTransactionPage()),
                       //   );

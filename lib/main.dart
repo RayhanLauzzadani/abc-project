@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 // import 'buyer/features/home/splash_screen.dart';
 // import 'package:abc_e_mart/buyer/features/profile/profile_page.dart';
 // import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
-// import 'package:abc_e_mart/buyer/features/home/home_page_buyer.dart';
-import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
+import 'package:abc_e_mart/buyer/features/home/home_page_buyer.dart';
+// import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 // import 'package:abc_e_mart/admin/features/home/home_page_admin.dart';
 
 void main() async {
@@ -38,8 +38,8 @@ class MyApp extends StatelessWidget {
       ),
         // home: const SplashScreen(),
         // home: const StoreDetailPage(),
-        // home: HomePage(),
-        home: const HomePageSeller(),
+        home: HomePage(),
+        // home: const HomePageSeller(),
         //home: const RegistrationWelcomePage(),
         // home: const HomePageAdmin(),
 
