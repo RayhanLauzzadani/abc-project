@@ -8,6 +8,7 @@ import 'package:abc_e_mart/seller/features/registration/registration_welcome_pag
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 // Tambahkan import ini!
 import 'package:abc_e_mart/buyer/features/profile/appearance_setting_page.dart';
+import 'package:abc_e_mart/buyer/features/profile/profile_edit_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -69,11 +70,18 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       child: Row(
                         children: [
-                          const CircleAvatar(
-                            radius: 28,
-                            backgroundColor: Color(0xFFE0E0E0),
-                            child: Icon(Icons.person, color: Colors.white, size: 28),
-                          ),
+                          // Avatar Profile
+                          (_userModel?.photoUrl != null && _userModel!.photoUrl!.isNotEmpty)
+                              ? CircleAvatar(
+                                  radius: 28,
+                                  backgroundColor: const Color(0xFFE0E0E0),
+                                  backgroundImage: NetworkImage(_userModel!.photoUrl!),
+                                )
+                              : const CircleAvatar(
+                                  radius: 28,
+                                  backgroundColor: Color(0xFFE0E0E0),
+                                  child: Icon(Icons.person, color: Colors.white, size: 28),
+                                ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
@@ -98,11 +106,28 @@ class _ProfilePageState extends State<ProfilePage> {
                               ],
                             ),
                           ),
-                          SvgPicture.asset(
-                            'assets/icons/edit.svg',
-                            width: 20,
-                            height: 20,
-                            color: const Color(0xFF9A9A9A),
+                          // Tombol Edit (pakai InkWell agar bisa ditekan)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(30),
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ProfileEditPage()),
+                              );
+                              if (result == true) {
+                                // Jika berhasil update, refresh data user
+                                _fetchUserData();
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: SvgPicture.asset(
+                                'assets/icons/edit.svg',
+                                width: 20,
+                                height: 20,
+                                color: const Color(0xFF9A9A9A),
+                              ),
+                            ),
                           ),
                         ],
                       ),
