@@ -1,7 +1,123 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
+import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_detail_page.dart';
 
+class AdminAdApprovalCard extends StatelessWidget {
+  final String title;
+  final String storeName;
+  final String period;
+  final String date;
+  final VoidCallback? onDetail;
+
+  const AdminAdApprovalCard({
+    super.key,
+    required this.title,
+    required this.storeName,
+    required this.period,
+    required this.date,
+    this.onDetail,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10), // 10px rounded
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title
+            Text(
+              title,
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+            const SizedBox(height: 5),
+            // Store Name with Icon
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/store.svg',
+                  width: 16,
+                  height: 16,
+                  color: const Color(0xFF373E3C),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  storeName,
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 12,
+                    color: const Color(0xFF373E3C),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            // Period
+            Text(
+              period,
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.w400,
+                fontSize: 12,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Date and Detail Iklan
+            Row(
+              children: [
+                Text(
+                  date,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF9A9A9A),
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onDetail,
+                  child: Row(
+                    children: [
+                      Text(
+                        "Detail Iklan",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: const Color(0xFF777777),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: Color(0xFF777777),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==== PAGE ADMIN IKLAN ====
 class AdminAdApprovalPage extends StatefulWidget {
   const AdminAdApprovalPage({super.key});
 
@@ -56,7 +172,7 @@ class _AdminAdApprovalPageState extends State<AdminAdApprovalPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter ads berdasarkan search text (judul/storeName)
+    // Filter ads by search text (title/storeName)
     final filteredAds = ads.where((ad) {
       final search = _searchText.trim().toLowerCase();
       return search.isEmpty ||
@@ -80,7 +196,7 @@ class _AdminAdApprovalPageState extends State<AdminAdApprovalPage> {
           ),
         ),
         const SizedBox(height: 23),
-        // Search Bar
+        // === Search Bar (use widget global) ===
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: AdminSearchBar(
@@ -89,107 +205,38 @@ class _AdminAdApprovalPageState extends State<AdminAdApprovalPage> {
           ),
         ),
         const SizedBox(height: 18),
-        // Daftar Iklan
+        // === Card List ===
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: EdgeInsets.zero,
             itemCount: filteredAds.length,
             itemBuilder: (context, idx) {
               final ad = filteredAds[idx];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Icon toko
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Icon(
-                          Icons.store,
-                          color: Color(0xFF7A7A7A),
-                          size: 22,
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: AdminAdApprovalCard(
+                  title: ad.title,
+                  storeName: ad.storeName,
+                  period: ad.period,
+                  date: ad.date,
+                  onDetail: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AdminAdApprovalDetailPage(
+                          storeName: ad.storeName,
+                          date: ad.date,
+                          bannerUrl: '', // Isi asset/url gambar banner jika ada
+                          adTitle: ad.title,
+                          adProduct: "Ayam Geprek", // Data produk terkait
+                          adDuration: "21 Juli – 23 Juli 2025",
+                          adDurationDays: "3",
+                          paymentProofName: "Bukti Bayar.jpg",
+                          paymentProofSize: "100.96 KB",
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      // Info Iklan
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              ad.title,
-                              style: GoogleFonts.dmSans(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Color(0xFF232323),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              ad.storeName,
-                              style: GoogleFonts.dmSans(
-                                fontWeight: FontWeight.w400,
-                                fontSize: 13,
-                                color: Color(0xFF232323),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              ad.period,
-                              style: GoogleFonts.dmSans(
-                                fontWeight: FontWeight.w400,
-                                fontSize: 13,
-                                color: Color(0xFF232323),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Text(
-                                  ad.date,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 12,
-                                    color: Color(0xFF7A7A7A),
-                                  ),
-                                ),
-                                const Spacer(),
-                                GestureDetector(
-                                  onTap: () {
-                                    // TODO: Navigasi ke detail iklan (if any)
-                                  },
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        "Detail Iklan",
-                                        style: GoogleFonts.dmSans(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: const Color(0xFF1C55C0),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.chevron_right,
-                                        size: 18,
-                                        color: Color(0xFF2066CF),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               );
             },

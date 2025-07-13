@@ -203,7 +203,7 @@ class _LoginPageState extends State<LoginPage> {
                 CustomTextField(
                   controller: emailController,
                   label: "Email",
-                  iconPath: "assets/icons/mail-icon.png",
+                  iconPath: "assets/icons/mail.svg",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   keyboardType: TextInputType.emailAddress,
@@ -221,7 +221,7 @@ class _LoginPageState extends State<LoginPage> {
                 CustomTextField(
                   controller: passwordController,
                   label: "Password",
-                  iconPath: "assets/icons/lock-icon.png",
+                  iconPath: "assets/icons/lock-icon.svg",
                   colorPlaceholder: colorPlaceholder,
                   colorInput: colorInput,
                   obscureText: _obscurePassword,

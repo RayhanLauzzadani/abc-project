@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class CustomTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -11,13 +12,11 @@ class CustomTextField extends StatefulWidget {
   final Color colorPlaceholder;
   final Color colorInput;
   final ValueChanged<String>? onChanged;
-
   final FocusNode? focusNode;
   final TextInputAction? textInputAction;
   final FocusNode? nextFocusNode;
-
-  final bool? enabled; // <-- tambahan
-  final ValueChanged<String>? onFieldSubmitted; // <-- tambahan
+  final bool? enabled;
+  final ValueChanged<String>? onFieldSubmitted;
 
   const CustomTextField({
     super.key,
@@ -65,6 +64,23 @@ class _CustomTextFieldState extends State<CustomTextField> {
     super.dispose();
   }
 
+  Widget _buildPrefixIcon(String iconPath) {
+    if (iconPath.toLowerCase().endsWith('.svg')) {
+      return SvgPicture.asset(
+        iconPath,
+        width: 22,
+        height: 22,
+        color: const Color(0xFF9A9A9A),
+      );
+    } else {
+      return Image.asset(
+        iconPath,
+        width: 22,
+        height: 22,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return TextField(
@@ -74,6 +90,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction ?? TextInputAction.done,
       enabled: widget.enabled ?? true,
+      cursorColor: const Color(0xFF373E3C), // <--- warna cursor custom!
       onSubmitted: (val) {
         if (widget.onFieldSubmitted != null) {
           widget.onFieldSubmitted!(val);
@@ -97,7 +114,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
         ),
         prefixIcon: Padding(
           padding: const EdgeInsets.all(12.0),
-          child: Image.asset(widget.iconPath, width: 20, height: 20),
+          child: _buildPrefixIcon(widget.iconPath),
         ),
         suffixIcon: widget.suffixIcon,
         filled: true,

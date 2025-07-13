@@ -161,7 +161,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       CustomTextField(
                         controller: emailController,
                         label: "Email",
-                        iconPath: "assets/icons/mail-icon.png",
+                        iconPath: "assets/icons/mail.svg",
                         colorPlaceholder: colorPlaceholder,
                         colorInput: colorInput,
                         focusNode: emailFocusNode,

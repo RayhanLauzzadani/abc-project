@@ -204,7 +204,7 @@ class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
                 ],
               ),
               child: SizedBox(
-                height: 59,
+                height: 46,
                 child: ElevatedButton(
                   onPressed: _canSubmit
                       ? () async {
