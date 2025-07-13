@@ -1,22 +1,117 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class EditProfilePageSeller extends StatelessWidget {
+class EditProfilePageSeller extends StatefulWidget {
   final String logoPath;
   const EditProfilePageSeller({super.key, required this.logoPath});
 
   @override
-  Widget build(BuildContext context) {
-    final _nameController = TextEditingController(text: "Nihon Mart");
-    final _descController = TextEditingController(text: "Menjual segala kebutuhan mahasiswa");
-    final _addressController = TextEditingController(text: "Jl. Ika Hiu No 24, Surabaya");
-    final _phoneController = TextEditingController(text: "089562104933");
+  State<EditProfilePageSeller> createState() => _EditProfilePageSellerState();
+}
 
+class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
+  final _nameController = TextEditingController(text: "Nihon Mart");
+  final _descController = TextEditingController(text: "Menjual segala kebutuhan mahasiswa");
+  final _addressController = TextEditingController(text: "Jl. Ika Hiu No 24, Surabaya");
+  final _phoneController = TextEditingController(text: "089562104933");
+
+  // Data original untuk deteksi perubahan
+  String _originalName = "Nihon Mart";
+  String _originalDesc = "Menjual segala kebutuhan mahasiswa";
+  String _originalAddress = "Jl. Ika Hiu No 24, Surabaya";
+  String _originalPhone = "089562104933";
+
+  bool _hasChanged = false;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenChanges();
+  }
+
+  void _listenChanges() {
+    _nameController.addListener(_detectChange);
+    _descController.addListener(_detectChange);
+    _addressController.addListener(_detectChange);
+    _phoneController.addListener(_detectChange);
+  }
+
+  void _detectChange() {
+    final isChanged =
+      _nameController.text != _originalName ||
+      _descController.text != _originalDesc ||
+      _addressController.text != _originalAddress ||
+      _phoneController.text != _originalPhone;
+
+    if (_hasChanged != isChanged) {
+      setState(() {
+        _hasChanged = isChanged;
+      });
+    }
+  }
+
+  Future<bool> _showConfirmSaveDialog() async {
+    bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _CustomConfirmDialog(
+        icon: Icons.edit,
+        iconColor: Colors.blue,
+        title: "Simpan Perubahan?",
+        subtitle: "Apakah anda yakin ingin menyimpan perubahan profil?",
+        cancelText: "Tidak",
+        confirmText: "Iya",
+        confirmColor: Colors.blue,
+        onConfirm: () => Navigator.pop(context, true),
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _showSuccessDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _CustomSuccessDialog(
+        icon: Icons.check_circle,
+        iconColor: Colors.blue,
+        title: "Berhasil!",
+        subtitle: "Perubahan profil berhasil disimpan.",
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_hasChanged) return;
+
+    final confirmed = await _showConfirmSaveDialog();
+    if (!confirmed) return;
+
+    setState(() => _loading = true);
+
+    // Simulasi simpan data (dummy)
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    _originalName = _nameController.text;
+    _originalDesc = _descController.text;
+    _originalAddress = _addressController.text;
+    _originalPhone = _phoneController.text;
+    _hasChanged = false;
+
+    await _showSuccessDialog();
+    if (mounted) Navigator.pop(context, true);
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -64,7 +159,7 @@ class EditProfilePageSeller extends StatelessWidget {
                       height: 92,
                       decoration: const BoxDecoration(shape: BoxShape.circle),
                       child: ClipOval(
-                        child: Image.asset(logoPath, fit: BoxFit.cover),
+                        child: Image.asset(widget.logoPath, fit: BoxFit.cover),
                       ),
                     ),
                     Positioned(
@@ -117,26 +212,24 @@ class EditProfilePageSeller extends StatelessWidget {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Profil berhasil diubah (dummy)')),
-                    );
-                  },
+                  onPressed: (!_hasChanged || _loading) ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2056D3),
+                    backgroundColor: _hasChanged ? const Color(0xFF2056D3) : const Color(0xFFB5B5B5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(100),
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
-                    "Simpan Perubahan",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                  child: _loading
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.3))
+                    : Text(
+                      "Simpan Perubahan",
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
                 ),
               ),
             ],
@@ -204,6 +297,145 @@ class _EditProfileBox extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// -----------------
+// Custom Pop Up
+// -----------------
+class _CustomConfirmDialog extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String cancelText;
+  final String confirmText;
+  final Color confirmColor;
+  final VoidCallback onConfirm;
+
+  const _CustomConfirmDialog({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.cancelText,
+    required this.confirmText,
+    required this.confirmColor,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: iconColor.withOpacity(0.12),
+              child: Icon(icon, color: iconColor, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text(title,
+                style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 17)),
+            const SizedBox(height: 6),
+            Text(subtitle,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF8D8D8D))),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF232323),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8))),
+                    child: Text(cancelText, style: const TextStyle(fontSize: 15)),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: confirmColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                    ),
+                    child: Text(confirmText,
+                        style: const TextStyle(fontSize: 15, color: Colors.white)),
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomSuccessDialog extends StatefulWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Duration duration;
+
+  const _CustomSuccessDialog({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.duration,
+  });
+
+  @override
+  State<_CustomSuccessDialog> createState() => _CustomSuccessDialogState();
+}
+
+class _CustomSuccessDialogState extends State<_CustomSuccessDialog> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(widget.duration, () {
+      if (mounted) Navigator.pop(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: widget.iconColor.withOpacity(0.13),
+              child: Icon(widget.icon, color: widget.iconColor, size: 34),
+            ),
+            const SizedBox(height: 16),
+            Text(widget.title,
+                style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 17)),
+            const SizedBox(height: 6),
+            Text(widget.subtitle,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF8D8D8D))),
+          ],
+        ),
       ),
     );
   }
