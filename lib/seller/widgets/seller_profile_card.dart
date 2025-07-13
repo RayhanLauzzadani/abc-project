@@ -7,6 +7,7 @@ class SellerProfileCard extends StatelessWidget {
   final String description;
   final String address;
   final String logoPath;
+  final VoidCallback? onEditProfile;
 
   const SellerProfileCard({
     super.key,
@@ -14,6 +15,7 @@ class SellerProfileCard extends StatelessWidget {
     required this.description,
     required this.address,
     required this.logoPath,
+    this.onEditProfile,
   });
 
   @override
@@ -38,9 +40,7 @@ class SellerProfileCard extends StatelessWidget {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  // Action for Edit Profile
-                },
+                onTap: onEditProfile,
                 child: Text(
                   "Edit Profil",
                   style: GoogleFonts.dmSans(
