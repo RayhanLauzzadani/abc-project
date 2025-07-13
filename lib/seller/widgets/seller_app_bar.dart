@@ -30,7 +30,7 @@ class SellerAppBar extends StatelessWidget implements PreferredSizeWidget {
                 width: 36,
                 height: 36,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF00509D),
+                  color: Color(0xFF2056D3),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -64,7 +64,7 @@ class SellerAppBar extends StatelessWidget implements PreferredSizeWidget {
                 width: 40,
                 height: 40,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF00509D),
+                  color: Color(0xFF2056D3),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
