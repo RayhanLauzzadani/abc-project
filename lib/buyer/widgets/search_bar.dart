@@ -5,8 +5,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 class SearchBar extends StatelessWidget {
   final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
+  final String hintText;
 
-  const SearchBar({super.key, this.controller, this.onChanged});
+  const SearchBar({
+    super.key,
+    this.controller,
+    this.onChanged,
+    this.hintText = "Cari yang anda inginkan....", // default
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +27,7 @@ class SearchBar extends StatelessWidget {
           color: const Color(0xFF404040),
         ),
         decoration: InputDecoration(
-          hintText: "Cari yang anda inginkan....",
+          hintText: hintText,
           hintStyle: GoogleFonts.dmSans(
             fontSize: 16,
             color: const Color(0xFF9B9B9B),
