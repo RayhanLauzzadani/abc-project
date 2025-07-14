@@ -1,10 +1,12 @@
 import 'package:abc_e_mart/buyer/data/models/address.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_map_picker_page.dart';
+import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart'; // <-- tambahkan ini
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class AddressListPage extends StatefulWidget {
   const AddressListPage({super.key});
@@ -19,41 +21,7 @@ class _AddressListPageState extends State<AddressListPage> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C55C0),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/icons/back.svg',
-                  width: 20,
-                  height: 20,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ),
-        title: Text(
-          'Detail Alamat',
-          style: GoogleFonts.dmSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF373E3C),
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: const ProfileAppBar(title: 'Detail Alamat'), // <--- pakai widget baru di sini
       body: userId == null
           ? Center(
               child: Text(
@@ -70,7 +38,6 @@ class _AddressListPageState extends State<AddressListPage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                // Handle jika data kosong, tampilkan tombol tambah tetap ada
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -79,15 +46,30 @@ class _AddressListPageState extends State<AddressListPage> {
                       Center(
                         child: Column(
                           children: [
+                            Icon(
+                              LucideIcons.mapPinOff,
+                              size: 96,
+                              color: Colors.grey[300],
+                            ),
+                            const SizedBox(height: 32),
                             Text(
-                              'Belum ada alamat.\nTambah dulu ya!',
+                              'Belum ada alamat',
                               style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                color: const Color(0xFF9A9A9A),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF828282),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Tambah alamat untuk memudahkan pengiriman pesananmu.',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                color: Color(0xFFBDBDBD),
                               ),
                               textAlign: TextAlign.center,
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 32),
                             GestureDetector(
                               onTap: () async {
                                 await Navigator.push(
@@ -99,17 +81,16 @@ class _AddressListPageState extends State<AddressListPage> {
                               },
                               child: Column(
                                 children: [
-                                  SvgPicture.asset(
-                                    'assets/icons/plus.svg',
-                                    width: 32,
-                                    height: 32,
+                                  Icon(
+                                    LucideIcons.plusCircle,
+                                    size: 32,
                                     color: const Color(0xFF9A9A9A),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     'Tambah Alamat Baru',
                                     style: GoogleFonts.dmSans(
-                                      fontSize: 14,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w500,
                                       color: Color(0xFF9A9A9A),
                                     ),

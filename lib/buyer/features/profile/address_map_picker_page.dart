@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-// Ganti path sesuai folder project kamu
 import 'address_detail_page.dart';
+import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
 
 class AddressMapPickerPage extends StatefulWidget {
   const AddressMapPickerPage({super.key});
@@ -73,41 +73,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C55C0),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/icons/back.svg',
-                  width: 20,
-                  height: 20,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                ),
-              ),
-            ),
-          ),
-        ),
-        title: Text(
-          'Titik Lokasi',
-          style: GoogleFonts.dmSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF373E3C),
-          ),
-        ),
-        centerTitle: true,
+      // GANTI appBar-nya saja!
+      appBar: const ProfileAppBar(
+        title: 'Titik Lokasi',
       ),
       body: Column(
         children: [
