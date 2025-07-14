@@ -8,6 +8,7 @@ class AdminStoreSubmissionSection extends StatelessWidget {
   final void Function(AdminStoreSubmissionData)? onDetail;
   final String? title;
   final bool showSeeAll;
+  final bool isNetworkImage;
 
   const AdminStoreSubmissionSection({
     super.key,
@@ -16,6 +17,7 @@ class AdminStoreSubmissionSection extends StatelessWidget {
     this.onDetail,
     this.title,
     this.showSeeAll = true,
+    this.isNetworkImage = false,
   });
 
   @override
@@ -29,7 +31,7 @@ class AdminStoreSubmissionSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
       ),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20, right: 20, top: 18, bottom: 4),
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 18, bottom: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -38,7 +40,7 @@ class AdminStoreSubmissionSection extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    "Ajuan Toko Terbaru",
+                    title ?? "Ajuan Toko Terbaru",
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
@@ -46,7 +48,7 @@ class AdminStoreSubmissionSection extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (showSeeAll && onSeeAll != null) // <-- Gunakan showSeeAll
+                if (showSeeAll && onSeeAll != null)
                   GestureDetector(
                     onTap: onSeeAll,
                     child: Row(
@@ -80,16 +82,32 @@ class AdminStoreSubmissionSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            // List Ajuan
-            ...submissions.map(
-              (submission) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _AdminStoreSubmissionCard(
-                  data: submission,
-                  onDetail: () => onDetail?.call(submission),
+            if (submissions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                  child: Text(
+                    "Belum ada pengajuan toko yang masuk.",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF9A9A9A),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...submissions.map(
+                (submission) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _AdminStoreSubmissionCard(
+                    data: submission,
+                    onDetail: () => onDetail?.call(submission),
+                    isNetworkImage: isNetworkImage,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -97,13 +115,45 @@ class AdminStoreSubmissionSection extends StatelessWidget {
   }
 }
 
+// Card Widget tetap sama
 class _AdminStoreSubmissionCard extends StatelessWidget {
   final AdminStoreSubmissionData data;
   final VoidCallback? onDetail;
-  const _AdminStoreSubmissionCard({required this.data, this.onDetail});
+  final bool isNetworkImage;
+  const _AdminStoreSubmissionCard({required this.data, this.onDetail, this.isNetworkImage = false});
 
   @override
   Widget build(BuildContext context) {
+    Widget imgWidget;
+    if (isNetworkImage && data.imagePath.isNotEmpty) {
+      imgWidget = Image.network(
+        data.imagePath,
+        width: 89,
+        height: 76,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 89,
+          height: 76,
+          color: const Color(0xFFF3F3F3),
+          child: const Icon(Icons.store, color: Colors.grey),
+        ),
+      );
+    } else if (data.imagePath.isNotEmpty) {
+      imgWidget = Image.asset(
+        data.imagePath,
+        width: 89,
+        height: 76,
+        fit: BoxFit.cover,
+      );
+    } else {
+      imgWidget = Container(
+        width: 89,
+        height: 76,
+        color: const Color(0xFFF3F3F3),
+        child: const Icon(Icons.store, color: Colors.grey),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -116,22 +166,14 @@ class _AdminStoreSubmissionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ROW 1: Gambar & Info toko
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Gambar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    data.imagePath,
-                    width: 89,
-                    height: 76,
-                    fit: BoxFit.cover,
-                  ),
+                  child: imgWidget,
                 ),
                 const SizedBox(width: 10),
-                // Info toko
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,12 +227,10 @@ class _AdminStoreSubmissionCard extends StatelessWidget {
                 ),
               ],
             ),
-            // ROW 2: Date (kiri bawah) & Detail Ajuan (kanan bawah)
             const SizedBox(height: 14),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Date
                 Text(
                   data.date,
                   style: GoogleFonts.dmSans(
@@ -198,7 +238,6 @@ class _AdminStoreSubmissionCard extends StatelessWidget {
                     color: const Color(0xFFBDBDBD),
                   ),
                 ),
-                // Detail Ajuan
                 GestureDetector(
                   onTap: onDetail,
                   child: Row(
@@ -229,13 +268,13 @@ class _AdminStoreSubmissionCard extends StatelessWidget {
   }
 }
 
-// Data class
 class AdminStoreSubmissionData {
   final String imagePath;
   final String storeName;
   final String storeAddress;
   final String submitter;
   final String date;
+  final String docId;
 
   const AdminStoreSubmissionData({
     required this.imagePath,
@@ -243,5 +282,6 @@ class AdminStoreSubmissionData {
     required this.storeAddress,
     required this.submitter,
     required this.date,
+    required this.docId,
   });
 }

@@ -73,102 +73,130 @@ class _HomePageState extends State<HomePage> {
 class _HomeMainContent extends StatelessWidget {
   const _HomeMainContent();
 
+  static const double headerHeight = 110;
+  static const double spaceBawah = 0;
+  static const double searchBarHeight = 48;
+  static const double totalStickyHeight = headerHeight + spaceBawah + searchBarHeight;
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        // Header, Search, Banner
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 31),
-              _buildHeader(context),
-              const SizedBox(height: 31),
-              custom.SearchBar(),
-              const SizedBox(height: 24),
-              const PromoBannerCarousel(),
-            ],
+    return CustomScrollView(
+      slivers: [
+        // Sticky: Header + SearchBar (1 background putih, 10px bawah)
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _StickyHeaderWithSearchBarDelegate(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 31,
+                bottom: spaceBawah,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(context),
+                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: searchBarHeight,
+                    child: custom.SearchBar(),
+                  ),
+                ],
+              ),
+            ),
+            height: totalStickyHeight,
           ),
         ),
-        const SizedBox(height: 24),
-
-        // Kategori
-        const CategorySection(),
-        const SizedBox(height: 32),
-
+        // Banner Promo (ikut scroll)
+        SliverToBoxAdapter(child: const SizedBox(height: 10)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const PromoBannerCarousel(),
+          ),
+        ),
+        SliverToBoxAdapter(child: const SizedBox(height: 24)),
+        SliverToBoxAdapter(child: const CategorySection()),
+        SliverToBoxAdapter(child: const SizedBox(height: 32)),
         // Toko
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            "Toko yang Tersedia",
-            style: GoogleFonts.dmSans(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF212121),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              "Toko yang Tersedia",
+              style: GoogleFonts.dmSans(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF212121),
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: dummyStores.map((store) {
-              return StoreCard(
-                imagePath: store['image'],
-                storeName: store['name'],
-                distance: store['distance'],
-                duration: store['duration'],
-                rating: store['rating'],
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => StoreDetailPage(store: store),
-                    ),
-                  );
-                },
-              );
-            }).toList(),
+        SliverToBoxAdapter(child: const SizedBox(height: 12)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: dummyStores.map((store) {
+                return StoreCard(
+                  imagePath: store['image'],
+                  storeName: store['name'],
+                  distance: store['distance'],
+                  duration: store['duration'],
+                  rating: store['rating'],
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => StoreDetailPage(store: store),
+                      ),
+                    );
+                  },
+                );
+              }).toList(),
+            ),
           ),
         ),
-        const SizedBox(height: 32),
-
+        SliverToBoxAdapter(child: const SizedBox(height: 32)),
         // Produk
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            "Produk untuk Anda",
-            style: GoogleFonts.dmSans(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF212121),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              "Produk untuk Anda",
+              style: GoogleFonts.dmSans(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF212121),
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: dummyProducts.map((product) {
-              return ProductCard(
-                imagePath: product['image'],
-                name: product['name'],
-                price: product['price'],
-                rating: product['rating'].toDouble(),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetailPage(product: product),
-                    ),
-                  );
-                },
-              );
-            }).toList(),
+        SliverToBoxAdapter(child: const SizedBox(height: 12)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: dummyProducts.map((product) {
+                return ProductCard(
+                  imagePath: product['image'],
+                  name: product['name'],
+                  price: product['price'],
+                  rating: product['rating'].toDouble(),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailPage(product: product),
+                      ),
+                    );
+                  },
+                );
+              }).toList(),
+            ),
           ),
         ),
-        const SizedBox(height: 24),
+        SliverToBoxAdapter(child: const SizedBox(height: 24)),
       ],
     );
   }
@@ -240,4 +268,24 @@ class _HomeMainContent extends StatelessWidget {
       ],
     );
   }
+}
+
+// Sticky Header + SearchBar (single background)
+class _StickyHeaderWithSearchBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+  _StickyHeaderWithSearchBarDelegate({required this.child, required this.height});
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(_StickyHeaderWithSearchBarDelegate oldDelegate) => false;
 }

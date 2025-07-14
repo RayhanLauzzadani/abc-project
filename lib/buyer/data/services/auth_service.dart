@@ -23,11 +23,14 @@ class AuthService {
       // 2. Simpan data ke Firestore
       if (user != null) {
         await _db.collection('users').doc(user.uid).set({
-          'name': '$firstName $lastName',
+          'uid': user.uid,
           'email': email,
+          'name': '$firstName $lastName',
           'role': 'buyer',
-          'storeName': "",
+          'isActive': true,
           'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'storeName': "",
           'addressList': [],
         });
         return null; // sukses

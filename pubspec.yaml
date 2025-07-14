@@ -41,7 +41,7 @@ dependencies:
   firebase_messaging: ^15.2.8
   google_fonts: ^6.2.1
   lucide_icons: ^0.257.0 
-  lottie: ^2.7.0
+  lottie: 3.3.1
   google_sign_in: ^6.1.0
   flutter_svg: ^2.2.0
   http: ^1.2.0
@@ -56,10 +56,13 @@ dependencies:
   geolocator: ^10.1.0
   geocoding: ^2.1.0
   dio: ^5.4.0
+  provider: ^6.1.5
+  
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_native_splash: ^2.4.6
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -114,3 +117,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/logo.png
+  android: true
+  ios: true
+  web: false
+  android_gravity: center
+  ios_content_mode: center
+  fullscreen: true

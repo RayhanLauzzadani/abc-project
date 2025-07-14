@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminRejectReasonPage extends StatefulWidget {
   final Function(String reason)? onConfirmed;
@@ -22,6 +23,27 @@ class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
 
   bool get _canSubmit =>
       _controller.text.trim().isNotEmpty && _controller.text.length <= 255;
+
+  Future<void> _sendRejectionMessage(String reason) async {
+    // Ambil ID toko dan pembeli dari Firestore (anda perlu menyesuaikan struktur data)
+    final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc('docId');
+    final shopData = await shopDoc.get();
+    final buyerId = shopData.data()?['buyerId'] ?? '';
+
+    // Update status penolakan di Firestore
+    await shopDoc.update({
+      'status': 'rejected',
+      'rejectionReason': reason,
+    });
+
+    // Mengirim pesan penolakan ke pembeli (misal, menggunakan Firestore)
+    final messagesRef = FirebaseFirestore.instance.collection('messages');
+    await messagesRef.add({
+      'buyerId': buyerId,
+      'message': reason,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +226,7 @@ class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
                 ],
               ),
               child: SizedBox(
-                height: 59,
+                height: 46,
                 child: ElevatedButton(
                   onPressed: _canSubmit
                       ? () async {
@@ -230,6 +252,8 @@ class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
                           await Future.delayed(
                             const Duration(milliseconds: 200),
                           );
+                          // Kirim pesan penolakan ke pembeli
+                          await _sendRejectionMessage(_controller.text.trim());
                           Navigator.of(context).pop(
                             _controller.text.trim(),
                           ); // pop page + return alasan ke parent

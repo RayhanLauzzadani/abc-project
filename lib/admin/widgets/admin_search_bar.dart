@@ -5,18 +5,20 @@ import 'package:flutter_svg/flutter_svg.dart';
 class AdminSearchBar extends StatelessWidget {
   final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
+  final String hintText; // Tambahan: custom hint dari luar
 
   const AdminSearchBar({
     super.key,
     this.controller,
     this.onChanged,
+    this.hintText = "Cari toko, pemilik, atau alamat...", // Default
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 46, // fixed height 46px
-      width: double.infinity, // bebas, ngikut parent
+      height: 46,
+      width: double.infinity,
       child: TextField(
         controller: controller,
         onChanged: onChanged,
@@ -26,11 +28,11 @@ class AdminSearchBar extends StatelessWidget {
           color: const Color(0xFF404040),
         ),
         decoration: InputDecoration(
-          hintText: "Cari yang anda inginkan....",
+          hintText: hintText,
           hintStyle: GoogleFonts.dmSans(
             fontSize: 16,
             fontWeight: FontWeight.w400,
-            color: const Color(0xFF777777), // sesuai request
+            color: const Color(0xFF777777),
           ),
           prefixIcon: Padding(
             padding: const EdgeInsets.only(left: 16, right: 8),
@@ -38,7 +40,7 @@ class AdminSearchBar extends StatelessWidget {
               'assets/icons/search-icon.svg',
               width: 22,
               height: 22,
-              color: const Color(0xFF777777), // sesuai request
+              color: const Color(0xFF777777),
             ),
           ),
           prefixIconConstraints: const BoxConstraints(
