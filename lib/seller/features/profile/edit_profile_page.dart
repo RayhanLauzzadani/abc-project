@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class EditProfilePageSeller extends StatefulWidget {
@@ -10,24 +12,54 @@ class EditProfilePageSeller extends StatefulWidget {
 }
 
 class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
-  final _nameController = TextEditingController(text: "Nihon Mart");
-  final _descController = TextEditingController(text: "Menjual segala kebutuhan mahasiswa");
-  final _addressController = TextEditingController(text: "Jl. Ika Hiu No 24, Surabaya");
-  final _phoneController = TextEditingController(text: "089562104933");
+  final _nameController = TextEditingController();
+  final _descController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _phoneController = TextEditingController();
 
-  // Data original untuk deteksi perubahan
-  String _originalName = "Nihon Mart";
-  String _originalDesc = "Menjual segala kebutuhan mahasiswa";
-  String _originalAddress = "Jl. Ika Hiu No 24, Surabaya";
-  String _originalPhone = "089562104933";
+  String _originalName = "";
+  String _originalDesc = "";
+  String _originalAddress = "";
+  String _originalPhone = "";
+  String? _logoUrl;
 
   bool _hasChanged = false;
   bool _loading = false;
+  bool _firstLoad = true;
 
   @override
   void initState() {
     super.initState();
+    _fetchData();
     _listenChanges();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() => _loading = true);
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+    final doc = await FirebaseFirestore.instance.collection('stores').doc(uid).get();
+    final data = doc.data();
+
+    _originalName = data?['shopName'] ?? "-";
+    _originalDesc = data?['description'] ?? "";
+    _originalAddress = data?['address'] ?? "";
+    _originalPhone = data?['phone'] ?? "";
+    _logoUrl = data?['logoUrl'] ?? widget.logoPath;
+
+    _nameController.text = _originalName;
+    _descController.text = _originalDesc;
+    _addressController.text = _originalAddress;
+    _phoneController.text = _originalPhone;
+
+    setState(() {
+      _firstLoad = false;
+      _loading = false;
+    });
   }
 
   void _listenChanges() {
@@ -84,25 +116,39 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
 
   Future<void> _saveProfile() async {
     if (!_hasChanged) return;
-
     final confirmed = await _showConfirmSaveDialog();
     if (!confirmed) return;
 
     setState(() => _loading = true);
 
-    // Simulasi simpan data (dummy)
-    await Future.delayed(const Duration(milliseconds: 400));
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
 
-    _originalName = _nameController.text;
-    _originalDesc = _descController.text;
-    _originalAddress = _addressController.text;
-    _originalPhone = _phoneController.text;
-    _hasChanged = false;
+      await FirebaseFirestore.instance.collection('stores').doc(uid).update({
+        'shopName': _nameController.text.trim(),
+        'description': _descController.text.trim(),
+        'address': _addressController.text.trim(),
+        'phone': _phoneController.text.trim(),
+      });
 
-    await _showSuccessDialog();
-    if (mounted) Navigator.pop(context, true);
+      _originalName = _nameController.text;
+      _originalDesc = _descController.text;
+      _originalAddress = _addressController.text;
+      _originalPhone = _phoneController.text;
+      _hasChanged = false;
 
-    if (mounted) setState(() => _loading = false);
+      await _showSuccessDialog();
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal menyimpan profil: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -110,131 +156,134 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Header
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Center(
-                    child: Text(
-                      "Edit Profil",
-                      style: GoogleFonts.dmSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF2056D3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
-              // Logo
-              Align(
-                alignment: Alignment.center,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
+        child: _firstLoad
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: const BoxDecoration(shape: BoxShape.circle),
-                      child: ClipOval(
-                        child: Image.asset(widget.logoPath, fit: BoxFit.cover),
+                    // Header
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Center(
+                          child: Text(
+                            "Edit Profil",
+                            style: GoogleFonts.dmSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF2056D3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    // Logo toko
+                    Align(
+                      alignment: Alignment.center,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 92,
+                            height: 92,
+                            decoration: const BoxDecoration(shape: BoxShape.circle),
+                            child: ClipOval(
+                              child: _logoUrl != null && _logoUrl!.isNotEmpty
+                                  ? Image.network(_logoUrl!, fit: BoxFit.cover)
+                                  : Image.asset('assets/your_default_logo.png', fit: BoxFit.cover),
+                            ),
+                          ),
+                          // Jika ingin implement ganti logo, letakkan tombol edit disini
+                          Positioned(
+                            bottom: -12,
+                            right: -12,
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.grey.shade300, width: 2),
+                              ),
+                              child: const Icon(Icons.edit, size: 20, color: Color(0xFF232323)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Positioned(
-                      bottom: -12,
-                      right: -12,
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey.shade300, width: 2),
+                    const SizedBox(height: 36),
+                    // Box input
+                    _EditProfileBox(
+                      controller: _nameController,
+                      icon: Icons.store_rounded,
+                      labelText: "Nama Toko",
+                    ),
+                    const SizedBox(height: 16),
+                    _EditProfileBox(
+                      controller: _descController,
+                      icon: Icons.notes_rounded,
+                      labelText: "Deskripsi Toko",
+                    ),
+                    const SizedBox(height: 16),
+                    _EditProfileBox(
+                      controller: _addressController,
+                      icon: Icons.location_on_rounded,
+                      labelText: "Alamat Toko",
+                    ),
+                    const SizedBox(height: 16),
+                    _EditProfileBox(
+                      controller: _phoneController,
+                      icon: Icons.phone_rounded,
+                      labelText: "Nomor Telepon",
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: (!_hasChanged || _loading) ? null : _saveProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _hasChanged ? const Color(0xFF2056D3) : const Color(0xFFB5B5B5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          elevation: 0,
                         ),
-                        child: const Icon(Icons.edit, size: 20, color: Color(0xFF232323)),
+                        child: _loading
+                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.3))
+                          : Text(
+                              "Simpan Perubahan",
+                              style: GoogleFonts.dmSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 36),
-              // Box input
-              _EditProfileBox(
-                controller: _nameController,
-                icon: Icons.store_rounded,
-                labelText: "Nama Toko",
-              ),
-              const SizedBox(height: 16),
-              _EditProfileBox(
-                controller: _descController,
-                icon: Icons.notes_rounded,
-                labelText: "Deskripsi Toko",
-              ),
-              const SizedBox(height: 16),
-              _EditProfileBox(
-                controller: _addressController,
-                icon: Icons.location_on_rounded,
-                labelText: "Alamat Toko",
-              ),
-              const SizedBox(height: 16),
-              _EditProfileBox(
-                controller: _phoneController,
-                icon: Icons.phone_rounded,
-                labelText: "Nomor Telepon",
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 32),
-
-              // Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: (!_hasChanged || _loading) ? null : _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _hasChanged ? const Color(0xFF2056D3) : const Color(0xFFB5B5B5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _loading
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.3))
-                    : Text(
-                      "Simpan Perubahan",
-                      style: GoogleFonts.dmSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
