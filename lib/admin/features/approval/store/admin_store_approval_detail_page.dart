@@ -21,27 +21,30 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
   Future<void> _onReject(BuildContext context) async {
     final reason = await Navigator.push<String>(
       context,
-      MaterialPageRoute(
-        builder: (_) => AdminRejectReasonPage(),
-      ),
+      MaterialPageRoute(builder: (_) => AdminRejectReasonPage()),
     );
 
     if (reason != null && reason.isNotEmpty) {
       try {
         await _sendRejectionMessage(context, reason);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Ajuan toko ditolak!")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Ajuan toko ditolak!")));
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     }
   }
 
-  Future<void> _sendRejectionMessage(BuildContext context, String reason) async {
-    final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc(docId);
+  Future<void> _sendRejectionMessage(
+    BuildContext context,
+    String reason,
+  ) async {
+    final shopDoc = FirebaseFirestore.instance
+        .collection('shopApplications')
+        .doc(docId);
     final shopData = await shopDoc.get();
     final buyerId = shopData.data()?['owner']?['uid'] ?? '';
 
@@ -59,21 +62,20 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           .doc(buyerId)
           .collection('notifications')
           .add({
-        'title': 'Pengajuan Toko Ditolak',
-        'body': reason, // alasan penolakan
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'type': 'rejected',
-      });
+            'title': 'Pengajuan Toko Ditolak',
+            'body': reason, // alasan penolakan
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'type': 'rejected',
+          });
     }
 
     // Dialog sukses
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const SuccessDialog(
-        message: "Ajuan Toko Berhasil Ditolak",
-      ),
+      builder: (_) =>
+          const SuccessDialog(message: "Ajuan Toko Berhasil Ditolak"),
     );
     await Future.delayed(const Duration(seconds: 2));
     Navigator.of(context, rootNavigator: true).pop();
@@ -83,7 +85,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
 
   // Fungsi persetujuan
   Future<void> _onAccept(BuildContext context) async {
-    final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc(docId);
+    final shopDoc = FirebaseFirestore.instance
+        .collection('shopApplications')
+        .doc(docId);
 
     try {
       // Update status di Firestore
@@ -96,52 +100,76 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       final shopData = await shopDoc.get();
       final buyerId = shopData.data()?['owner']?['uid'] ?? '';
 
-      // Kirim notifikasi ke subcollection notifications user
+      // --- Tambahkan role "seller" pada users/{uid} tanpa menghilangkan "buyer" + storeName
       if (buyerId != '') {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(buyerId);
+
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+          final userSnap = await transaction.get(userRef);
+          List<dynamic> currentRoles = [];
+          if (userSnap.exists && userSnap.data()!.containsKey('role')) {
+            currentRoles = List.from(userSnap['role'] ?? []);
+          }
+          if (!currentRoles.contains('seller')) {
+            currentRoles.add('seller');
+          }
+          // Pastikan buyer tetap ada!
+          if (!currentRoles.contains('buyer')) {
+            currentRoles.insert(0, 'buyer');
+          }
+          // Update role + storeName dari shopData
+          transaction.update(userRef, {
+            'role': currentRoles,
+            'storeName': shopData.data()?['shopName'] ?? "",
+          });
+        });
+
+        // Kirim notifikasi ke subcollection notifications user
         await FirebaseFirestore.instance
             .collection('users')
             .doc(buyerId)
             .collection('notifications')
             .add({
-          'title': 'Pengajuan Toko Disetujui',
-          'body': 'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
-          'timestamp': FieldValue.serverTimestamp(),
-          'isRead': false,
-          'type': 'approved',
-        });
+              'title': 'Pengajuan Toko Disetujui',
+              'body':
+                  'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
+              'timestamp': FieldValue.serverTimestamp(),
+              'isRead': false,
+              'type': 'approved',
+            });
       }
 
       // Dialog sukses
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const SuccessDialog(
-          message: "Ajuan Toko Diterima",
-        ),
+        builder: (_) => const SuccessDialog(message: "Ajuan Toko Diterima"),
       );
       await Future.delayed(const Duration(seconds: 2));
       Navigator.of(context, rootNavigator: true).pop();
       await Future.delayed(const Duration(milliseconds: 200));
       Navigator.of(context).pop();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui status: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Uncomment untuk debug claims
-    // _printClaims();
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Stack(
           children: [
             StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance.collection('shopApplications').doc(docId).snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('shopApplications')
+                  .doc(docId)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -161,13 +189,18 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                 String dateStr = '-';
                 if (submittedAt != null && submittedAt is Timestamp) {
                   final dt = submittedAt.toDate();
-                  dateStr = "${dt.day.toString().padLeft(2, '0')}/"
+                  dateStr =
+                      "${dt.day.toString().padLeft(2, '0')}/"
                       "${dt.month.toString().padLeft(2, '0')}/"
                       "${dt.year}, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
                 }
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 110),
+                  padding: const EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: 110,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -272,7 +305,12 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: ktpUrl.isNotEmpty
-                                  ? Image.network(ktpUrl, width: 32, height: 32, fit: BoxFit.cover)
+                                  ? Image.network(
+                                      ktpUrl,
+                                      width: 32,
+                                      height: 32,
+                                      fit: BoxFit.cover,
+                                    )
                                   : const Icon(
                                       Icons.image_outlined,
                                       color: Color(0xFFDADADA),
@@ -286,7 +324,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    ktpUrl.isNotEmpty ? "KTP.jpg" : "Belum ada file",
+                                    ktpUrl.isNotEmpty
+                                        ? "KTP.jpg"
+                                        : "Belum ada file",
                                     style: GoogleFonts.dmSans(
                                       fontSize: 13,
                                       color: const Color(0xFF373E3C),
@@ -422,7 +462,12 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                         child: logoUrl.isNotEmpty
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(logoUrl, width: 64, height: 64, fit: BoxFit.cover),
+                                child: Image.network(
+                                  logoUrl,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                ),
                               )
                             : Center(
                                 child: SvgPicture.asset(

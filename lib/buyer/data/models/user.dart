@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String uid;
   final String name;
   final String phone;
-  final String role;
+  final List<String> role; // Sekarang List!
   final String storeName;
   final DateTime createdAt;
   final List<Map<String, dynamic>> addressList;
@@ -23,18 +24,26 @@ class UserModel {
   });
 
   factory UserModel.fromMap(String id, Map<String, dynamic> map) {
+    // Deteksi role: String atau List
+    List<String> roleList = [];
+    if (map['role'] is String) {
+      roleList = [map['role']];
+    } else if (map['role'] is List) {
+      roleList = List<String>.from(map['role'] ?? []);
+    }
     return UserModel(
       uid: id,
       name: map['name'] ?? '',
       phone: map['phone'] ?? '',
-      role: map['role'] ?? 'buyer',
+      role: roleList,
       storeName: map['storeName'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       addressList: List<Map<String, dynamic>>.from(map['addressList'] ?? []),
       favorites: map['favorites'] != null
           ? Map<String, List<String>>.from(
-              (map['favorites'] as Map<String, dynamic>).map((key, value) =>
-                  MapEntry(key, List<String>.from(value ?? []))))
+              (map['favorites'] as Map<String, dynamic>).map(
+                  (key, value) =>
+                      MapEntry(key, List<String>.from(value ?? []))))
           : null,
       photoUrl: map['photoUrl'],
     );
@@ -44,7 +53,7 @@ class UserModel {
     return {
       'name': name,
       'phone': phone,
-      'role': role,
+      'role': role, // simpan List<String>
       'storeName': storeName,
       'createdAt': createdAt,
       'addressList': addressList,

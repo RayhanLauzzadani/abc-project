@@ -62,13 +62,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final doc = await _firestore.collection('users').doc(uid).get();
     if (doc.exists) {
       final data = doc.data()!;
-      final fullName = (data['name'] ?? '').toString().split(' ');
+      // name: 'firstname lastname'
+      final fullName = (data['name'] ?? '').toString().trim().split(' ');
       _firstNameController.text = fullName.isNotEmpty ? fullName.first : '';
       _lastNameController.text = fullName.length > 1 ? fullName.sublist(1).join(' ') : '';
       _phoneController.text = data['phone'] ?? '';
       _email = data['email'] ?? '';
       _storeName = data['storeName'] ?? '';
-      _photoUrl = data['photoUrl'] ?? null;
+      _photoUrl = data['photoUrl'] ?? '';
 
       // Save original values
       _originalFirstName = _firstNameController.text;
@@ -125,9 +126,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final ref = _storage.ref().child('user_profiles/$uid.jpg');
     try {
       await ref.delete();
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) {}
   }
 
   Future<void> _showDeletePhotoDialog() async {
