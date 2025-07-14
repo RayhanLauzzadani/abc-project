@@ -10,6 +10,10 @@ import 'package:another_flushbar/flushbar.dart';
 import 'custom_camera_page.dart';
 import 'package:abc_e_mart/seller/widgets/ktp_instruction_page.dart';
 
+// Tambahkan
+import 'package:provider/provider.dart';
+import 'package:abc_e_mart/seller/providers/seller_registration_provider.dart';
+
 class KtpUploadSection extends StatefulWidget {
   final VoidCallback? onShowInstruction;
   final Function(String? nik, String? nama)? onKtpOcrResult;
@@ -25,13 +29,12 @@ class KtpUploadSection extends StatefulWidget {
 }
 
 class _KtpUploadSectionState extends State<KtpUploadSection> {
-  File? _pickedImage;
   bool _loading = false;
 
-  Future<void> _pickImageCustomCamera() async {
+  Future<void> _pickImageCustomCamera(BuildContext context) async {
     var status = await Permission.camera.request();
     if (!status.isGranted) {
-      _showPermissionDialog();
+      _showPermissionDialog(context);
       return;
     }
 
@@ -41,14 +44,19 @@ class _KtpUploadSectionState extends State<KtpUploadSection> {
     );
     if (file == null) return;
 
-    if (!mounted) return;
+    final pickedImage = File(file.path);
+
+    // Simpan ke provider!
+    Provider.of<SellerRegistrationProvider>(context, listen: false)
+        .setKtpFile(pickedImage);
+
     setState(() {
-      _pickedImage = File(file.path);
       _loading = true;
     });
 
-    final ocrResult = await _runKtpOcr(File(file.path));
-    if (!mounted) return;
+    // OCR KTP
+    final ocrResult = await _runKtpOcr(pickedImage);
+
     setState(() {
       _loading = false;
     });
@@ -71,12 +79,10 @@ class _KtpUploadSectionState extends State<KtpUploadSection> {
       }
     }
 
-    if (widget.onKtpOcrResult != null) {
-      widget.onKtpOcrResult!(ocrResult['nik'], ocrResult['nama']);
-    }
+    widget.onKtpOcrResult?.call(ocrResult['nik'], ocrResult['nama']);
   }
 
-  void _showPermissionDialog() {
+  void _showPermissionDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -108,11 +114,6 @@ class _KtpUploadSectionState extends State<KtpUploadSection> {
     final RecognizedText recognizedText = await textRecognizer.processImage(
       inputImage,
     );
-
-    debugPrint('===== OCR Result =====');
-    for (final line in recognizedText.text.split('\n')) {
-      debugPrint(line);
-    }
 
     String? nik;
     String? nama;
@@ -212,8 +213,18 @@ class _KtpUploadSectionState extends State<KtpUploadSection> {
     return {'nik': nik, 'nama': nama};
   }
 
+  void _deleteImage(BuildContext context) {
+    // Clear di Provider
+    Provider.of<SellerRegistrationProvider>(context, listen: false)
+        .setKtpFile(null);
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ktpFile =
+        Provider.of<SellerRegistrationProvider>(context).ktpFile;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,51 +267,75 @@ class _KtpUploadSectionState extends State<KtpUploadSection> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GestureDetector(
-                      onTap: _loading ? null : _pickImageCustomCamera,
-                      child: DottedBorder(
-                        borderType: BorderType.RRect,
-                        radius: const Radius.circular(10),
-                        color: const Color(0xFFD1D5DB),
-                        dashPattern: const [6, 3],
-                        strokeWidth: 1.4,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
+                    Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        GestureDetector(
+                          onTap: _loading ? null : () => _pickImageCustomCamera(context),
+                          child: DottedBorder(
+                            borderType: BorderType.RRect,
+                            radius: const Radius.circular(10),
+                            color: const Color(0xFFD1D5DB),
+                            dashPattern: const [6, 3],
+                            strokeWidth: 1.4,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: ktpFile == null
+                                  ? _loading
+                                      ? const Center(
+                                          child: CircularProgressIndicator(),
+                                        )
+                                      : Center(
+                                          child: SvgPicture.asset(
+                                            'assets/icons/registration/plus.svg',
+                                            width: 34,
+                                            height: 34,
+                                            color: const Color(0xFFBDBDBD),
+                                          ),
+                                        )
+                                  : ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.file(
+                                        ktpFile,
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                            ),
                           ),
-                          child: _pickedImage == null
-                              ? _loading
-                                    ? const Center(
-                                        child: CircularProgressIndicator(),
-                                      )
-                                    : Center(
-                                        child: SvgPicture.asset(
-                                          'assets/icons/registration/plus.svg',
-                                          width: 34,
-                                          height: 34,
-                                          color: const Color(0xFFBDBDBD),
-                                        ),
-                                      )
-                              : ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.file(
-                                    _pickedImage!,
-                                    width: 80,
-                                    height: 80,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
                         ),
-                      ),
+                        if (ktpFile != null)
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: GestureDetector(
+                              onTap: () => _deleteImage(context),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 3,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(Icons.close, size: 20, color: Colors.redAccent),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(width: 18),
                     Padding(
-                      padding: const EdgeInsets.only(
-                        left: 36,
-                      ), // misal mau kasih jarak kiri
+                      padding: const EdgeInsets.only(left: 36),
                       child: KtpCardWithInstruction(
                         onTap: () {
                           Navigator.push(
@@ -341,7 +376,7 @@ class KtpCardWithInstruction extends StatelessWidget {
   final VoidCallback? onTap;
   final double width;
   final double height;
-  final EdgeInsetsGeometry? margin; // Tambahan margin
+  final EdgeInsetsGeometry? margin;
 
   const KtpCardWithInstruction({
     super.key,
@@ -354,7 +389,7 @@ class KtpCardWithInstruction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: margin, // <- Tambahkan margin di sini
+      margin: margin,
       child: GestureDetector(
         onTap: onTap,
         child: Stack(

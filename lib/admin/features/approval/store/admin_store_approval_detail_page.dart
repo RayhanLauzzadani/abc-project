@@ -2,22 +2,135 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/admin/widgets/admin_dual_action_buttons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:abc_e_mart/admin/data/models/admin_store_data.dart';
+import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
+import 'package:abc_e_mart/admin/widgets/admin_reject_reason_page.dart';
 
 class AdminStoreApprovalDetailPage extends StatelessWidget {
-  const AdminStoreApprovalDetailPage({super.key});
+  final String docId;
+  final AdminStoreApprovalData? approvalData;
 
-  void _onReject(BuildContext context) {
-    // Tambahkan logic penolakan (misal update status di Firestore)
-    ScaffoldMessenger.of(
+  const AdminStoreApprovalDetailPage({
+    super.key,
+    required this.docId,
+    this.approvalData,
+  });
+
+  // Fungsi penolakan
+  void _onReject(BuildContext context) async {
+    final reason = await Navigator.push<String>(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Ajuan toko ditolak!")));
+      MaterialPageRoute(
+        builder: (_) => AdminRejectReasonPage(),
+      ),
+    );
+
+    if (reason != null && reason.isNotEmpty) {
+      await _sendRejectionMessage(context, reason);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Ajuan toko ditolak!")),
+      );
+    }
   }
 
-  void _onAccept(BuildContext context) {
-    // Tambahkan logic persetujuan (misal update status di Firestore)
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Ajuan toko diterima!")));
+  Future<void> _sendRejectionMessage(BuildContext context, String reason) async {
+    final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc(docId);
+    final shopData = await shopDoc.get();
+    final buyerId = shopData.data()?['owner']?['uid'] ?? '';
+
+    // Update status di Firestore
+    await shopDoc.update({
+      'status': 'rejected',
+      'rejectionReason': reason,
+      'rejectedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Simpan pesan penolakan (opsional, bisa kamu kembangkan)
+    await FirebaseFirestore.instance.collection('messages').add({
+      'buyerId': buyerId,
+      'message': reason,
+      'type': 'shop_reject',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    // Kirim ke subcollection notifikasi user (INI YANG BENAR)
+    if (buyerId != '') {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(buyerId)
+          .collection('notifications')
+          .add({
+        'title': 'Pengajuan Toko Ditolak',
+        'body': reason, // alasan penolakan
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'type': 'rejected',
+      });
+    }
+
+    // Dialog sukses
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const SuccessDialog(
+        message: "Ajuan Toko Berhasil Ditolak",
+      ),
+    );
+    await Future.delayed(const Duration(seconds: 2));
+    Navigator.of(context, rootNavigator: true).pop();
+    await Future.delayed(const Duration(milliseconds: 200));
+    Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
+  }
+
+  // Fungsi persetujuan
+  void _onAccept(BuildContext context) async {
+    final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc(docId);
+
+    try {
+      // Update status di Firestore
+      await shopDoc.update({
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Ambil UID buyer/owner dari dokumen
+      final shopData = await shopDoc.get();
+      final buyerId = shopData.data()?['owner']?['uid'] ?? '';
+
+      // Kirim notifikasi ke subcollection notifications user
+      if (buyerId != '') {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(buyerId)
+            .collection('notifications')
+            .add({
+          'title': 'Pengajuan Toko Disetujui',
+          'body': 'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'approved',
+        });
+      }
+
+      // Dialog sukses
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const SuccessDialog(
+          message: "Ajuan Toko Diterima",
+        ),
+      );
+
+      await Future.delayed(const Duration(seconds: 2));
+      Navigator.of(context, rootNavigator: true).pop();
+      await Future.delayed(const Duration(milliseconds: 200));
+      Navigator.of(context).pop();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui status: $e')),
+      );
+    }
   }
 
   @override
@@ -27,359 +140,385 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            // Main content
-            SingleChildScrollView(
-              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 110),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Back & Title
-                  const SizedBox(height: 24),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance.collection('shopApplications').doc(docId).snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return const Center(child: Text('Data tidak ditemukan'));
+                }
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final owner = data['owner'] ?? {};
+                final ktpUrl = data['ktpUrl'] ?? '';
+                final logoUrl = data['logoUrl'] ?? '';
+                final shopName = data['shopName'] ?? '-';
+                final description = data['description'] ?? '-';
+                final address = data['address'] ?? '-';
+                final phone = data['phone'] ?? '-';
+                final submittedAt = data['submittedAt'];
+                String dateStr = '-';
+                if (submittedAt != null && submittedAt is Timestamp) {
+                  final dt = submittedAt.toDate();
+                  dateStr = "${dt.day.toString().padLeft(2, '0')}/"
+                      "${dt.month.toString().padLeft(2, '0')}/"
+                      "${dt.year}, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+                }
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 110),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      InkWell(
-                        borderRadius: BorderRadius.circular(32),
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 37,
-                          height: 37,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2563EB),
-                            shape: BoxShape.circle,
+                      // Back & Title
+                      const SizedBox(height: 24),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(32),
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 37,
+                              height: 37,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF2563EB),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 22,
+                          const SizedBox(width: 16),
+                          Text(
+                            "Detail Ajuan",
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: const Color(0xFF232323),
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Tanggal Pengajuan
+                      Text(
+                        "Tanggal Pengajuan",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF373E3C),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(height: 3),
                       Text(
-                        "Detail Ajuan",
+                        dateStr,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF6D6D6D),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Divider(
+                        color: const Color(0xFFE5E7EB),
+                        thickness: 1,
+                        height: 1,
+                      ),
+                      const SizedBox(height: 22),
+
+                      // Data Diri Pemilik Toko
+                      Text(
+                        "Data Diri Pemilik Toko",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 17),
+
+                      // Foto KTP
+                      Text(
+                        "Foto KTP",
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Container(
+                        width: double.infinity,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 12),
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF2F2F2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: ktpUrl.isNotEmpty
+                                  ? Image.network(ktpUrl, width: 32, height: 32, fit: BoxFit.cover)
+                                  : const Icon(
+                                      Icons.image_outlined,
+                                      color: Color(0xFFDADADA),
+                                      size: 22,
+                                    ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    ktpUrl.isNotEmpty ? "KTP.jpg" : "Belum ada file",
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 13,
+                                      color: const Color(0xFF373E3C),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: Color(0xFFBDBDBD),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+                      // Nama
+                      Text(
+                        "Nama",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        owner['nama'] ?? '-',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
                           color: const Color(0xFF232323),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Tanggal Pengajuan
-                  Text(
-                    "Tanggal Pengajuan",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    "30 April 2025, 4:21 PM",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF6D6D6D),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Divider(
-                    color: const Color(0xFFE5E7EB),
-                    thickness: 1,
-                    height: 1,
-                  ),
-                  const SizedBox(height: 22),
-
-                  // Data Diri Pemilik Toko
-                  Text(
-                    "Data Diri Pemilik Toko",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 17),
-
-                  // Foto KTP
-                  Text(
-                    "Foto KTP",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Container(
-                    width: double.infinity,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 12),
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF2F2F2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Icon(
-                            Icons.image_outlined,
-                            color: Color(0xFFDADADA),
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Foto KTP.jpg",
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 13,
-                                  color: const Color(0xFF373E3C),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                "100.96 KB",
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 10,
-                                  color: const Color(0xFF9B9B9B),
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right,
-                          color: Color(0xFFBDBDBD),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-                  // Nama
-                  Text(
-                    "Nama",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Rayhan Kautsar",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  // NIK
-                  Text(
-                    "NIK",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "1233452718391373198391",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  // Nama Bank
-                  Text(
-                    "Nama Bank",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "ABC Bank",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  // Nomor Rekening
-                  Text(
-                    "Nomor Rekening",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "1427316938636492343",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-                  Divider(
-                    color: const Color(0xFFE5E7EB),
-                    thickness: 1,
-                    height: 1,
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Data Toko
-                  Text(
-                    "Data Toko",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 17),
-                  // Logo toko
-                  Text(
-                    "Logo Toko",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF2F2F2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFDADADA)),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/store.svg',
-                        width: 36,
-                        height: 36,
-                        colorFilter: const ColorFilter.mode(
-                          Color(0xFFDADADA),
-                          BlendMode.srcIn,
+                      const SizedBox(height: 13),
+                      // NIK
+                      Text(
+                        "NIK",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
                         ),
                       ),
-                    ),
-                  ),
+                      const SizedBox(height: 2),
+                      Text(
+                        owner['nik'] ?? '-',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      // Nama Bank
+                      Text(
+                        "Nama Bank",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        owner['bank'] ?? '-',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      // Nomor Rekening
+                      Text(
+                        "Nomor Rekening",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        owner['rek'] ?? '-',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
 
-                  const SizedBox(height: 14),
+                      const SizedBox(height: 24),
+                      Divider(
+                        color: const Color(0xFFE5E7EB),
+                        thickness: 1,
+                        height: 1,
+                      ),
+                      const SizedBox(height: 18),
 
-                  // Nama Toko
-                  Text(
-                    "Nama Toko",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
+                      // Data Toko
+                      Text(
+                        "Data Toko",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 17),
+                      // Logo toko
+                      Text(
+                        "Logo Toko",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF2F2F2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Color(0xFFDADADA)),
+                        ),
+                        child: logoUrl.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(logoUrl, width: 64, height: 64, fit: BoxFit.cover),
+                              )
+                            : Center(
+                                child: SvgPicture.asset(
+                                  'assets/icons/store.svg',
+                                  width: 36,
+                                  height: 36,
+                                  colorFilter: const ColorFilter.mode(
+                                    Color(0xFFDADADA),
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                              ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Nama Toko
+                      Text(
+                        "Nama Toko",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        shopName,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      // Deskripsi Singkat Toko
+                      Text(
+                        "Deskripsi Singkat Toko",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        description,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      // Alamat Lengkap Toko
+                      Text(
+                        "Alamat Lengkap Toko",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        address,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      // Nomor HP
+                      Text(
+                        "Nomor HP",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        phone,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Nippon Mart",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  // Deskripsi Singkat Toko
-                  Text(
-                    "Deskripsi Singkat Toko",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Toko yang menjual segala kebutuhan mahasiswa",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  // Alamat Lengkap Toko
-                  Text(
-                    "Alamat Lengkap Toko",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Jl. Ikan Hiu 24, Surabaya",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  // Nomor HP
-                  Text(
-                    "Nomor HP",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: const Color(0xFF373E3C),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "082573420394810",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: const Color(0xFF232323),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                ],
-              ),
+                );
+              },
             ),
             // Sticky Button Area
             Positioned(
