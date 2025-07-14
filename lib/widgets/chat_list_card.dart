@@ -30,15 +30,16 @@ class ChatListCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(23),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        // Ubah padding horizontal menjadi 20 sesuai referensi
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar (kotak rounded lebih besar)
+            // Avatar (ukuran 70 x 70, margin kanan saja)
             Container(
-              width: 62,
-              height: 62,
-              margin: const EdgeInsets.only(left: 10, right: 14, top: 0, bottom: 2),
+              width: 70,
+              height: 70,
+              margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(24),
@@ -64,7 +65,7 @@ class ChatListCard extends StatelessWidget {
             // Chat info (expanded)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 2, bottom: 2, right: 5),
+                padding: const EdgeInsets.only(top: 6, bottom: 2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -84,7 +85,8 @@ class ChatListCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 7),
+                        // Jam
+                        const SizedBox(width: 12),
                         Text(
                           time,
                           style: GoogleFonts.dmSans(
