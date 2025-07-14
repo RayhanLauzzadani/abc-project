@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'widgets/product_approval_card.dart';
-import 'widgets/admin_product_approval_detail_page.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
 import 'package:abc_e_mart/admin/data/models/admin_product_data.dart';
+import 'package:abc_e_mart/admin/features/approval/product/admin_product_approval_detail_page.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
-import 'package:abc_e_mart/widgets/category_selector.dart'; // PENTING: gunakan widget global!
+import 'package:abc_e_mart/widgets/category_selector.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminProductApprovalPage extends StatefulWidget {
   const AdminProductApprovalPage({super.key});
@@ -27,90 +28,12 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
     CategoryType.lainnya,
   ];
 
-  final List<AdminProductData> products = [
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Kaos ABC Emart",
-      categoryType: CategoryType.merchandise,
-      storeName: "Toko ABC",
-      date: "01/07/2025, 10:30 AM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Buku Tulis",
-      categoryType: CategoryType.alatTulis,
-      storeName: "Nippon Mart",
-      date: "02/07/2025, 09:15 AM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Tabung Erlenmeyer",
-      categoryType: CategoryType.alatLab,
-      storeName: "Lab Jaya",
-      date: "03/07/2025, 11:11 AM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Tas Daur Ulang",
-      categoryType: CategoryType.produkDaurUlang,
-      storeName: "EcoStore",
-      date: "04/07/2025, 14:02 PM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Masker Kesehatan",
-      categoryType: CategoryType.produkKesehatan,
-      storeName: "Sehat Sentosa",
-      date: "05/07/2025, 08:44 AM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Ayam Betutu",
-      categoryType: CategoryType.makanan,
-      storeName: "Nippon Mart",
-      date: "06/07/2025, 12:00 PM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Teh Botol",
-      categoryType: CategoryType.minuman,
-      storeName: "Toko Minum",
-      date: "07/07/2025, 13:05 PM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Keripik Kentang",
-      categoryType: CategoryType.snacks,
-      storeName: "Snack Corner",
-      date: "08/07/2025, 16:22 PM",
-    ),
-    AdminProductData(
-      imagePath: 'assets/images/nihonmart.png',
-      productName: "Lain-lain",
-      categoryType: CategoryType.lainnya,
-      storeName: "Toko Random",
-      date: "09/07/2025, 17:30 PM",
-    ),
-  ];
-
   int _selectedCategory = 0; // 0 = Semua
   String _searchText = '';
   final TextEditingController _searchController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    // Filtering produk berdasarkan kategori dan search
-    List<AdminProductData> filteredProducts = products.where((p) {
-      final matchCategory = _selectedCategory == 0
-          ? true
-          : p.categoryType == categories[_selectedCategory - 1];
-      final matchSearch = _searchText.isEmpty
-          ? true
-          : p.productName.toLowerCase().contains(_searchText.toLowerCase()) ||
-            p.storeName.toLowerCase().contains(_searchText.toLowerCase());
-      return matchCategory && matchSearch;
-    }).toList();
-
     return Column(
       children: [
         Padding(
@@ -139,39 +62,116 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
           ),
         ),
         const SizedBox(height: 21),
-        // KATEGORI: GANTI DENGAN WIDGET GLOBAL TANPA SET HEIGHT/GAP MANUAL!
+        // KATEGORI
         CategorySelector(
           categories: categories,
           selectedIndex: _selectedCategory,
           onSelected: (i) => setState(() => _selectedCategory = i),
         ),
         const SizedBox(height: 21),
-        // LIST PRODUK
+
+        // === LIST FIRESTORE ===
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: filteredProducts.length,
-            itemBuilder: (context, idx) {
-              final p = filteredProducts[idx];
-              return ProductApprovalCard(
-                data: p,
-                onDetail: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminProductApprovalDetailPage(
-                        data: p,
-                        description:
-                            "Produk ${p.productName} adalah produk berkualitas tinggi yang bisa kamu pilih untuk berbagai kebutuhan. Tersedia di ${p.storeName}.",
-                        variations: ["Standar", "Jumbo", "Paket Lengkap"],
-                        price: "25.000",
-                      ),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('productsApplication')
+                .where('status', isEqualTo: 'Menunggu') // sesuai struktur Firestore kamu!
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Terjadi error: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snapshot.data?.docs ?? [];
+              // Mapping ke model sederhana
+              List<AdminProductData> products = docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                // mapping kategori string ke CategoryType (opsional, jika ingin filter kategori)
+                final categoryLabel = (data['category'] ?? '').toString();
+                CategoryType categoryType = categories.firstWhere(
+                  (cat) => categoryLabels[cat] == categoryLabel,
+                  orElse: () => CategoryType.lainnya,
+                );
+                // Tanggal
+                String date = "-";
+                final createdAt = data['createdAt'];
+                if (createdAt != null) {
+                  final dt = createdAt is Timestamp
+                      ? createdAt.toDate()
+                      : DateTime.tryParse(createdAt.toString());
+                  if (dt != null) {
+                    date = "${dt.day.toString().padLeft(2, '0')}/"
+                        "${dt.month.toString().padLeft(2, '0')}/"
+                        "${dt.year}, "
+                        "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+                  }
+                }
+                return AdminProductData(
+                  docId: doc.id,
+                  imagePath: data['imageUrl'] ?? '',
+                  productName: data['name'] ?? '-',
+                  categoryType: categoryType,
+                  storeName: data['storeName'] ?? '',
+                  date: date,
+                  status: data['status'] ?? 'Menunggu',
+                  description: data['description'] ?? '-',
+                  price: (data['price'] is int) ? data['price'] : int.tryParse('${data['price'] ?? 0}') ?? 0,
+                  stock: (data['stock'] is int) ? data['stock'] : int.tryParse('${data['stock'] ?? 0}') ?? 0,
+                  shopId: data['shopId'] ?? '',
+                  ownerId: data['ownerId'] ?? '',
+                  rawData: data, // agar nanti detail mudah
+                );
+              }).toList();
+
+              // --- FILTERING
+              List<AdminProductData> filteredProducts = products.where((p) {
+                final matchCategory = _selectedCategory == 0
+                    ? true
+                    : p.categoryType == categories[_selectedCategory - 1];
+                final matchSearch = _searchText.isEmpty
+                    ? true
+                    : p.productName.toLowerCase().contains(_searchText.toLowerCase()) ||
+                      p.storeName.toLowerCase().contains(_searchText.toLowerCase());
+                return matchCategory && matchSearch;
+              }).toList();
+
+              if (filteredProducts.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "Belum ada pengajuan produk yang menunggu persetujuan.",
+                    style: TextStyle(
+                      color: Color(0xFF9A9A9A),
+                      fontSize: 16,
                     ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: filteredProducts.length,
+                itemBuilder: (context, idx) {
+                  final p = filteredProducts[idx];
+                  return ProductApprovalCard(
+                    data: p,
+                    onDetail: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AdminProductApprovalDetailPage(
+                            data: p,
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
+                separatorBuilder: (_, __) => const SizedBox(height: 20),
               );
             },
-            separatorBuilder: (_, __) => const SizedBox(height: 20),
           ),
         ),
       ],
