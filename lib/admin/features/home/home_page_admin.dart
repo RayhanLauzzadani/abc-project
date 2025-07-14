@@ -32,9 +32,48 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
   Future<void> _checkAdminClaim() async {
     final user = FirebaseAuth.instance.currentUser;
-    final token = await user?.getIdTokenResult(true);
-    // Log only for debugging, can remove this line if not needed
-    print('>>> CUSTOM CLAIMS: ${token?.claims}');
+    if (user == null) {
+      _forceLogoutWithMsg('Anda belum login.');
+      return;
+    }
+    try {
+      final token = await user.getIdTokenResult(true); // refresh token
+      final claims = token.claims;
+      print('>>> CUSTOM CLAIMS: $claims');
+
+      // Jika bukan admin, force logout!
+      if (claims == null || claims['admin'] != true) {
+        _forceLogoutWithMsg('Akses admin diperlukan. Silakan login dengan akun admin.');
+      }
+    } catch (e) {
+      _forceLogoutWithMsg('Terjadi error: $e');
+    }
+  }
+
+  void _forceLogoutWithMsg(String message) async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    // Tampilkan dialog sebelum logout
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Akses Ditolak'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {
