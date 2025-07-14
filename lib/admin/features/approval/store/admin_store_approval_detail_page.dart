@@ -83,7 +83,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
   }
 
-  // === APPROVE SEKALIGUS BUAT shops/{shopId} ===
+  // === APPROVE SEKALIGUS BUAT stores/{uid} ===
   Future<void> _onAccept(BuildContext context) async {
     final shopDoc = FirebaseFirestore.instance
         .collection('shopApplications')
@@ -124,13 +124,13 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           });
         });
 
-        // ===== BUAT/UPDATE shops/{shopId} sesuai struktur yang kamu mau =====
-        final shopsRef = FirebaseFirestore.instance.collection('shops').doc(buyerId);
+        // ===== BUAT/UPDATE stores/{uid} =====
+        final storesRef = FirebaseFirestore.instance.collection('stores').doc(buyerId);
 
-        final shopMap = {
+        final storeMap = {
           'ownerId': buyerId,
           'name': shopData?['shopName'] ?? "",
-          'logoUrl': shopData?['logoUrl'] ?? "", // Sesuai request: logoUrl
+          'photoUrl': shopData?['logoUrl'] ?? "",
           'address': shopData?['address'] ?? "",
           'isOpen': true,
           'description': shopData?['description'] ?? "",
@@ -139,11 +139,11 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           'ratingCount': 0,
           'totalSales': 0,
           'categories': <String>[], // seller bisa update nanti
-          'location': null, // isi kalau pakai GeoPoint lokasi
+          'location': null,
           'phone': shopData?['phone'] ?? "",
         };
 
-        await shopsRef.set(shopMap, SetOptions(merge: true));
+        await storesRef.set(storeMap, SetOptions(merge: true));
 
         // ===== Notifikasi ke user
         await FirebaseFirestore.instance
