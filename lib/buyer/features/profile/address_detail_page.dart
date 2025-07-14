@@ -3,11 +3,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uuid/uuid.dart';
-// Import model & service
 import 'package:abc_e_mart/buyer/data/models/address.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
 
 class AddressDetailPage extends StatefulWidget {
   final String? fullAddress;
@@ -182,40 +181,9 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C55C0),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/icons/back.svg',
-                  width: 20,
-                  height: 20,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ),
-        title: Text(
-          'Detail Alamat',
-          style: GoogleFonts.dmSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF373E3C),
-          ),
-        ),
-        centerTitle: true,
+      // Pakai custom appbar reusable
+      appBar: const ProfileAppBar(
+        title: 'Detail Alamat',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

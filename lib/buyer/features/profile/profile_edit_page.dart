@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -235,34 +236,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C55C0),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-            ),
-          ),
-        ),
-        title: Text(
-          'Edit Profil',
-          style: GoogleFonts.dmSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF232323),
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: const ProfileAppBar(title: 'Edit Profil'), // <--- GANTI INI
       body: _email == null
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
