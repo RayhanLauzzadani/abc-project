@@ -1,39 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
-// Data class untuk 1 toko
-class AdminStoreApprovalData {
-  final String imagePath;
-  final String storeName;
-  final String storeAddress;
-  final String submitter;
-  final String date;
-  const AdminStoreApprovalData({
-    required this.imagePath,
-    required this.storeName,
-    required this.storeAddress,
-    required this.submitter,
-    required this.date,
-  });
-}
+import 'package:abc_e_mart/admin/data/models/admin_store_data.dart';
 
 class AdminStoreApprovalCard extends StatelessWidget {
   final AdminStoreApprovalData data;
   final VoidCallback? onDetail;
-
+  final bool isNetworkImage;
   const AdminStoreApprovalCard({
     super.key,
     required this.data,
     this.onDetail,
+    this.isNetworkImage = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget imageWidget;
+    if (isNetworkImage && data.imagePath.isNotEmpty) {
+      imageWidget = Image.network(
+        data.imagePath,
+        width: 89,
+        height: 76,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 89,
+          height: 76,
+          color: const Color(0xFFF3F3F3),
+          child: const Icon(Icons.store, color: Colors.grey),
+        ),
+      );
+    } else if (data.imagePath.isNotEmpty) {
+      imageWidget = Image.asset(
+        data.imagePath,
+        width: 89,
+        height: 76,
+        fit: BoxFit.cover,
+      );
+    } else {
+      imageWidget = Container(
+        width: 89,
+        height: 76,
+        color: const Color(0xFFF3F3F3),
+        child: const Icon(Icons.store, color: Colors.grey),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white, // Bukan dark mode
+        color: Colors.white,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
@@ -42,27 +58,18 @@ class AdminStoreApprovalCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Row: Gambar + Info
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Gambar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    data.imagePath,
-                    width: 89,
-                    height: 76,
-                    fit: BoxFit.cover,
-                  ),
+                  child: imageWidget,
                 ),
                 const SizedBox(width: 14),
-                // Info toko
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Nama toko
                       Text(
                         data.storeName,
                         style: GoogleFonts.dmSans(
@@ -74,7 +81,6 @@ class AdminStoreApprovalCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      // Alamat
                       Text(
                         data.storeAddress,
                         style: GoogleFonts.dmSans(
@@ -86,7 +92,6 @@ class AdminStoreApprovalCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      // User
                       Row(
                         children: [
                           SvgPicture.asset(
@@ -116,11 +121,9 @@ class AdminStoreApprovalCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            // Row: date kiri, detail kanan
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Date
                 Text(
                   data.date,
                   style: GoogleFonts.dmSans(
@@ -129,7 +132,6 @@ class AdminStoreApprovalCard extends StatelessWidget {
                     color: const Color(0xFF9A9A9A),
                   ),
                 ),
-                // Detail Ajuan
                 GestureDetector(
                   onTap: onDetail,
                   child: Row(

@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dotted_border/dotted_border.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 
 import 'package:abc_e_mart/seller/widgets/registration_app_bar.dart';
 import 'package:abc_e_mart/seller/widgets/registration_stepper.dart';
@@ -10,6 +14,8 @@ import 'package:abc_e_mart/seller/widgets/form_text_field.dart';
 import 'package:abc_e_mart/seller/widgets/bottom_action_buttons.dart';
 import 'package:abc_e_mart/seller/widgets/logo_instruction_page.dart';
 import 'package:abc_e_mart/seller/widgets/shop_registration_success_page.dart';
+
+import 'package:abc_e_mart/seller/providers/seller_registration_provider.dart';
 
 class ShopInfoFormPage extends StatefulWidget {
   const ShopInfoFormPage({super.key});
@@ -19,14 +25,24 @@ class ShopInfoFormPage extends StatefulWidget {
 }
 
 class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
-  File? _logoFile;
   final _formKey = GlobalKey<FormState>();
-  bool _isPicking = false; // <- untuk cegah double tap
+  bool _isPicking = false;
+  bool _isSaving = false;
 
-  final TextEditingController _namaTokoController = TextEditingController();
-  final TextEditingController _deskripsiController = TextEditingController();
-  final TextEditingController _alamatController = TextEditingController();
-  final TextEditingController _hpController = TextEditingController();
+  late TextEditingController _namaTokoController;
+  late TextEditingController _deskripsiController;
+  late TextEditingController _alamatController;
+  late TextEditingController _hpController;
+
+  @override
+  void initState() {
+    final provider = Provider.of<SellerRegistrationProvider>(context, listen: false);
+    _namaTokoController = TextEditingController(text: provider.shopName);
+    _deskripsiController = TextEditingController(text: provider.shopDesc);
+    _alamatController = TextEditingController(text: provider.shopAddress);
+    _hpController = TextEditingController(text: provider.shopPhone);
+    super.initState();
+  }
 
   @override
   void dispose() {
@@ -37,16 +53,97 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
     super.dispose();
   }
 
-  bool get _allFieldsFilled {
-    return _logoFile != null &&
-        _namaTokoController.text.trim().isNotEmpty &&
-        _deskripsiController.text.trim().isNotEmpty &&
-        _alamatController.text.trim().isNotEmpty &&
-        _hpController.text.trim().isNotEmpty;
+  bool _allFieldsFilled(SellerRegistrationProvider provider) {
+    return provider.logoFile != null &&
+        provider.shopName.trim().isNotEmpty &&
+        provider.shopDesc.trim().isNotEmpty &&
+        provider.shopAddress.trim().isNotEmpty &&
+        provider.shopPhone.trim().isNotEmpty;
   }
 
-  Future<void> _pickLogo() async {
-    if (_isPicking) return; // <-- cegah double tap
+  Future<String> _uploadFileToStorage(File file, String path) async {
+    final ref = FirebaseStorage.instance.ref().child(path);
+    final uploadTask = await ref.putFile(file);
+    return await uploadTask.ref.getDownloadURL();
+  }
+
+  Future<void> _submitShopInfo() async {
+    final provider = Provider.of<SellerRegistrationProvider>(context, listen: false);
+
+    if (!_allFieldsFilled(provider) || provider.ktpFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lengkapi semua data dan upload KTP!')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final userId = user?.uid;
+      if (userId == null) throw 'User tidak ditemukan';
+
+      // 1. Upload KTP file
+      String ktpUrl = await _uploadFileToStorage(
+        provider.ktpFile!,
+        'seller_ktp/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      // 2. Upload logo toko
+      String logoUrl = await _uploadFileToStorage(
+        provider.logoFile!,
+        'seller_logos/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      // 3. Simpan ke Firestore
+      final shopData = {
+        'owner': {
+          'uid': userId,
+          'nama': provider.nama,
+          'nik': provider.nik,
+          'bank': provider.bank,
+          'rek': provider.rek,
+        },
+        'ktpUrl': ktpUrl,
+        'logoUrl': logoUrl,
+        'shopName': provider.shopName,
+        'description': provider.shopDesc,
+        'address': provider.shopAddress,
+        'phone': provider.shopPhone,
+        'status': 'pending',
+        'submittedAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('shopApplications')
+          .doc(userId)
+          .set(shopData);
+
+      provider.resetAll();
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const ShopRegistrationSuccessPage()),
+          (route) => route.isFirst,
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan data: $e')),
+      );
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  void _deleteLogo(SellerRegistrationProvider provider) {
+    provider.setLogoFile(null);
+    setState(() {});
+  }
+
+  Future<void> _pickLogo(SellerRegistrationProvider provider) async {
+    if (_isPicking) return;
     setState(() => _isPicking = true);
 
     try {
@@ -56,20 +153,24 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
         imageQuality: 85,
       );
       if (picked != null) {
-        setState(() => _logoFile = File(picked.path));
+        provider.setLogoFile(File(picked.path));
+        setState(() {});
       }
-    } catch (e) {
-      // Optional: tampilkan error jika diperlukan
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(content: Text('Gagal mengakses gallery')),
-      // );
-    } finally {
+    } catch (_) {} finally {
       setState(() => _isPicking = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<SellerRegistrationProvider>(context);
+
+    // sinkronisasi controller <-> provider
+    _namaTokoController.value = TextEditingValue(text: provider.shopName);
+    _deskripsiController.value = TextEditingValue(text: provider.shopDesc);
+    _alamatController.value = TextEditingValue(text: provider.shopAddress);
+    _hpController.value = TextEditingValue(text: provider.shopPhone);
+
     final double screenWidth = MediaQuery.of(context).size.width;
     double stepperPadding = 63;
     if (screenWidth < 360) {
@@ -96,7 +197,7 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
             ),
             const SizedBox(height: 32),
 
-            // Card upload logo dengan garis putus-putus
+            // === Upload Logo Section ===
             Container(
               width: double.infinity,
               color: const Color(0xFFF2F2F3),
@@ -105,65 +206,92 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(width: 26),
-                  GestureDetector(
-                    onTap: _isPicking ? null : _pickLogo,
-                    child: DottedBorder(
-                      color: const Color(0xFFD1D5DB),
-                      borderType: BorderType.RRect,
-                      radius: const Radius.circular(10),
-                      dashPattern: [6, 3],
-                      strokeWidth: 1.2,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
+                  Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      GestureDetector(
+                        onTap: _isPicking || _isSaving ? null : () => _pickLogo(provider),
+                        child: DottedBorder(
+                          color: const Color(0xFFD1D5DB),
+                          borderType: BorderType.RRect,
+                          radius: const Radius.circular(10),
+                          dashPattern: [6, 3],
+                          strokeWidth: 1.2,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: provider.logoFile == null
+                                ? Center(
+                                    child: _isPicking
+                                        ? const SizedBox(
+                                            width: 28,
+                                            height: 28,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.2,
+                                              valueColor: AlwaysStoppedAnimation(Color(0xFFBDBDBD)),
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.add,
+                                            color: const Color(0xFFBDBDBD),
+                                            size: 34,
+                                          ),
+                                  )
+                                : ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.file(
+                                      provider.logoFile!,
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                          ),
                         ),
-                        child: _logoFile == null
-                            ? Center(
-                                child: _isPicking
-                                    ? const SizedBox(
-                                        width: 28,
-                                        height: 28,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.2,
-                                          valueColor: AlwaysStoppedAnimation(Color(0xFFBDBDBD)),
-                                        ),
-                                      )
-                                    : Icon(
-                                        Icons.add,
-                                        color: const Color(0xFFBDBDBD),
-                                        size: 34,
-                                      ),
-                              )
-                            : ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.file(
-                                  _logoFile!,
-                                  width: 80,
-                                  height: 80,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
                       ),
-                    ),
+                      if (provider.logoFile != null)
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: GestureDetector(
+                            onTap: _isSaving ? null : () => _deleteLogo(provider),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 3,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.close, size: 20, color: Colors.redAccent),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(width: 20),
-                  // Label dan Button Instruksi
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const LogoInstructionPage(),
-                              ),
-                            );
-                          },
+                          onTap: _isSaving
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const LogoInstructionPage(),
+                                    ),
+                                  );
+                                },
                           child: Container(
                             height: 28,
                             margin: const EdgeInsets.only(top: 0),
@@ -198,8 +326,6 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
                 ],
               ),
             ),
-
-            // Teks instruksi bawah logo
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               child: Text(
@@ -220,7 +346,10 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
               maxLength: 30,
               controller: _namaTokoController,
               hintText: "Masukkan",
-              onChanged: (v) => setState(() {}),
+              onChanged: (v) {
+                provider.setShopName(v);
+                setState(() {});
+              },
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Wajib diisi';
                 return null;
@@ -233,7 +362,10 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
               maxLength: 100,
               controller: _deskripsiController,
               hintText: "Masukkan",
-              onChanged: (v) => setState(() {}),
+              onChanged: (v) {
+                provider.setShopDesc(v);
+                setState(() {});
+              },
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Wajib diisi';
                 return null;
@@ -246,7 +378,10 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
               maxLength: 200,
               controller: _alamatController,
               hintText: "Masukkan",
-              onChanged: (v) => setState(() {}),
+              onChanged: (v) {
+                provider.setShopAddress(v);
+                setState(() {});
+              },
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Wajib diisi';
                 return null;
@@ -260,16 +395,18 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
               controller: _hpController,
               keyboardType: TextInputType.phone,
               hintText: "Masukkan",
-              onChanged: (v) => setState(() {}),
+              onChanged: (v) {
+                provider.setShopPhone(v);
+                setState(() {});
+              },
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Wajib diisi';
-                // Bisa tambahkan validasi nomor HP di sini jika mau
+                // Optional: validasi nomor HP
                 return null;
               },
             ),
             const SizedBox(height: 24),
 
-            // Info bawah
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
@@ -284,25 +421,18 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
             ),
             const SizedBox(height: 30),
 
-            // Button Simpan
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 0),
               child: BottomActionButton(
-                text: "Simpan",
-                onPressed: _allFieldsFilled
-                    ? () {
+                text: _isSaving ? "Menyimpan..." : "Simpan",
+                onPressed: _allFieldsFilled(provider) && !_isSaving
+                    ? () async {
                         if (_formKey.currentState?.validate() ?? false) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ShopRegistrationSuccessPage(),
-                            ),
-                          );
-                          // Simpan / Submit logic
+                          await _submitShopInfo();
                         }
                       }
                     : null,
-                enabled: _allFieldsFilled,
+                enabled: _allFieldsFilled(provider) && !_isSaving,
               ),
             ),
             const SizedBox(height: 30),
