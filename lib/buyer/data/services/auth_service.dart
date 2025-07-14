@@ -26,7 +26,7 @@ class AuthService {
           'uid': user.uid,
           'email': email,
           'name': '$firstName $lastName',
-          'role': 'buyer',
+          'role': ['buyer'], // <-- WAJIB ARRAY agar fitur admin approval berjalan!
           'isActive': true,
           'createdAt': FieldValue.serverTimestamp(),
           'lastLogin': FieldValue.serverTimestamp(),
@@ -40,6 +40,15 @@ class AuthService {
       return e.message; // tampilkan pesan error dari Firebase
     } catch (e) {
       return e.toString();
+    }
+  }
+
+  // (Optional) Tambahan, untuk konversi data lama yang role-nya masih String:
+  Future<void> fixRoleIfString(String uid) async {
+    final ref = _db.collection('users').doc(uid);
+    final snap = await ref.get();
+    if (snap.exists && snap.data() != null && snap.data()!['role'] is String) {
+      await ref.update({'role': [snap.data()!['role']]});
     }
   }
 }

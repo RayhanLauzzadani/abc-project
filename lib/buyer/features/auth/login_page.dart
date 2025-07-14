@@ -35,6 +35,13 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // Helper: convert role dynamic ke List<String>
+  List<String> _roleToList(dynamic role) {
+    if (role is String) return [role];
+    if (role is List) return role.cast<String>();
+    return ['buyer'];
+  }
+
   Future<void> _handleLogin() async {
     setState(() {
       _errorText = null;
@@ -70,9 +77,10 @@ class _LoginPageState extends State<LoginPage> {
 
         if (userDoc.exists) {
           final data = userDoc.data()!;
-          final role = data['role'] ?? 'buyer'; // Default buyer jika role tidak ada
           final isActive = data['isActive'] ?? true;
 
+          // Cek role
+          final role = _roleToList(data['role']);
           // Optional: Update lastLogin
           await userDoc.reference.update({'lastLogin': FieldValue.serverTimestamp()});
 
@@ -84,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
             return;
           }
 
-          if (role == 'admin') {
+          if (role.contains('admin')) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const HomePageAdmin()),
             );
@@ -137,7 +145,7 @@ class _LoginPageState extends State<LoginPage> {
               'uid': user.uid,
               'email': user.email,
               'name': user.displayName ?? '',
-              'role': 'buyer',
+              'role': ['buyer'], // ROLE ALWAYS LIST
               'createdAt': FieldValue.serverTimestamp(),
               'isActive': true,
               'lastLogin': FieldValue.serverTimestamp(),
@@ -145,6 +153,11 @@ class _LoginPageState extends State<LoginPage> {
           } else {
             // Update lastLogin setiap login Google
             await userDoc.update({'lastLogin': FieldValue.serverTimestamp()});
+            // Pastikan role-nya List, tambahkan buyer kalau belum ada
+            final data = snapshot.data()!;
+            List<String> roles = _roleToList(data['role']);
+            if (!roles.contains('buyer')) roles.add('buyer');
+            await userDoc.update({'role': roles});
           }
         }
 
