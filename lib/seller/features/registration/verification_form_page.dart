@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:abc_e_mart/seller/providers/seller_registration_provider.dart';
+
 import 'package:abc_e_mart/seller/widgets/registration_app_bar.dart';
 import 'package:abc_e_mart/seller/widgets/registration_stepper.dart';
 import 'package:abc_e_mart/seller/widgets/ktp_upload_section.dart';
@@ -16,54 +19,91 @@ class VerificationFormPage extends StatefulWidget {
 }
 
 class _VerificationFormPageState extends State<VerificationFormPage> {
-  bool agreeTerms = false;
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _namaController = TextEditingController();
-  final TextEditingController _nikController = TextEditingController();
-  final TextEditingController _bankController = TextEditingController();
-  final TextEditingController _rekController = TextEditingController();
+  TextEditingController? _namaController;
+  TextEditingController? _nikController;
+  TextEditingController? _bankController;
+  TextEditingController? _rekController;
+  bool _controllersInitialized = false;
 
-  bool _allFieldsFilled() {
-    return _namaController.text.trim().isNotEmpty &&
-        _nikController.text.trim().isNotEmpty &&
-        _bankController.text.trim().isNotEmpty &&
-        _rekController.text.trim().isNotEmpty;
-  }
-
-  void _trySubmit() {
-    if (_formKey.currentState?.validate() == true && agreeTerms) {
-      Navigator.push(
-        context,
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 450),
-          pageBuilder: (_, __, ___) => const ShopInfoFormPage(),
-          transitionsBuilder: (context, animation, _, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
-        ),
-      );
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_controllersInitialized) {
+      final provider = Provider.of<SellerRegistrationProvider>(context);
+      _namaController = TextEditingController(text: provider.nama);
+      _nikController = TextEditingController(text: provider.nik);
+      _bankController = TextEditingController(text: provider.bank);
+      _rekController = TextEditingController(text: provider.rek);
+      _controllersInitialized = true;
     }
-  }
-
-  void _onFieldChanged(String _) {
-    setState(() {}); // Untuk update state button Lanjut
   }
 
   @override
   void dispose() {
-    _namaController.dispose();
-    _nikController.dispose();
-    _bankController.dispose();
-    _rekController.dispose();
+    _namaController?.dispose();
+    _nikController?.dispose();
+    _bankController?.dispose();
+    _rekController?.dispose();
     super.dispose();
+  }
+
+  void _onFieldChanged(BuildContext context) {
+    final provider = Provider.of<SellerRegistrationProvider>(context, listen: false);
+    provider.setNama(_namaController?.text ?? '');
+    provider.setNik(_nikController?.text ?? '');
+    provider.setBank(_bankController?.text ?? '');
+    provider.setRek(_rekController?.text ?? '');
+    setState(() {});
+  }
+
+  bool _allFieldsFilled(SellerRegistrationProvider provider) {
+    return provider.nama.trim().isNotEmpty &&
+        provider.nik.trim().isNotEmpty &&
+        provider.bank.trim().isNotEmpty &&
+        provider.rek.trim().isNotEmpty &&
+        provider.ktpFile != null &&
+        provider.agreeTerms;
+  }
+
+  void _trySubmit(BuildContext context, SellerRegistrationProvider provider) {
+    if (!_allFieldsFilled(provider)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lengkapi semua data dan upload KTP!')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ShopInfoFormPage(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<SellerRegistrationProvider>(context);
+
+    // Selalu sync controller jika data di provider berubah dari luar
+    _namaController?.value = TextEditingValue(
+      text: provider.nama,
+      selection: _namaController?.selection ?? const TextSelection.collapsed(offset: 0),
+    );
+    _nikController?.value = TextEditingValue(
+      text: provider.nik,
+      selection: _nikController?.selection ?? const TextSelection.collapsed(offset: 0),
+    );
+    _bankController?.value = TextEditingValue(
+      text: provider.bank,
+      selection: _bankController?.selection ?? const TextSelection.collapsed(offset: 0),
+    );
+    _rekController?.value = TextEditingValue(
+      text: provider.rek,
+      selection: _rekController?.selection ?? const TextSelection.collapsed(offset: 0),
+    );
+
     final double screenWidth = MediaQuery.of(context).size.width;
     double stepperPadding = 63;
     if (screenWidth < 360) {
@@ -71,8 +111,6 @@ class _VerificationFormPageState extends State<VerificationFormPage> {
     } else if (screenWidth < 500) {
       stepperPadding = 24;
     }
-
-    final formIsReady = _allFieldsFilled() && agreeTerms;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -91,25 +129,34 @@ class _VerificationFormPageState extends State<VerificationFormPage> {
               child: const RegistrationStepper(currentStep: 0),
             ),
             const SizedBox(height: 32),
+
+            // --- KTP Upload Section (langsung pakai provider)
             KtpUploadSection(
               onKtpOcrResult: (String? nik, String? nama) {
-                _nikController.text = nik ?? '';
-                _namaController.text = nama ?? '';
-                setState(() {}); // Update form
+                if (nik != null) {
+                  _nikController?.text = nik;
+                  provider.setNik(nik);
+                }
+                if (nama != null) {
+                  _namaController?.text = nama;
+                  provider.setNama(nama);
+                }
+                setState(() {});
               },
             ),
             const SizedBox(height: 20),
 
-            // --- Fields Section ---
+            // === FORM FIELDS ===
             FormTextField(
               label: "Nama",
               requiredMark: true,
               maxLength: 40,
               hintText: "Masukkan",
-              controller: _namaController,
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty) ? "Wajib diisi" : null,
-              onChanged: _onFieldChanged,
+              controller: _namaController!,
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? "Wajib diisi"
+                  : null,
+              onChanged: (_) => _onFieldChanged(context),
             ),
             const SizedBox(height: 20),
 
@@ -118,14 +165,14 @@ class _VerificationFormPageState extends State<VerificationFormPage> {
               requiredMark: true,
               maxLength: 16,
               hintText: "Masukkan",
-              controller: _nikController,
+              controller: _nikController!,
               keyboardType: TextInputType.number,
               validator: (val) {
                 if (val == null || val.trim().isEmpty) return "Wajib diisi";
                 if (val.length != 16) return "NIK harus 16 digit";
                 return null;
               },
-              onChanged: _onFieldChanged,
+              onChanged: (_) => _onFieldChanged(context),
             ),
             const SizedBox(height: 20),
 
@@ -134,10 +181,11 @@ class _VerificationFormPageState extends State<VerificationFormPage> {
               requiredMark: true,
               maxLength: 300,
               hintText: "Masukkan",
-              controller: _bankController,
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty) ? "Wajib diisi" : null,
-              onChanged: _onFieldChanged,
+              controller: _bankController!,
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? "Wajib diisi"
+                  : null,
+              onChanged: (_) => _onFieldChanged(context),
             ),
             const SizedBox(height: 20),
 
@@ -146,21 +194,24 @@ class _VerificationFormPageState extends State<VerificationFormPage> {
               requiredMark: true,
               maxLength: 300,
               hintText: "Masukkan",
-              controller: _rekController,
+              controller: _rekController!,
               keyboardType: TextInputType.number,
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty) ? "Wajib diisi" : null,
-              onChanged: _onFieldChanged,
+              validator: (value) => (value == null || value.trim().isEmpty)
+                  ? "Wajib diisi"
+                  : null,
+              onChanged: (_) => _onFieldChanged(context),
             ),
             const SizedBox(height: 28),
 
-            // --- Terms & Conditions Checkbox ---
+            // --- Terms & Conditions Checkbox (provider)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TermsCheckbox(
-                value: agreeTerms,
-                onChanged: (checked) =>
-                    setState(() => agreeTerms = checked ?? false),
+                value: provider.agreeTerms,
+                onChanged: (checked) {
+                  provider.setAgreeTerms(checked ?? false);
+                  setState(() {});
+                },
                 onTapLink: () {
                   // TODO: Navigasi ke halaman syarat & ketentuan
                 },
@@ -189,15 +240,16 @@ class _VerificationFormPageState extends State<VerificationFormPage> {
 
             BottomActionButton(
               text: "Lanjut",
-              onPressed: formIsReady
+              onPressed: _allFieldsFilled(provider)
                   ? () {
-                      // validasi & submit
-                      if (_formKey.currentState!.validate() && agreeTerms) {
-                        _trySubmit();
+                      if (_formKey.currentState!.validate() &&
+                          provider.agreeTerms) {
+                        _onFieldChanged(context); // sync last value
+                        _trySubmit(context, provider);
                       }
                     }
                   : null,
-              enabled: formIsReady,
+              enabled: _allFieldsFilled(provider),
             ),
           ],
         ),

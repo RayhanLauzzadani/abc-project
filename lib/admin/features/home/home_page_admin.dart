@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/admin/widgets/admin_home_header.dart';
 import 'package:abc_e_mart/admin/widgets/admin_summary_card.dart';
 import 'package:abc_e_mart/admin/widgets/admin_store_submission_section.dart';
@@ -10,6 +11,8 @@ import 'package:abc_e_mart/admin/features/approval/product/admin_product_approva
 import 'package:abc_e_mart/admin/widgets/admin_ad_submission_section.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
+import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
+import 'package:abc_e_mart/admin/features/notification/notification_page_admin.dart';
 
 class HomePageAdmin extends StatefulWidget {
   const HomePageAdmin({super.key});
@@ -21,7 +24,19 @@ class HomePageAdmin extends StatefulWidget {
 class _HomePageAdminState extends State<HomePageAdmin> {
   int _currentIndex = 0;
 
-  // Fungsi logout: signOut dari Firebase Auth lalu arahkan ke LoginPage
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminClaim();
+  }
+
+  Future<void> _checkAdminClaim() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final token = await user?.getIdTokenResult(true);
+    // Log only for debugging, can remove this line if not needed
+    print('>>> CUSTOM CLAIMS: ${token?.claims}');
+  }
+
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
@@ -31,11 +46,16 @@ class _HomePageAdminState extends State<HomePageAdmin> {
     );
   }
 
+  String _formatDate(DateTime dt) {
+    return "${dt.day.toString().padLeft(2, '0')}/"
+        "${dt.month.toString().padLeft(2, '0')}/"
+        "${dt.year}, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget mainBody;
 
-    // Tabs lain: pakai page full (app bar sudah di page terkait)
     if (_currentIndex == 1) {
       mainBody = const AdminStoreApprovalPage();
     } else if (_currentIndex == 2) {
@@ -43,65 +63,137 @@ class _HomePageAdminState extends State<HomePageAdmin> {
     } else if (_currentIndex == 3) {
       mainBody = const AdminAdApprovalPage();
     } else {
-      // Dashboard utama: App Bar sticky di atas
       mainBody = Column(
         children: [
-          // ====== APP BAR ADMIN TANPA SHADOW (sticky) ======
           Container(
             color: Colors.white,
             padding: const EdgeInsets.only(left: 20, right: 20, top: 0),
-            // Tidak ada boxShadow di sini!
             child: AdminHomeHeader(
-              onNotif: () {},
+              onNotif: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationPageAdmin(),
+                  ),
+                );
+              },
               onLogoutTap: _logout,
             ),
           ),
-          const SizedBox(height: 15), // Jarak 15px ke bawah
-          // ====== SCROLLABLE CONTENT ======
+          const SizedBox(height: 15),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 0), // padding di section masing2
+              padding: const EdgeInsets.symmetric(horizontal: 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AdminSummaryCard(
-                      tokoBaru: 42,
-                      tokoTerdaftar: 187,
-                      produkBaru: 5,
-                      iklanBaru: 30,
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('shopApplications')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        int tokoBaru = 0;
+                        int tokoTerdaftar = 0;
+                        if (snapshot.hasData) {
+                          final docs = snapshot.data!.docs;
+                          tokoBaru = docs
+                              .where(
+                                (doc) => (doc['status'] ?? '') == 'approved',
+                              )
+                              .length;
+                          tokoTerdaftar = docs
+                              .where(
+                                (doc) => (doc['status'] ?? '') != 'approved',
+                              )
+                              .length;
+                        }
+                        return AdminSummaryCard(
+                          tokoBaru: tokoBaru,
+                          tokoTerdaftar: tokoTerdaftar,
+                          produkBaru: 5, // TODO: Integrasi produk baru
+                          iklanBaru: 30, // TODO: Integrasi iklan baru
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // ====== STREAMBUILDER Ajuan Toko Terbaru ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AdminStoreSubmissionSection(
-                      submissions: [
-                        AdminStoreSubmissionData(
-                          imagePath: 'assets/images/nihonmart.png',
-                          storeName: 'Nippon Mart',
-                          storeAddress: 'Jl. Ikan Hiu 24, Surabaya',
-                          submitter: 'Rayhan Kautsar',
-                          date: '30/04/2025, 4:21 PM',
-                        ),
-                        AdminStoreSubmissionData(
-                          imagePath: 'assets/images/nihonmart.png',
-                          storeName: 'Nippon Mart',
-                          storeAddress: 'Jl. Ikan Hiu 24, Surabaya',
-                          submitter: 'Rayhan Kautsar',
-                          date: '30/04/2025, 4:21 PM',
-                        ),
-                      ],
-                      onSeeAll: () {
-                        setState(() {
-                          _currentIndex = 1;
-                        });
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('shopApplications')
+                          .where('status', isEqualTo: 'pending')
+                          .orderBy('submittedAt', descending: true)
+                          .limit(2)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          print(
+                            'Firestore StreamBuilder error: ${snapshot.error}',
+                          );
+                          return Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text('Terjadi kesalahan: ${snapshot.error}'),
+                          );
+                        }
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 30),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        final submissions = (snapshot.data?.docs ?? []).map((
+                          doc,
+                        ) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return AdminStoreSubmissionData(
+                            imagePath: data['logoUrl'] ?? '',
+                            storeName: data['shopName'] ?? '-',
+                            storeAddress: data['address'] ?? '-',
+                            submitter: data['owner']?['nama'] ?? '-',
+                            date:
+                                (data['submittedAt'] != null &&
+                                    data['submittedAt'] is Timestamp)
+                                ? _formatDate(
+                                    (data['submittedAt'] as Timestamp).toDate(),
+                                  )
+                                : '-',
+                            docId: doc.id,
+                          );
+                        }).toList();
+
+                        return AdminStoreSubmissionSection(
+                          submissions: submissions,
+                          onSeeAll: () {
+                            setState(() {
+                              _currentIndex = 1;
+                            });
+                          },
+                          onDetail: (submission) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AdminStoreApprovalDetailPage(
+                                  docId: submission.docId,
+                                  approvalData: null, // ambil dari Firestore
+                                ),
+                              ),
+                            );
+                          },
+                          isNetworkImage: true,
+                        );
                       },
-                      onDetail: (submission) {},
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // PRODUCT SECTION (dummy/hardcoded)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: AdminProductSubmissionSection(
@@ -122,22 +214,6 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           storeName: 'Nippon Mart',
                           date: '30/04/2025, 4:21 PM',
                         ),
-                        AdminProductSubmissionData(
-                          imagePath: 'assets/images/nihonmart.png',
-                          productName: 'Ayam Betutu',
-                          category: 'Snacks',
-                          categoryType: CategoryType.snacks,
-                          storeName: 'Nippon Mart',
-                          date: '30/04/2025, 4:21 PM',
-                        ),
-                        AdminProductSubmissionData(
-                          imagePath: 'assets/images/nihonmart.png',
-                          productName: 'Ayam Betutu',
-                          category: 'Merchandise',
-                          categoryType: CategoryType.merchandise,
-                          storeName: 'Nippon Mart',
-                          date: '30/04/2025, 4:21 PM',
-                        ),
                       ],
                       onSeeAll: () {
                         setState(() {
@@ -145,9 +221,11 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                         });
                       },
                       onDetail: (submission) {},
+                      // isNetworkImage: jangan dikasih! hanya untuk logo toko!
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // IKLAN SECTION (dummy/hardcoded)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: AdminAdSubmissionSection(
