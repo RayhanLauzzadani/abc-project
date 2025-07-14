@@ -14,6 +14,7 @@ import '../profile/profile_page.dart';
 import 'package:abc_e_mart/buyer/features/cart/cart_page.dart';
 import 'package:abc_e_mart/buyer/features/catalog/catalog_page.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
+import 'package:abc_e_mart/buyer/features/chat/chat_list_page.dart';
 
 class HomePage extends StatefulWidget {
   final int initialIndex;
@@ -30,7 +31,7 @@ class _HomePageState extends State<HomePage> {
     const _HomeMainContent(),
     const CatalogPage(),
     const CartPage(),
-    const Center(child: Text("Obrolan")),
+    const ChatListPage(),
     const ProfilePage(),
   ];
 
