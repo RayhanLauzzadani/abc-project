@@ -1,3 +1,6 @@
+import 'package:abc_e_mart/buyer/features/profile/privacy_policy_page.dart';
+import 'package:abc_e_mart/buyer/features/profile/terms_page.dart';
+import 'package:abc_e_mart/buyer/widgets/logout_confirmation_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -277,24 +280,46 @@ class _ProfilePageState extends State<ProfilePage> {
                         'policy.svg',
                         "Kebijakan Privasi",
                         size: 20,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PrivacyPolicyPage(),
+                            ),
+                          );
+                        },
                       ),
                       _buildDivider(),
                       _buildListTile(
                         'syarat.svg',
                         "Syarat Penggunaan",
                         size: 20,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TermsPage(),
+                            ),
+                          );
+                        },
                       ),
                     ]),
                     const SizedBox(height: 32),
                     _buildOptionCard([
                       ListTile(
                         onTap: () async {
-                          await FirebaseAuth.instance.signOut();
-                          if (context.mounted) {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              '/login',
-                              (route) => false,
-                            );
+                          final result = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => const LogoutConfirmationDialog(),
+                          );
+                          if (result == true) {
+                            await FirebaseAuth.instance.signOut();
+                            if (context.mounted) {
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/login',
+                                (route) => false,
+                              );
+                            }
                           }
                         },
                         leading: SvgPicture.asset(

@@ -63,7 +63,7 @@ class _ChatListPageState extends State<ChatListPage> {
             ),
             // Search Bar (pakai SearchBar global, ganti hintText)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: custom_widgets.SearchBar(
                 controller: _searchController,
                 onChanged: (val) => setState(() => searchQuery = val),
