@@ -6,12 +6,14 @@ class SuccessDialog extends StatelessWidget {
   final String message;
   final String lottiePath;
   final double lottieSize;
+  final String buttonText;
 
   const SuccessDialog({
     super.key,
-    this.message = "Detail Alamat Berhasil Disimpan",
+    this.message = "Ajuan Produk Berhasil Diterima",
     this.lottiePath = "assets/lottie/success_check.json",
-    this.lottieSize = 100,
+    this.lottieSize = 160, // icon centang lebih besar
+    this.buttonText = "OK",
   });
 
   @override
@@ -19,14 +21,14 @@ class SuccessDialog extends StatelessWidget {
     return Dialog(
       elevation: 0,
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
       child: Stack(
         alignment: Alignment.center,
         children: [
           // Shadow effect behind card
           Container(
             width: double.infinity,
-            height: 240,
+            height: 280,
             decoration: BoxDecoration(
               color: Colors.transparent,
               boxShadow: [
@@ -74,6 +76,35 @@ class SuccessDialog extends StatelessWidget {
                     color: const Color(0xFF222222),
                   ),
                 ),
+                const SizedBox(height: 26),
+                Align(
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 100,
+                      maxWidth: 180,
+                    ),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true), // balik ke list
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1C55C0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        buttonText,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
               ],
             ),
           ),

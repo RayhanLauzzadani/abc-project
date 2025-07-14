@@ -1,7 +1,8 @@
 import 'package:abc_e_mart/buyer/data/models/address.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_map_picker_page.dart';
-import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart'; // <-- tambahkan ini
+import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
+import 'package:abc_e_mart/buyer/features/profile/address_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -21,7 +22,7 @@ class _AddressListPageState extends State<AddressListPage> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const ProfileAppBar(title: 'Detail Alamat'), // <--- pakai widget baru di sini
+      appBar: const ProfileAppBar(title: 'Detail Alamat'),
       body: userId == null
           ? Center(
               child: Text(
@@ -72,12 +73,27 @@ class _AddressListPageState extends State<AddressListPage> {
                             const SizedBox(height: 32),
                             GestureDetector(
                               onTap: () async {
-                                await Navigator.push(
+                                // --- MODIFIKASI DI SINI! ---
+                                final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => const AddressMapPickerPage(),
                                   ),
                                 );
+                                if (result != null && mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => AddressDetailPage(
+                                        fullAddress: result['fullAddress'],
+                                        locationTitle: result['locationTitle'],
+                                        latitude: result['latitude'],
+                                        longitude: result['longitude'],
+                                        // untuk tambah, label/dll biarkan null
+                                      ),
+                                    ),
+                                  );
+                                }
                               },
                               child: Column(
                                 children: [
@@ -116,8 +132,26 @@ class _AddressListPageState extends State<AddressListPage> {
                             name: address.name,
                             phone: address.phone,
                             address: address.address,
-                            onEdit: () {
-                              // TODO: Buka halaman edit alamat kalau mau (optional)
+                            locationTitle: address.locationTitle,
+                            latitude: address.latitude,
+                            longitude: address.longitude,
+                            onEdit: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AddressDetailPage(
+                                    fullAddress: address.address,
+                                    label: address.label,
+                                    name: address.name,
+                                    phone: address.phone,
+                                    locationTitle: address.locationTitle,
+                                    latitude: address.latitude,
+                                    longitude: address.longitude,
+                                    addressId: address.id,
+                                    isEdit: true,
+                                  ),
+                                ),
+                              );
                             },
                           ),
                         )),
@@ -125,13 +159,26 @@ class _AddressListPageState extends State<AddressListPage> {
                     Center(
                       child: GestureDetector(
                         onTap: () async {
-                          await Navigator.push(
+                          // --- MODIFIKASI JUGA DI SINI! ---
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const AddressMapPickerPage(),
                             ),
                           );
-                          // Tidak perlu setState, StreamBuilder auto update
+                          if (result != null && mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddressDetailPage(
+                                  fullAddress: result['fullAddress'],
+                                  locationTitle: result['locationTitle'],
+                                  latitude: result['latitude'],
+                                  longitude: result['longitude'],
+                                ),
+                              ),
+                            );
+                          }
                         },
                         child: Column(
                           children: [
@@ -166,6 +213,9 @@ class _AddressListPageState extends State<AddressListPage> {
     required String name,
     required String phone,
     required String address,
+    required String locationTitle,
+    required double latitude,
+    required double longitude,
     required VoidCallback onEdit,
   }) {
     return Container(

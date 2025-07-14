@@ -7,6 +7,9 @@ import 'package:abc_e_mart/buyer/data/models/address.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
+import 'package:abc_e_mart/buyer/widgets/address_success_dialog.dart';
+import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
+import 'package:abc_e_mart/buyer/features/profile/address_map_picker_page.dart';
 
 class AddressDetailPage extends StatefulWidget {
   final String? fullAddress;
@@ -16,6 +19,8 @@ class AddressDetailPage extends StatefulWidget {
   final String? locationTitle;
   final double? latitude;
   final double? longitude;
+  final String? addressId;
+  final bool isEdit;
 
   const AddressDetailPage({
     super.key,
@@ -26,6 +31,8 @@ class AddressDetailPage extends StatefulWidget {
     this.locationTitle,
     this.latitude,
     this.longitude,
+    this.addressId,
+    this.isEdit = false,
   });
 
   @override
@@ -33,10 +40,16 @@ class AddressDetailPage extends StatefulWidget {
 }
 
 class _AddressDetailPageState extends State<AddressDetailPage> {
-  late final TextEditingController _labelController;
-  late final TextEditingController _nameController;
-  late final TextEditingController _phoneController;
+  late TextEditingController _labelController;
+  late TextEditingController _nameController;
+  late TextEditingController _phoneController;
   bool _isLoading = false;
+
+  // Variabel lokal agar bisa diubah setelah balik dari picker
+  late String? _fullAddress;
+  late String? _locationTitle;
+  late double? _latitude;
+  late double? _longitude;
 
   @override
   void initState() {
@@ -44,6 +57,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
     _labelController = TextEditingController(text: widget.label ?? '');
     _nameController = TextEditingController(text: widget.name ?? '');
     _phoneController = TextEditingController(text: widget.phone ?? '');
+    _fullAddress = widget.fullAddress;
+    _locationTitle = widget.locationTitle;
+    _latitude = widget.latitude;
+    _longitude = widget.longitude;
   }
 
   @override
@@ -120,11 +137,11 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
     if (_labelController.text.trim().isEmpty ||
         _nameController.text.trim().isEmpty ||
         _phoneController.text.trim().isEmpty ||
-        widget.fullAddress == null ||
-        widget.fullAddress!.isEmpty ||
-        widget.locationTitle == null ||
-        widget.latitude == null ||
-        widget.longitude == null) {
+        _fullAddress == null ||
+        _fullAddress!.isEmpty ||
+        _locationTitle == null ||
+        _latitude == null ||
+        _longitude == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lengkapi semua data sebelum menyimpan.')),
       );
@@ -134,20 +151,6 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Pakai UUID untuk id unik
-      final addressId = const Uuid().v4();
-      final address = AddressModel(
-        id: addressId,
-        label: _labelController.text.trim(),
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        address: widget.fullAddress!,
-        locationTitle: widget.locationTitle!,
-        latitude: widget.latitude!,
-        longitude: widget.longitude!,
-        createdAt: DateTime.now(),
-      );
-
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -156,18 +159,54 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
         setState(() => _isLoading = false);
         return;
       }
-      await AddressService().addAddress(userId, address);
+
+      final address = AddressModel(
+        id: widget.isEdit && widget.addressId != null
+            ? widget.addressId!
+            : const Uuid().v4(),
+        label: _labelController.text.trim(),
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: _fullAddress!,
+        locationTitle: _locationTitle!,
+        latitude: _latitude!,
+        longitude: _longitude!,
+        createdAt: DateTime.now(),
+      );
+
+      if (widget.isEdit && widget.addressId != null) {
+        // UPDATE (mode edit)
+        await AddressService().updateAddress(userId, widget.addressId!, address);
+      } else {
+        // CREATE (mode tambah)
+        await AddressService().addAddress(userId, address);
+      }
 
       if (mounted) {
-        Navigator.pop(context, true); // true = success
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Alamat berhasil disimpan.')),
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const SuccessDialog(
+            message: "Alamat berhasil disimpan",
+            lottiePath: "assets/lottie/success_check.json",
+            lottieSize: 100,
+            buttonText: "OK",
+          ),
         );
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const AddressListPage()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -175,13 +214,12 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final LatLng? markerLatLng = (widget.latitude != null && widget.longitude != null)
-        ? LatLng(widget.latitude!, widget.longitude!)
+    final LatLng? markerLatLng = (_latitude != null && _longitude != null)
+        ? LatLng(_latitude!, _longitude!)
         : null;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // Pakai custom appbar reusable
       appBar: const ProfileAppBar(
         title: 'Detail Alamat',
       ),
@@ -226,7 +264,7 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.locationTitle ?? "-",
+                                _locationTitle ?? "-",
                                 style: GoogleFonts.dmSans(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -235,7 +273,7 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                widget.fullAddress ?? "-",
+                                _fullAddress ?? "-",
                                 style: GoogleFonts.dmSans(
                                   fontSize: 12,
                                   color: const Color(0xFF9A9A9A),
@@ -250,8 +288,27 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
                         SizedBox(
                           height: 32,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AddressMapPickerPage(
+                                    addressId: widget.addressId,
+                                    isEdit: widget.isEdit,
+                                    label: _labelController.text,
+                                    name: _nameController.text,
+                                    phone: _phoneController.text,
+                                  ),
+                                ),
+                              );
+                              if (result != null && mounted) {
+                                setState(() {
+                                  _fullAddress = result['fullAddress'];
+                                  _locationTitle = result['locationTitle'];
+                                  _latitude = result['latitude'];
+                                  _longitude = result['longitude'];
+                                });
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1C55C0),
@@ -285,7 +342,7 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
             // FIELD: Alamat Lengkap
             buildFieldLabel('Alamat Lengkap'),
             TextField(
-              controller: TextEditingController(text: widget.fullAddress ?? ""),
+              controller: TextEditingController(text: _fullAddress ?? ""),
               enabled: false,
               maxLines: 2,
               readOnly: true,
