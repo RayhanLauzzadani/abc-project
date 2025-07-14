@@ -83,24 +83,24 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
   }
 
-  // Fungsi persetujuan
+  // === APPROVE SEKALIGUS BUAT shops/{shopId} ===
   Future<void> _onAccept(BuildContext context) async {
     final shopDoc = FirebaseFirestore.instance
         .collection('shopApplications')
         .doc(docId);
 
     try {
-      // Update status di Firestore
+      // Update status pengajuan ke approved
       await shopDoc.update({
         'status': 'approved',
         'approvedAt': FieldValue.serverTimestamp(),
       });
 
-      // Ambil UID buyer/owner dari dokumen
-      final shopData = await shopDoc.get();
-      final buyerId = shopData.data()?['owner']?['uid'] ?? '';
+      // Ambil data pengajuan toko
+      final shopDataSnap = await shopDoc.get();
+      final shopData = shopDataSnap.data();
+      final buyerId = shopData?['owner']?['uid'] ?? '';
 
-      // --- Tambahkan role "seller" pada users/{uid} tanpa menghilangkan "buyer" + storeName
       if (buyerId != '') {
         final userRef = FirebaseFirestore.instance
             .collection('users')
@@ -115,26 +115,44 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           if (!currentRoles.contains('seller')) {
             currentRoles.add('seller');
           }
-          // Pastikan buyer tetap ada!
           if (!currentRoles.contains('buyer')) {
             currentRoles.insert(0, 'buyer');
           }
-          // Update role + storeName dari shopData
           transaction.update(userRef, {
             'role': currentRoles,
-            'storeName': shopData.data()?['shopName'] ?? "",
+            'storeName': shopData?['shopName'] ?? "",
           });
         });
 
-        // Kirim notifikasi ke subcollection notifications user
+        // ===== BUAT/UPDATE shops/{shopId} sesuai struktur yang kamu mau =====
+        final shopsRef = FirebaseFirestore.instance.collection('shops').doc(buyerId);
+
+        final shopMap = {
+          'ownerId': buyerId,
+          'name': shopData?['shopName'] ?? "",
+          'logoUrl': shopData?['logoUrl'] ?? "", // Sesuai request: logoUrl
+          'address': shopData?['address'] ?? "",
+          'isOpen': true,
+          'description': shopData?['description'] ?? "",
+          'createdAt': FieldValue.serverTimestamp(),
+          'rating': 0.0,
+          'ratingCount': 0,
+          'totalSales': 0,
+          'categories': <String>[], // seller bisa update nanti
+          'location': null, // isi kalau pakai GeoPoint lokasi
+          'phone': shopData?['phone'] ?? "",
+        };
+
+        await shopsRef.set(shopMap, SetOptions(merge: true));
+
+        // ===== Notifikasi ke user
         await FirebaseFirestore.instance
             .collection('users')
             .doc(buyerId)
             .collection('notifications')
             .add({
               'title': 'Pengajuan Toko Disetujui',
-              'body':
-                  'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
+              'body': 'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
               'timestamp': FieldValue.serverTimestamp(),
               'isRead': false,
               'type': 'approved',
@@ -152,9 +170,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       await Future.delayed(const Duration(milliseconds: 200));
       Navigator.of(context).pop();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui status: $e')),
+      );
     }
   }
 
@@ -204,7 +222,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Back & Title
                       const SizedBox(height: 24),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -238,8 +255,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 28),
-
-                      // Tanggal Pengajuan
                       Text(
                         "Tanggal Pengajuan",
                         style: GoogleFonts.dmSans(
