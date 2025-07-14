@@ -4,11 +4,24 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'address_detail_page.dart';
 import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
+import 'address_detail_page.dart';
 
 class AddressMapPickerPage extends StatefulWidget {
-  const AddressMapPickerPage({super.key});
+  final String? addressId;
+  final bool isEdit;
+  final String? label;
+  final String? name;
+  final String? phone;
+
+  const AddressMapPickerPage({
+    super.key,
+    this.addressId,
+    this.isEdit = false,
+    this.label,
+    this.name,
+    this.phone,
+  });
 
   @override
   State<AddressMapPickerPage> createState() => _AddressMapPickerPageState();
@@ -69,22 +82,55 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     }
   }
 
+  void _handlePickLocation() {
+    if (_selectedLocation != null && _fullAddress != null) {
+      if (widget.isEdit) {
+        // Mode EDIT: pop kembali ke detail dengan data baru
+        Navigator.pop(context, {
+          'fullAddress': _fullAddress,
+          'locationTitle': _streetName,
+          'latitude': _selectedLocation!.latitude,
+          'longitude': _selectedLocation!.longitude,
+          'addressId': widget.addressId,
+          'isEdit': widget.isEdit,
+          'label': widget.label,
+          'name': widget.name,
+          'phone': widget.phone,
+        });
+      } else {
+        // Mode TAMBAH BARU: push ke halaman detail
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AddressDetailPage(
+              fullAddress: _fullAddress,
+              locationTitle: _streetName,
+              latitude: _selectedLocation!.latitude,
+              longitude: _selectedLocation!.longitude,
+              // label, name, phone: biar null (tambah baru)
+            ),
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan pilih lokasi terlebih dahulu.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // GANTI appBar-nya saja!
-      appBar: const ProfileAppBar(
-        title: 'Titik Lokasi',
-      ),
+      appBar: const ProfileAppBar(title: 'Titik Lokasi'),
       body: Column(
         children: [
           Expanded(
             child: Stack(
               children: [
                 GoogleMap(
-                  initialCameraPosition:
-                      CameraPosition(target: _center, zoom: 16),
+                  initialCameraPosition: CameraPosition(target: _center, zoom: 16),
                   onMapCreated: (controller) {
                     _mapController = controller;
                     if (_selectedLocation != null) {
@@ -108,8 +154,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                     'assets/icons/pin.svg',
                     width: 40,
                     height: 40,
-                    colorFilter:
-                        const ColorFilter.mode(Color(0xFFDC3545), BlendMode.srcIn),
+                    colorFilter: const ColorFilter.mode(Color(0xFFDC3545), BlendMode.srcIn),
                   ),
                 ),
                 Positioned(
@@ -231,25 +276,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_selectedLocation != null && _fullAddress != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AddressDetailPage(
-                              fullAddress: _fullAddress,
-                              locationTitle: _streetName,
-                              latitude: _selectedLocation!.latitude,
-                              longitude: _selectedLocation!.longitude,
-                            ),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Silakan pilih lokasi terlebih dahulu.')),
-                        );
-                      }
-                    },
+                    onPressed: _handlePickLocation,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1C55C0),
                       padding: const EdgeInsets.symmetric(vertical: 10),
