@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:abc_e_mart/seller/widgets/seller_app_bar.dart';
 import 'package:abc_e_mart/seller/widgets/seller_profile_card.dart';
 import 'package:abc_e_mart/seller/widgets/seller_quick_access.dart';
@@ -11,142 +14,152 @@ import 'package:abc_e_mart/seller/features/rating/store_rating_page.dart';
 
 class HomePageSeller extends StatelessWidget {
   const HomePageSeller({super.key});
-  final String logoPath = "assets/images/nihonmart.png";
 
   @override
   Widget build(BuildContext context) {
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          // Scrollable seluruh halaman
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 31),
-                SellerAppBar(
-                  onBack: () {
-                    // Handle back if needed
-                  },
-                  onNotif: () {
-                    // Handle notif
-                  },
-                ),
-                const SizedBox(height: 23), // Jarak ke bawah biar sesuai desain
-                SellerProfileCard(
-                  storeName: "Nihon Mart",
-                  description: "Menjual segala kebutuhan mahasiswa",
-                  address: "Jl. Ika Hiu No 24, Surabaya",
-                  logoPath: "assets/images/nihonmart.png",
-                  onEditProfile: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => EditProfilePageSeller(logoPath: logoPath),
+        child: uid == null
+            ? const Center(child: Text("User belum login"))
+            : StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('shopApplications')
+                    .where('owner.uid', isEqualTo: uid)
+                    .where('status', isEqualTo: 'approved')
+                    .limit(1)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text("Toko tidak ditemukan/Belum diapprove"));
+                  }
+
+                  final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                  final shopName = data['shopName'] ?? "-";
+                  final description = data['description'] ?? "Menjual berbagai kebutuhan";
+                  final address = data['address'] ?? "-";
+                  final logoUrl = data['logoUrl'] ?? "";
+
+                  // Sisa data dummy, nanti integrasi dengan Firestore juga
+                  final pesananMasuk = 42;
+                  final pesananDikirim = 5;
+                  final pesananSelesai = 30;
+                  final pesananBatal = 15;
+                  final saldo = "Rp 1,25 Jt";
+                  final saldoTertahan = "Rp 250.000";
+
+                  return SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 31),
+                          SellerAppBar(
+                            onBack: () {},
+                            onNotif: () {},
+                          ),
+                          const SizedBox(height: 23),
+                          SellerProfileCard(
+                            storeName: shopName,
+                            description: description,
+                            address: address,
+                            logoPath: logoUrl.isNotEmpty ? logoUrl : null,
+                            onEditProfile: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => EditProfilePageSeller(
+                                    logoPath: logoUrl,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 23),
+                          SellerQuickAccess(
+                            onTap: (index) {
+                              switch (index) {
+                                case 0:
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const ProductsPage()),
+                                  );
+                                  break;
+                                case 3:
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const StoreRatingPage()),
+                                  );
+                                  break;
+                              }
+                            },
+                          ),
+                          SellerSummaryCard(
+                            pesananMasuk: pesananMasuk,
+                            pesananDikirim: pesananDikirim,
+                            pesananSelesai: pesananSelesai,
+                            pesananBatal: pesananBatal,
+                            saldo: saldo,
+                            saldoTertahan: saldoTertahan,
+                          ),
+                          const SizedBox(height: 23),
+                          SellerTransactionSection(
+                            transactions: [
+                              SellerTransactionCardData(
+                                invoiceId: "NPN001",
+                                date: "5 Juli 2025",
+                                status: "Sukses",
+                                items: [
+                                  TransactionCardItem(
+                                    name: "Ayam Geprek",
+                                    note: "Pedas",
+                                    qty: 1,
+                                  ),
+                                  TransactionCardItem(
+                                    name: "Ayam Geprek",
+                                    note: "Sedang",
+                                    qty: 1,
+                                  ),
+                                  TransactionCardItem(
+                                    name: "Ayam Geprek",
+                                    note: "",
+                                    qty: 1,
+                                  ),
+                                ],
+                                total: 75000,
+                                onDetail: () {},
+                              ),
+                              SellerTransactionCardData(
+                                invoiceId: "#014456",
+                                date: "5 Juli 2025",
+                                status: "Gagal",
+                                items: [
+                                  TransactionCardItem(
+                                    name: "Ayam Geprek",
+                                    note: "Sedang",
+                                    qty: 1,
+                                  ),
+                                  TransactionCardItem(
+                                    name: "Ayam Geprek",
+                                    note: "Pedas",
+                                    qty: 1,
+                                  ),
+                                ],
+                                total: 75000,
+                                onDetail: () {},
+                              ),
+                            ],
+                            onSeeAll: () {},
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 23),
-                SellerQuickAccess(
-                  onTap: (index) {
-                    switch (index) {
-                      case 0:
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ProductsPage()),
-                        );
-                        break;
-                      // case 1:
-                      //   Navigator.of(context).push(
-                      //     MaterialPageRoute(builder: (_) => const SellerOrdersPage()),
-                      //   );
-                      //   break;
-                      // case 2:
-                      //   Navigator.of(context).push(
-                      //     MaterialPageRoute(builder: (_) => const SellerChatPage()),
-                      //   );
-                      //   break;
-                      case 3:
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const StoreRatingPage()),
-                        );
-                        break;
-                      case 4:
-                      //   Navigator.of(context).push(
-                      //     MaterialPageRoute(builder: (_) => const SellerTransactionPage()),
-                      //   );
-                      //   break;
-                      // case 5:
-                      //   Navigator.of(context).push(
-                      //     MaterialPageRoute(builder: (_) => const SellerAdsPage()),
-                      //   );
-                      //   break;
-                    }
-                  },
-                ),
-                SellerSummaryCard(
-                  pesananMasuk: 42,
-                  pesananDikirim: 5,
-                  pesananSelesai: 30,
-                  pesananBatal: 15,
-                  saldo: "Rp 1,25 Jt",
-                  saldoTertahan: "Rp 250.000",
-                ),
-                // Tambahkan widget berikutnya di sini (section lain, dsb)
-                const SizedBox(height: 23),
-                SellerTransactionSection(
-                  transactions: [
-                    SellerTransactionCardData(
-                      invoiceId: "NPN001",
-                      date: "5 Juli 2025",
-                      status: "Sukses",
-                      items: [
-                        TransactionCardItem(
-                          name: "Ayam Geprek",
-                          note: "Pedas",
-                          qty: 1,
-                        ),
-                        TransactionCardItem(
-                          name: "Ayam Geprek",
-                          note: "Sedang",
-                          qty: 1,
-                        ),
-                        TransactionCardItem(
-                          name: "Ayam Geprek",
-                          note: "",
-                          qty: 1,
-                        ),
-                      ],
-                      total: 75000,
-                      onDetail: () {},
                     ),
-                    SellerTransactionCardData(
-                      invoiceId: "#014456",
-                      date: "5 Juli 2025",
-                      status: "Gagal",
-                      items: [
-                        TransactionCardItem(
-                          name: "Ayam Geprek",
-                          note: "Sedang",
-                          qty: 1,
-                        ),
-                        TransactionCardItem(
-                          name: "Ayam Geprek",
-                          note: "Pedas",
-                          qty: 1,
-                        ),
-                      ],
-                      total: 75000,
-                      onDetail: () {},
-                    ),
-                  ],
-                  onSeeAll: () {},
-                ),
-              ],
-            ),
-          ),
-        ),
+                  );
+                },
+              ),
       ),
     );
   }
