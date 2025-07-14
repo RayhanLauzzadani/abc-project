@@ -26,6 +26,7 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
   bool _hasChanged = false;
   bool _loading = false;
   bool _firstLoad = true;
+  String? _storeId; // <- tambahkan field storeId
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     _listenChanges();
   }
 
+  /// Fetch storeId dari user, lalu fetch data toko berdasarkan storeId
   Future<void> _fetchData() async {
     setState(() => _loading = true);
 
@@ -42,14 +44,35 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
       if (mounted) Navigator.pop(context);
       return;
     }
-    final doc = await FirebaseFirestore.instance.collection('stores').doc(uid).get();
-    final data = doc.data();
 
-    _originalName = data?['shopName'] ?? "-";
+    // 1. Ambil data user untuk dapatkan storeId
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final userData = userDoc.data();
+    final storeId = userData?['storeId']; // <- pastikan field ini sudah ada di Firestore
+
+    if (storeId == null) {
+      // User belum punya toko atau field storeId belum di-set
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Data toko tidak ditemukan (storeId kosong)")),
+        );
+        Navigator.pop(context);
+      }
+      return;
+    }
+
+    _storeId = storeId; // simpan agar bisa dipakai di save
+
+    // 2. Ambil data toko berdasar storeId (bukan uid)
+    final storeDoc = await FirebaseFirestore.instance.collection('stores').doc(storeId).get();
+    final data = storeDoc.data();
+
+    // Field yang dipakai sesuai standard baru:
+    _originalName = data?['name'] ?? "-";
     _originalDesc = data?['description'] ?? "";
     _originalAddress = data?['address'] ?? "";
     _originalPhone = data?['phone'] ?? "";
-    _logoUrl = data?['logoUrl'] ?? widget.logoPath;
+    _logoUrl = data?['photoUrl'] ?? widget.logoPath;
 
     _nameController.text = _originalName;
     _descController.text = _originalDesc;
@@ -114,6 +137,7 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     );
   }
 
+  /// Save/update data toko by storeId
   Future<void> _saveProfile() async {
     if (!_hasChanged) return;
     final confirmed = await _showConfirmSaveDialog();
@@ -122,11 +146,11 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     setState(() => _loading = true);
 
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
+      final storeId = _storeId;
+      if (storeId == null) return;
 
-      await FirebaseFirestore.instance.collection('stores').doc(uid).update({
-        'shopName': _nameController.text.trim(),
+      await FirebaseFirestore.instance.collection('stores').doc(storeId).update({
+        'name': _nameController.text.trim(),
         'description': _descController.text.trim(),
         'address': _addressController.text.trim(),
         'phone': _phoneController.text.trim(),

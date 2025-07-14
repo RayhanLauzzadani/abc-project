@@ -83,7 +83,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
   }
 
-  // === APPROVE SEKALIGUS BUAT stores/{uid} ===
+  // === APPROVE SEKALIGUS BUAT stores/{autoId} ===
   Future<void> _onAccept(BuildContext context) async {
     final shopDoc = FirebaseFirestore.instance
         .collection('shopApplications')
@@ -106,6 +106,27 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
             .collection('users')
             .doc(buyerId);
 
+        // ==== BUAT stores/{autoId} ====
+        final storesRef = FirebaseFirestore.instance.collection('stores');
+        final storeMap = {
+          'ownerId': buyerId,
+          'name': shopData?['shopName'] ?? "",
+          'photoUrl': shopData?['logoUrl'] ?? "",
+          'address': shopData?['address'] ?? "",
+          'isOpen': true,
+          'description': shopData?['description'] ?? "",
+          'createdAt': FieldValue.serverTimestamp(),
+          'rating': 0.0,
+          'ratingCount': 0,
+          'totalSales': 0,
+          'categories': <String>[],
+          'location': null,
+          'phone': shopData?['phone'] ?? "",
+        };
+        final newStoreDoc = await storesRef.add(storeMap);
+        final storeId = newStoreDoc.id;
+
+        // ==== Update user: role, storeId, storeName ====
         await FirebaseFirestore.instance.runTransaction((transaction) async {
           final userSnap = await transaction.get(userRef);
           List<dynamic> currentRoles = [];
@@ -121,31 +142,11 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           transaction.update(userRef, {
             'role': currentRoles,
             'storeName': shopData?['shopName'] ?? "",
+            'storeId': storeId, // <--- ini yang utama!
           });
         });
 
-        // ===== BUAT/UPDATE stores/{uid} =====
-        final storesRef = FirebaseFirestore.instance.collection('stores').doc(buyerId);
-
-        final storeMap = {
-          'ownerId': buyerId,
-          'name': shopData?['shopName'] ?? "",
-          'photoUrl': shopData?['logoUrl'] ?? "",
-          'address': shopData?['address'] ?? "",
-          'isOpen': true,
-          'description': shopData?['description'] ?? "",
-          'createdAt': FieldValue.serverTimestamp(),
-          'rating': 0.0,
-          'ratingCount': 0,
-          'totalSales': 0,
-          'categories': <String>[], // seller bisa update nanti
-          'location': null,
-          'phone': shopData?['phone'] ?? "",
-        };
-
-        await storesRef.set(storeMap, SetOptions(merge: true));
-
-        // ===== Notifikasi ke user
+        // Notifikasi ke user
         await FirebaseFirestore.instance
             .collection('users')
             .doc(buyerId)

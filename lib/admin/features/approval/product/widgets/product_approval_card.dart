@@ -12,7 +12,33 @@ class ProductApprovalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final product = data.rawData;
     final type = data.categoryType;
+
+    Widget imageWidget;
+    final imageUrl = product['imageUrl'] ?? '';
+    if (imageUrl.toString().isNotEmpty) {
+      imageWidget = Image.network(
+        imageUrl,
+        width: 89,
+        height: 76,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 89,
+          height: 76,
+          color: const Color(0xFFF3F3F3),
+          child: const Icon(Icons.image, color: Colors.grey),
+        ),
+      );
+    } else {
+      imageWidget = Container(
+        width: 89,
+        height: 76,
+        color: const Color(0xFFF3F3F3),
+        child: const Icon(Icons.image, color: Colors.grey),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -31,20 +57,16 @@ class ProductApprovalCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    data.imagePath,
-                    width: 89,
-                    height: 76,
-                    fit: BoxFit.cover,
-                  ),
+                  child: imageWidget,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Nama produk
                       Text(
-                        data.productName,
+                        product['name'] ?? '-',
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -96,7 +118,7 @@ class ProductApprovalCard extends StatelessWidget {
                           const SizedBox(width: 5),
                           Expanded(
                             child: Text(
-                              data.storeName,
+                              product['storeName'] ?? '-',
                               style: GoogleFonts.dmSans(
                                 fontSize: 12,
                                 color: const Color(0xFF373E3C),

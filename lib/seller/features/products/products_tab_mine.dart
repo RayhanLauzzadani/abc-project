@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan ini
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/seller/widgets/search_bar.dart' as custom_widgets;
 import '../../../widgets/category_selector.dart';
 import '../../../data/models/category_type.dart';
+import 'package:abc_e_mart/seller/data/models/product_model.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class ProductsTabMine extends StatefulWidget {
@@ -16,42 +19,40 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
   int selectedCategory = 0;
   String searchQuery = "";
 
-  // Dummy data produk
-  final List<Map<String, dynamic>> products = [
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Ayam Geprek',
-      'stock': 10,
-      'price': 15000,
-      'category': CategoryType.makanan,
-    },
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Es Teh Manis',
-      'stock': 7,
-      'price': 5000,
-      'category': CategoryType.minuman,
-    },
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Keripik Kentang',
-      'stock': 22,
-      'price': 8000,
-      'category': CategoryType.snacks,
-    },
-    // Tambahkan produk lain jika perlu...
-  ];
+  String? myStoreId; // now nullable
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyStoreId();
+  }
+
+  Future<void> _loadMyStoreId() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    setState(() {
+      myStoreId = userDoc.data()?['storeId'];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Filter produk sesuai search dan kategori
-    List<Map<String, dynamic>> filteredProducts = products.where((prod) {
-      bool matchesSearch = searchQuery.isEmpty ||
-          prod['name'].toLowerCase().contains(searchQuery.toLowerCase());
-      bool matchesCategory = selectedCategory == 0 ||
-          prod['category'] == CategoryType.values[selectedCategory - 1];
-      return matchesSearch && matchesCategory;
-    }).toList();
+    if (myStoreId == null) {
+      // Show loading until storeId is loaded
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (myStoreId!.isEmpty) {
+      // Handle case: user belum punya toko (opsional)
+      return Center(
+        child: Text(
+          "Kamu belum punya toko.\nAjukan toko dulu ya!",
+          style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,21 +77,54 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
           ),
         ),
         const SizedBox(height: 12),
-        // List produk
+        // List produk dari Firestore
         Expanded(
-          child: filteredProducts.isEmpty
-              ? Center(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('products')
+                .where('shopId', isEqualTo: myStoreId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Terjadi error!'));
+              }
+              final docs = snapshot.data?.docs ?? [];
+
+              // Mapping ke model
+              List<ProductModel> products = docs
+                  .map((doc) => ProductModel.fromDoc(doc))
+                  .toList();
+
+              // === Filter by kategori & search
+              products = products.where((prod) {
+                final matchSearch = searchQuery.isEmpty ||
+                    prod.name.toLowerCase().contains(searchQuery.toLowerCase());
+                final matchCat = selectedCategory == 0 ||
+                    CategoryType.values[selectedCategory - 1]
+                        .name
+                        .toLowerCase() ==
+                        prod.category.toLowerCase();
+                return matchSearch && matchCat;
+              }).toList();
+
+              if (products.isEmpty) {
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         LucideIcons.packageSearch,
-                        size: 100,
+                        size: 90,
                         color: Colors.grey[300],
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        "Tidak ada produk di kategori ini",
+                        selectedCategory == 0 && searchQuery.isEmpty
+                            ? "Produk toko kamu masih kosong"
+                            : "Tidak ada produk di kategori ini",
                         style: GoogleFonts.dmSans(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -99,7 +133,9 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        "Tambah produk baru atau pilih kategori lain.",
+                        selectedCategory == 0 && searchQuery.isEmpty
+                            ? "Yuk, tambah produk pertama kamu!"
+                            : "Tambah produk baru atau pilih kategori lain.",
                         style: GoogleFonts.dmSans(
                           fontSize: 14,
                           color: Colors.grey[500],
@@ -108,30 +144,34 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
                       ),
                     ],
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  itemCount: filteredProducts.length,
-                  separatorBuilder: (c, i) => const SizedBox(height: 12),
-                  itemBuilder: (context, idx) {
-                    final product = filteredProducts[idx];
-                    return _ProductCardMine(
-                      product: product,
-                      onEdit: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Fitur Edit belum tersedia')),
-                        );
-                      },
-                      onDelete: () => _showDeleteDialog(context, product['name']),
-                    );
-                  },
-                ),
-        )
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                itemCount: products.length,
+                separatorBuilder: (c, i) => const SizedBox(height: 12),
+                itemBuilder: (context, idx) {
+                  final product = products[idx];
+                  return _ProductCardMine(
+                    product: product,
+                    onEdit: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Fitur Edit belum tersedia')),
+                      );
+                    },
+                    onDelete: () => _showDeleteDialog(context, product),
+                  );
+                },
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 
-  void _showDeleteDialog(BuildContext context, String productName) {
+  void _showDeleteDialog(BuildContext context, ProductModel product) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -169,7 +209,7 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
           ],
         ),
         content: Text(
-          "Anda yakin ingin menghapus produk \"$productName\"?",
+          "Anda yakin ingin menghapus produk \"${product.name}\"?",
           style: GoogleFonts.dmSans(
             fontSize: 15,
             color: const Color(0xFF494949),
@@ -200,10 +240,15 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
+                    // Delete produk dari Firestore
+                    await FirebaseFirestore.instance
+                        .collection('products')
+                        .doc(product.id)
+                        .delete();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Produk "$productName" dihapus (dummy).')),
+                      SnackBar(content: Text('Produk "${product.name}" dihapus')),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -232,7 +277,7 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
 
 // Komponen kartu produk untuk Produk Saya
 class _ProductCardMine extends StatelessWidget {
-  final Map<String, dynamic> product;
+  final ProductModel product;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -259,15 +304,22 @@ class _ProductCardMine extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image produk
+            // Image produk (pakai NetworkImage!)
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                product['image'],
-                width: 70,
-                height: 70,
-                fit: BoxFit.cover,
-              ),
+              child: product.imageUrl.isNotEmpty
+                  ? Image.network(
+                      product.imageUrl,
+                      width: 70,
+                      height: 70,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      width: 70,
+                      height: 70,
+                      color: Colors.grey[200],
+                      child: Icon(LucideIcons.image, color: Colors.grey[400], size: 32),
+                    ),
             ),
             const SizedBox(width: 13),
             // Info produk
@@ -276,7 +328,7 @@ class _ProductCardMine extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product['name'],
+                    product.name,
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
@@ -285,7 +337,7 @@ class _ProductCardMine extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    "Stok: ${product['stock']}",
+                    "Stok: ${product.stock}",
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
@@ -294,13 +346,26 @@ class _ProductCardMine extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    "Rp ${product['price'].toString()}",
+                    "Rp ${product.price}",
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
                       color: const Color(0xFF818181),
                     ),
                   ),
+                  // Menampilkan produk terjual jika ingin
+                  if (product.sold > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        "Terjual: ${product.sold}",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.w400,
+                          fontSize: 12,
+                          color: const Color(0xFF8D8D8D),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
