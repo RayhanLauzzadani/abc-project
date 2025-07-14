@@ -1,0 +1,422 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:abc_e_mart/data/models/category_type.dart';
+import 'package:abc_e_mart/admin/data/models/admin_product_data.dart';
+import 'package:abc_e_mart/admin/widgets/admin_dual_action_buttons.dart';
+import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
+import 'package:abc_e_mart/admin/widgets/admin_reject_reason_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class AdminProductApprovalDetailPage extends StatelessWidget {
+  final AdminProductData data;
+
+  const AdminProductApprovalDetailPage({
+    super.key,
+    required this.data,
+  });
+
+  Future<void> _onReject(BuildContext context) async {
+    final reason = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminRejectReasonPage()),
+    );
+
+    if (reason != null && reason.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('productsApplication')
+            .doc(data.docId)
+            .update({
+          'status': 'Ditolak',
+          'rejectionReason': reason,
+          'rejectedAt': FieldValue.serverTimestamp(),
+        });
+
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const SuccessDialog(message: "Ajuan Produk Berhasil Ditolak"),
+        );
+        await Future.delayed(const Duration(seconds: 2));
+        Navigator.of(context, rootNavigator: true).pop();
+        await Future.delayed(const Duration(milliseconds: 200));
+        Navigator.of(context).pop();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui status: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _onAccept(BuildContext context) async {
+    try {
+      final productData = data.rawData;
+
+      await FirebaseFirestore.instance
+          .collection('productsApplication')
+          .doc(data.docId)
+          .update({
+        'status': 'Sukses',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
+
+      final productId = data.docId;
+      await FirebaseFirestore.instance.collection('products').doc(productId).set({
+        'shopId': productData['storeId'] ?? '',
+        'ownerId': productData['ownerId'] ?? '',
+        'name': productData['name'] ?? '',
+        'imageUrl': productData['imageUrl'] ?? '',
+        'price': productData['price'] ?? 0,
+        'category': productData['category'] ?? '',
+        'description': productData['description'] ?? '',
+        'stock': productData['stock'] ?? 0,
+        'sold': 0,
+        'minBuy': productData['minBuy'] ?? 1,
+        'varieties': productData['varieties'] ?? [],
+        'createdAt': FieldValue.serverTimestamp(),
+        'storeName': productData['storeName'] ?? '-',
+      });
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const SuccessDialog(message: "Ajuan Produk Berhasil Diterima"),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      Navigator.of(context, rootNavigator: true).pop();
+      await Future.delayed(const Duration(milliseconds: 200));
+      Navigator.of(context).pop();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui status: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final product = data.rawData;
+    final List<dynamic> variations = product['varieties'] ?? [];
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.only(
+                left: 20,
+                right: 20,
+                bottom: 110,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      InkWell(
+                        borderRadius: BorderRadius.circular(32),
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 37,
+                          height: 37,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2563EB),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        "Detail Ajuan",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    "Tanggal Pengajuan",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    data.date,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF6D6D6D),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Divider(
+                    color: const Color(0xFFE5E7EB),
+                    thickness: 1,
+                    height: 1,
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Section Data Produk
+                  Text(
+                    "Data Produk",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 17),
+
+                  // Foto Produk
+                  Text(
+                    "Foto Produk",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Container(
+                    width: 89,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.grey[200],
+                    ),
+                    clipBehavior: Clip.hardEdge,
+                    child: (product['imageUrl'] ?? '').toString().isNotEmpty
+                        ? Image.network(product['imageUrl'], fit: BoxFit.cover)
+                        : const Icon(Icons.image_outlined, size: 32, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Nama Produk
+                  Text(
+                    "Nama Produk",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    product['name'] ?? '-',
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.normal,
+                      fontSize: 14,
+                      color: const Color(0xFF232323),
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+
+                  // Deskripsi Produk
+                  Text(
+                    "Deskripsi Produk",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    product['description'] ?? '-',
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.normal,
+                      fontSize: 14,
+                      color: const Color(0xFF232323),
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+
+                  // Nama Toko
+                  Text(
+                    "Nama Toko",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    product['storeName'] ?? '-',
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.normal,
+                      fontSize: 14,
+                      color: const Color(0xFF232323),
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+
+                  // Kategori Produk
+                  Text(
+                    "Kategori Produk",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _CategoryBadge(type: data.categoryType),
+                  const SizedBox(height: 13),
+
+                  // Variasi
+                  Text(
+                    "Variasi",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  variations.isNotEmpty
+                      ? Wrap(
+                          spacing: 10,
+                          children: variations.map((v) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: const Color(0xFFCBCBCB)),
+                              borderRadius: BorderRadius.circular(20),
+                              color: Colors.white,
+                            ),
+                            child: Text(
+                              v.toString(),
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.normal,
+                                fontSize: 13,
+                                color: const Color(0xFF373E3C),
+                              ),
+                            ),
+                          )).toList(),
+                        )
+                      : Text(
+                          "-",
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            color: const Color(0xFF666666),
+                          ),
+                        ),
+                  const SizedBox(height: 13),
+
+                  // Harga
+                  Text(
+                    "Harga",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Rp ${product['price'] ?? 0}",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.normal,
+                      fontSize: 14,
+                      color: const Color(0xFF232323), // hitam seperti yang lain
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                ],
+              ),
+            ),
+
+            // Sticky Button
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(22),
+                  ),
+                ),
+                child: AdminDualActionButtons(
+                  rejectText: "Tolak",
+                  acceptText: "Terima",
+                  onReject: () => _onReject(context),
+                  onAccept: () => _onAccept(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Tetap gunakan badge kategori versi sebelumnya
+class _CategoryBadge extends StatelessWidget {
+  final CategoryType type;
+  const _CategoryBadge({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = categoryLabels[type]!;
+    final color = getCategoryColor(type);
+
+    return Container(
+      width: 85,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: getCategoryBgColor(type),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color, width: 1.2),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.only(right: 7),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.dmSans(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
