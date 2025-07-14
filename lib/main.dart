@@ -10,7 +10,7 @@ import 'seller/providers/seller_registration_provider.dart';
 import 'buyer/features/home/splash_screen.dart';
 import 'buyer/features/auth/login_page.dart';
 import 'buyer/features/home/home_page_buyer.dart';
-import 'package:abc_e_mart/admin/features/home/home_page_admin.dart';
+// import 'package:abc_e_mart/admin/features/home/home_page_admin.dart';
 // import page lain jika ingin tambahkan ke routes
 
 void main() async {
@@ -38,8 +38,8 @@ class MyApp extends StatelessWidget {
           textTheme: GoogleFonts.dmSansTextTheme(),
           scaffoldBackgroundColor: Colors.white,
         ),
-        // home: const SplashScreen(),
-                home: const HomePageAdmin(),
+        home: const SplashScreen(),
+                // home: const HomePageAdmin(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const HomePage(),

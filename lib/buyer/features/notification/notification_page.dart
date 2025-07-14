@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+// Import halaman seller-mu di sini!
+import 'package:abc_e_mart/seller/features/home/home_page_seller.dart'; // Ganti sesuai project
 
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
@@ -78,103 +80,136 @@ class NotificationPage extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemCount: notifications.length,
                   itemBuilder: (context, index) {
-                    final data = notifications[index].data() as Map<String, dynamic>;
-                    final isCancel = data['type'] == 'rejected'; // Ganti ke 'rejected' sesuai context notifikasi toko
+                    final notifDoc = notifications[index];
+                    final data = notifDoc.data() as Map<String, dynamic>;
+                    final isCancel = data['type'] == 'rejected';
 
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: isCancel ? Colors.red.shade50 : Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.grey.shade300,
-                          width: 1.2,
+                    return GestureDetector(
+                      onTap: () async {
+                        // Tandai notif sudah dibaca
+                        if (data['isRead'] != true) {
+                          await notifDoc.reference.update({'isRead': true});
+                        }
+
+                        // Jika notif "approved", arahkan ke HomePageSeller
+                        if (data['type'] == 'approved') {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const HomePageSeller()),
+                            (route) => false,
+                          );
+                        }
+                        // Kalau rejected, bisa tambahin showDialog kalau mau info
+                        // else if (data['type'] == 'rejected') {
+                        //   showDialog(
+                        //     context: context,
+                        //     builder: (_) => AlertDialog(
+                        //       title: const Text('Pengajuan Ditolak'),
+                        //       content: Text(data['body'] ?? 'Ajuan Anda ditolak.'),
+                        //       actions: [
+                        //         TextButton(
+                        //           onPressed: () => Navigator.pop(context),
+                        //           child: const Text('OK'),
+                        //         ),
+                        //       ],
+                        //     ),
+                        //   );
+                        // }
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isCancel ? Colors.red.shade50 : Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Icon Circle
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isCancel ? Colors.red.shade100 : Colors.green.shade100,
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Icon Circle
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isCancel ? Colors.red.shade100 : Colors.green.shade100,
+                              ),
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(
+                                isCancel ? Icons.close_rounded : Icons.check_rounded,
+                                color: isCancel ? Colors.red : Colors.green.shade800,
+                                size: 22,
+                              ),
                             ),
-                            padding: const EdgeInsets.all(8),
-                            child: Icon(
-                              isCancel ? Icons.close_rounded : Icons.check_rounded,
-                              color: isCancel ? Colors.red : Colors.green.shade800,
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
 
-                          // Text content
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Title + New Badge
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        data['title'] ?? '-',
-                                        style: GoogleFonts.dmSans(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                    if (data['isRead'] == false || data['isRead'] == null)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green,
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Text(
-                                          'New',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
+                            // Text content
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Title + New Badge
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          data['title'] ?? '-',
+                                          style: GoogleFonts.dmSans(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: Colors.black,
                                           ),
                                         ),
-                                      )
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-
-                                // Date
-                                Text(
-                                  data['timestamp'] != null
-                                      ? DateFormat('dd MMM, yyyy | HH:mm').format(
-                                          (data['timestamp'] as Timestamp).toDate())
-                                      : '-',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
+                                      ),
+                                      if (data['isRead'] == false || data['isRead'] == null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Text(
+                                            'New',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        )
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(height: 8),
+                                  const SizedBox(height: 4),
 
-                                // Message
-                                Text(
-                                  data['body'] ?? '-',
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
+                                  // Date
+                                  Text(
+                                    data['timestamp'] != null
+                                        ? DateFormat('dd MMM, yyyy | HH:mm').format(
+                                            (data['timestamp'] as Timestamp).toDate())
+                                        : '-',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // Message
+                                  Text(
+                                    data['body'] ?? '-',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },

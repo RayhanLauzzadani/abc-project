@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:abc_e_mart/seller/widgets/shop_verification_status_page.dart';
+import 'package:abc_e_mart/buyer/features/home/home_page_buyer.dart';
 
 class ShopRegistrationSuccessPage extends StatelessWidget {
   const ShopRegistrationSuccessPage({super.key});
@@ -64,8 +65,14 @@ class ShopRegistrationSuccessPage extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => const HomePage(initialIndex: 4),
+                      ), // index 4 = Profile
+                      (route) => false,
+                    );
                   },
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorPrimary,
                     shape: RoundedRectangleBorder(
