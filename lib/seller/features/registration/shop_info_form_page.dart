@@ -95,7 +95,7 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
         'seller_logos/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
-      // 3. Simpan ke Firestore
+      // 3. Simpan ke Firestore (shopApplications)
       final shopData = {
         'owner': {
           'uid': userId,
@@ -118,6 +118,17 @@ class _ShopInfoFormPageState extends State<ShopInfoFormPage> {
           .collection('shopApplications')
           .doc(userId)
           .set(shopData);
+
+      // === Kirim notifikasi ke admin (admin_notifications) ===
+      await FirebaseFirestore.instance.collection('admin_notifications').add({
+        'title': 'Pengajuan Toko Baru',
+        'body': 'Ada pengajuan toko baru dari ${provider.nama}.',
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'store_submission',
+        'shopApplicationId': userId, // docId shopApplications = userId
+        'isRead': false,
+        'status': 'pending',
+      });
 
       provider.resetAll();
 

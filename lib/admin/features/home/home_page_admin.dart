@@ -12,6 +12,7 @@ import 'package:abc_e_mart/admin/widgets/admin_ad_submission_section.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
+import 'package:abc_e_mart/admin/features/notification/notification_page_admin.dart';
 
 class HomePageAdmin extends StatefulWidget {
   const HomePageAdmin({super.key});
@@ -22,6 +23,19 @@ class HomePageAdmin extends StatefulWidget {
 
 class _HomePageAdminState extends State<HomePageAdmin> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminClaim();
+  }
+
+  Future<void> _checkAdminClaim() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final token = await user?.getIdTokenResult(true);
+    // Log only for debugging, can remove this line if not needed
+    print('>>> CUSTOM CLAIMS: ${token?.claims}');
+  }
 
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
@@ -54,7 +68,17 @@ class _HomePageAdminState extends State<HomePageAdmin> {
           Container(
             color: Colors.white,
             padding: const EdgeInsets.only(left: 20, right: 20, top: 0),
-            child: AdminHomeHeader(onNotif: () {}, onLogoutTap: _logout),
+            child: AdminHomeHeader(
+              onNotif: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationPageAdmin(),
+                  ),
+                );
+              },
+              onLogoutTap: _logout,
+            ),
           ),
           const SizedBox(height: 15),
           Expanded(
@@ -103,7 +127,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           .collection('shopApplications')
                           .where('status', isEqualTo: 'pending')
                           .orderBy('submittedAt', descending: true)
-                          .limit(5)
+                          .limit(2)
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
@@ -125,7 +149,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           );
                         }
 
-                        final submissions = (snapshot.data?.docs ?? []).map((doc) {
+                        final submissions = (snapshot.data?.docs ?? []).map((
+                          doc,
+                        ) {
                           final data = doc.data() as Map<String, dynamic>;
                           return AdminStoreSubmissionData(
                             imagePath: data['logoUrl'] ?? '',
@@ -134,12 +160,11 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             submitter: data['owner']?['nama'] ?? '-',
                             date:
                                 (data['submittedAt'] != null &&
-                                        data['submittedAt'] is Timestamp)
-                                    ? _formatDate(
-                                        (data['submittedAt'] as Timestamp)
-                                            .toDate(),
-                                      )
-                                    : '-',
+                                    data['submittedAt'] is Timestamp)
+                                ? _formatDate(
+                                    (data['submittedAt'] as Timestamp).toDate(),
+                                  )
+                                : '-',
                             docId: doc.id,
                           );
                         }).toList();
@@ -157,8 +182,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                               MaterialPageRoute(
                                 builder: (_) => AdminStoreApprovalDetailPage(
                                   docId: submission.docId,
-                                  approvalData:
-                                      null, // bisa null, data diambil dari Firestore
+                                  approvalData: null, // ambil dari Firestore
                                 ),
                               ),
                             );

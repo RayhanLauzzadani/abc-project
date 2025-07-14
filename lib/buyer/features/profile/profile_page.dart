@@ -9,6 +9,10 @@ import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 // Tambahkan import ini!
 import 'package:abc_e_mart/buyer/features/profile/appearance_setting_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/profile_edit_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+// Import halaman tujuan:
+import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
+import 'package:abc_e_mart/seller/widgets/shop_verification_status_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -48,7 +52,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -71,16 +78,23 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Row(
                         children: [
                           // Avatar Profile
-                          (_userModel?.photoUrl != null && _userModel!.photoUrl!.isNotEmpty)
+                          (_userModel?.photoUrl != null &&
+                                  _userModel!.photoUrl!.isNotEmpty)
                               ? CircleAvatar(
                                   radius: 28,
                                   backgroundColor: const Color(0xFFE0E0E0),
-                                  backgroundImage: NetworkImage(_userModel!.photoUrl!),
+                                  backgroundImage: NetworkImage(
+                                    _userModel!.photoUrl!,
+                                  ),
                                 )
                               : const CircleAvatar(
                                   radius: 28,
                                   backgroundColor: Color(0xFFE0E0E0),
-                                  child: Icon(Icons.person, color: Colors.white, size: 28),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
                                 ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -97,7 +111,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  FirebaseAuth.instance.currentUser?.email ?? "-",
+                                  FirebaseAuth.instance.currentUser?.email ??
+                                      "-",
                                   style: GoogleFonts.dmSans(
                                     fontSize: 14,
                                     color: const Color(0xFF6D6D6D),
@@ -112,7 +127,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             onTap: () async {
                               final result = await Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const ProfileEditPage()),
+                                MaterialPageRoute(
+                                  builder: (_) => const ProfileEditPage(),
+                                ),
                               );
                               if (result == true) {
                                 // Jika berhasil update, refresh data user
@@ -164,19 +181,109 @@ class _ProfilePageState extends State<ProfilePage> {
                         },
                       ),
                       _buildDivider(),
-                      _buildListTile('store.svg', "Toko Saya", size: 21, onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const RegistrationWelcomePage()),
-                        );
-                      }),
+                      _buildListTile(
+                        'store.svg',
+                        "Toko Saya",
+                        size: 21,
+                        onTap: () async {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user == null) return;
+
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+
+                          try {
+                            // CARI DOKUMEN shopApplications dgn owner.uid == user.uid (limit 1)
+                            final query = await FirebaseFirestore.instance
+                                .collection('shopApplications')
+                                .where('owner.uid', isEqualTo: user.uid)
+                                .limit(1)
+                                .get();
+
+                            Navigator.of(context).pop(); // Tutup loading
+
+                            if (query.docs.isEmpty) {
+                              // Belum pernah daftar, ke form registrasi
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const RegistrationWelcomePage(),
+                                ),
+                              );
+                              return;
+                            }
+
+                            final shopData = query.docs.first.data();
+                            final status = shopData['status'] ?? '';
+
+                            if (status == 'approved') {
+                              // Sudah disetujui, langsung ke home seller
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const HomePageSeller(),
+                                ),
+                              );
+                            } else if (status == 'pending') {
+                              // Sudah daftar, tapi belum disetujui
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ShopVerificationStatusPage(),
+                                ),
+                              );
+                            } else if (status == 'rejected') {
+                              // Ditolak, bisa ke halaman status (atau pendaftaran ulang? sesuai bisnis logic)
+                              // Di sini asumsikan ke halaman status saja
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ShopVerificationStatusPage(),
+                                ),
+                              );
+                            } else {
+                              // Fallback, ke welcome page
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const RegistrationWelcomePage(),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Gagal cek status toko: $e'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ]),
                     const SizedBox(height: 32),
                     _buildSectionTitle("Bantuan"),
                     _buildOptionCard([
-                      _buildListTile('policy.svg', "Kebijakan Privasi", size: 20),
+                      _buildListTile(
+                        'policy.svg',
+                        "Kebijakan Privasi",
+                        size: 20,
+                      ),
                       _buildDivider(),
-                      _buildListTile('syarat.svg', "Syarat Penggunaan", size: 20),
+                      _buildListTile(
+                        'syarat.svg',
+                        "Syarat Penggunaan",
+                        size: 20,
+                      ),
                     ]),
                     const SizedBox(height: 32),
                     _buildOptionCard([
@@ -184,7 +291,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         onTap: () async {
                           await FirebaseAuth.instance.signOut();
                           if (context.mounted) {
-                            Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/login',
+                              (route) => false,
+                            );
                           }
                         },
                         leading: SvgPicture.asset(
@@ -201,7 +311,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             color: const Color(0xFFFF3B30),
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
                         dense: true,
                         horizontalTitleGap: 12,
                       ),
@@ -248,7 +360,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildListTile(String iconAsset, String text, {double size = 22, VoidCallback? onTap}) {
+  Widget _buildListTile(
+    String iconAsset,
+    String text, {
+    double size = 22,
+    VoidCallback? onTap,
+  }) {
     return ListTile(
       onTap: onTap,
       leading: SizedBox(
@@ -265,10 +382,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       title: Text(
         text,
-        style: GoogleFonts.dmSans(
-          fontSize: 14,
-          color: const Color(0xFF373E3C),
-        ),
+        style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF373E3C)),
       ),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFF6D6D6D)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),

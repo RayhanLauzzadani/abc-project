@@ -18,7 +18,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
   });
 
   // Fungsi penolakan
-  void _onReject(BuildContext context) async {
+  Future<void> _onReject(BuildContext context) async {
     final reason = await Navigator.push<String>(
       context,
       MaterialPageRoute(
@@ -27,10 +27,16 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     );
 
     if (reason != null && reason.isNotEmpty) {
-      await _sendRejectionMessage(context, reason);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ajuan toko ditolak!")),
-      );
+      try {
+        await _sendRejectionMessage(context, reason);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Ajuan toko ditolak!")),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
     }
   }
 
@@ -46,15 +52,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       'rejectedAt': FieldValue.serverTimestamp(),
     });
 
-    // Simpan pesan penolakan (opsional, bisa kamu kembangkan)
-    await FirebaseFirestore.instance.collection('messages').add({
-      'buyerId': buyerId,
-      'message': reason,
-      'type': 'shop_reject',
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    // Kirim ke subcollection notifikasi user (INI YANG BENAR)
+    // Kirim ke subcollection notifikasi user
     if (buyerId != '') {
       await FirebaseFirestore.instance
           .collection('users')
@@ -84,7 +82,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
   }
 
   // Fungsi persetujuan
-  void _onAccept(BuildContext context) async {
+  Future<void> _onAccept(BuildContext context) async {
     final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc(docId);
 
     try {
@@ -121,7 +119,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           message: "Ajuan Toko Diterima",
         ),
       );
-
       await Future.delayed(const Duration(seconds: 2));
       Navigator.of(context, rootNavigator: true).pop();
       await Future.delayed(const Duration(milliseconds: 200));
@@ -135,6 +132,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Uncomment untuk debug claims
+    // _printClaims();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
