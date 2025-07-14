@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../features/store/store_detail_page.dart'; // untuk akses warna global
+import '../features/store/store_detail_page.dart';
 
 class StoreRatingReview extends StatelessWidget {
   const StoreRatingReview({super.key});
 
-  static const int descLimit = 160; // untuk read more
+  static const int descLimit = 160;
 
   @override
   Widget build(BuildContext context) {
@@ -84,51 +84,9 @@ class StoreRatingReview extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(width: 18),
+                    // --- Rating Bar Responsive ---
                     Expanded(
-                      child: Column(
-                        children: List.generate(ratings.length, (i) {
-                          final item = ratings[i];
-                          final star = item['star'] as int;
-                          final total = item['total'] as int;
-                          final int maxTotal = ratings.map((e) => e['total'] as int).reduce((a, b) => a > b ? a : b);
-                          final double percent = total / maxTotal;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 3),
-                            child: Row(
-                              children: [
-                                Text(star.toString(),
-                                    style: GoogleFonts.dmSans(fontSize: 13, color: Colors.black)),
-                                const SizedBox(width: 3),
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFE8E8E8),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                      Container(
-                                        height: 8,
-                                        width: (percent * 130).clamp(10,130),
-                                        decoration: BoxDecoration(
-                                          color: getBarColor(star),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(total.toString(),
-                                    style: GoogleFonts.dmSans(fontSize: 12, color: Color(0xFF8F8F8F))),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
+                      child: _RatingBarColumn(ratings: ratings, getBarColor: getBarColor),
                     ),
                   ],
                 ),
@@ -196,8 +154,15 @@ class StoreRatingReview extends StatelessWidget {
                                       WidgetSpan(
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
-                                          children: List.generate(e["star"] as int, (s) =>
-                                              const Icon(Icons.star, size: 14, color: Color(0xFFFFC700))),
+                                          children: List.generate(
+                                              5,
+                                              (i) => Icon(
+                                                    Icons.star,
+                                                    size: 14,
+                                                    color: i < (e["star"] as int)
+                                                        ? const Color(0xFFFFC700)
+                                                        : const Color(0xFFE2E2E2),
+                                                  )),
                                         ),
                                       ),
                                     ],
@@ -219,6 +184,83 @@ class StoreRatingReview extends StatelessWidget {
           const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+}
+
+class _RatingBarColumn extends StatelessWidget {
+  final List<Map<String, dynamic>> ratings;
+  final Color Function(int) getBarColor;
+  const _RatingBarColumn({required this.ratings, required this.getBarColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final int maxTotal = ratings.map((e) => e['total'] as int).reduce((a, b) => a > b ? a : b);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Penyesuaian mirip halaman rating seller
+        const double leftNumWidth = 15;
+        const double rightNumWidth = 38;
+        const double spacing1 = 8;
+        const double spacing2 = 10;
+        final double barWidth = constraints.maxWidth - leftNumWidth - rightNumWidth - spacing1 - spacing2;
+
+        return Column(
+          children: List.generate(ratings.length, (i) {
+            final item = ratings[i];
+            final star = item['star'] as int;
+            final total = item['total'] as int;
+            final double percent = total / maxTotal;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: leftNumWidth,
+                    child: Text(
+                      '$star',
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.dmSans(fontSize: 14, color: Colors.black),
+                    ),
+                  ),
+                  SizedBox(width: spacing1),
+                  Stack(
+                    children: [
+                      Container(
+                        width: barWidth,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F3F3),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      ),
+                      Container(
+                        width: (barWidth * percent).clamp(4, barWidth),
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: getBarColor(star),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(width: spacing2),
+                  SizedBox(
+                    width: rightNumWidth,
+                    child: Text(
+                      total.toString(),
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF9D9D9D)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
