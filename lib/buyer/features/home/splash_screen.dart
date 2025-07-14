@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../auth/login_page.dart';
+import 'home_page_buyer.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -23,15 +25,24 @@ class _SplashScreenState extends State<SplashScreen>
       });
     });
 
-    Timer(const Duration(seconds: 2), () async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (!mounted) return;
-      if (user == null) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-    });
+    Timer(const Duration(seconds: 2), _handleNavigation);
+  }
+
+  Future<void> _handleNavigation() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (!mounted) return;
+
+    if (user == null) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    }
   }
 
   @override

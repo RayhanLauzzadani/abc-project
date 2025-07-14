@@ -4,8 +4,9 @@ class UserModel {
   final String uid;
   final String name;
   final String phone;
-  final List<String> role; // Sekarang List!
+  final List<String> role;
   final String storeName;
+  final String? storeId; // <--- tambah ini
   final DateTime createdAt;
   final List<Map<String, dynamic>> addressList;
   final Map<String, List<String>>? favorites;
@@ -19,12 +20,12 @@ class UserModel {
     required this.storeName,
     required this.createdAt,
     required this.addressList,
+    this.storeId,
     this.favorites,
     this.photoUrl,
   });
 
   factory UserModel.fromMap(String id, Map<String, dynamic> map) {
-    // Deteksi role: String atau List
     List<String> roleList = [];
     if (map['role'] is String) {
       roleList = [map['role']];
@@ -37,6 +38,7 @@ class UserModel {
       phone: map['phone'] ?? '',
       role: roleList,
       storeName: map['storeName'] ?? '',
+      storeId: map['storeId'], // <---
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       addressList: List<Map<String, dynamic>>.from(map['addressList'] ?? []),
       favorites: map['favorites'] != null
@@ -53,8 +55,9 @@ class UserModel {
     return {
       'name': name,
       'phone': phone,
-      'role': role, // simpan List<String>
+      'role': role,
       'storeName': storeName,
+      'storeId': storeId, // <---
       'createdAt': createdAt,
       'addressList': addressList,
       if (favorites != null) 'favorites': favorites,

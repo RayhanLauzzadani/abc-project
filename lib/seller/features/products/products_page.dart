@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'products_tab_mine.dart';
 import 'products_tab_status.dart';
+import 'package:abc_e_mart/seller/features/products/add_product/add_products.dart';
 
 class ProductsPage extends StatefulWidget {
   const ProductsPage({super.key});
@@ -87,10 +88,14 @@ class _ProductsPageState extends State<ProductsPage>
             elevation: 0,
             minimumSize: const Size(0, 32),
           ),
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tambah produk belum diimplementasi')),
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AddProductPage()),
             );
+            if (result == true) {
+              setState(() {});
+            }
           },
           child: Text(
             '+ Tambah Produk',

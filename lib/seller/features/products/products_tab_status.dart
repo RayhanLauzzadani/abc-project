@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/seller/widgets/search_bar.dart' as custom_widgets;
-import '../../../data/models/category_type.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class ProductsTabStatus extends StatefulWidget {
-  const ProductsTabStatus({super.key});
+  final int initialTab;
+  const ProductsTabStatus({super.key, this.initialTab = 0});
 
   @override
   State<ProductsTabStatus> createState() => _ProductsTabStatusState();
@@ -15,43 +17,6 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
   int selectedCategory = 0;
   String searchQuery = "";
 
-  // Dummy produk dengan status
-  final List<Map<String, dynamic>> products = [
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Ayam Geprek',
-      'stock': 10,
-      'price': 15000,
-      'category': CategoryType.makanan,
-      'status': 'Menunggu',
-    },
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Es Teh Manis',
-      'stock': 7,
-      'price': 5000,
-      'category': CategoryType.minuman,
-      'status': 'Ditolak',
-    },
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Keripik Kentang',
-      'stock': 22,
-      'price': 8000,
-      'category': CategoryType.snacks,
-      'status': 'Sukses',
-    },
-    {
-      'image': 'assets/images/geprek.png',
-      'name': 'Tahu Crispy',
-      'stock': 17,
-      'price': 6000,
-      'category': CategoryType.snacks,
-      'status': 'Menunggu',
-    },
-  ];
-
-  // Chips status label
   final List<String> statusCategories = [
     'Semua',
     'Sukses',
@@ -59,16 +24,32 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
     'Ditolak',
   ];
 
+  // mapping firestore status -> label status UI
+  String _mapStatus(String firestoreStatus) {
+    switch (firestoreStatus) {
+      case "approved":
+        return "Sukses";
+      case "pending":
+        return "Menunggu";
+      case "rejected":
+        return "Ditolak";
+      default:
+        return firestoreStatus;
+    }
+  }
+
+   @override
+  void initState() {
+    super.initState();
+    selectedCategory = widget.initialTab;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filter produk sesuai search & status
-    List<Map<String, dynamic>> filteredProducts = products.where((prod) {
-      bool matchesSearch = searchQuery.isEmpty ||
-          prod['name'].toLowerCase().contains(searchQuery.toLowerCase());
-      bool matchesCategory = selectedCategory == 0 ||
-          prod['status'] == statusCategories[selectedCategory];
-      return matchesSearch && matchesCategory;
-    }).toList();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text("Belum login"));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,8 +73,49 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
         const SizedBox(height: 12),
         // List produk status
         Expanded(
-          child: filteredProducts.isEmpty
-              ? Center(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('productsApplication')
+                .where('ownerId', isEqualTo: user.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Terjadi error!'));
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              List<Map<String, dynamic>> products = docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                // mapping status biar matching
+                final status = _mapStatus(data['status'] ?? '');
+                return {
+                  'id': doc.id,
+                  'image': data['imageUrl'] ?? '',
+                  'name': data['name'] ?? '-',
+                  'stock': data['stock'] ?? 0,
+                  'price': data['price'] ?? 0,
+                  'category': data['category'] ?? '-',
+                  'status': status,
+                  'description': data['description'] ?? '',
+                  'storeName': data['storeName'] ?? '',
+                  // tambahkan field lain sesuai kebutuhan approval
+                };
+              }).toList();
+
+              // Filter produk sesuai search & status
+              List<Map<String, dynamic>> filteredProducts = products.where((prod) {
+                bool matchesSearch = searchQuery.isEmpty ||
+                    prod['name'].toLowerCase().contains(searchQuery.toLowerCase());
+                bool matchesCategory = selectedCategory == 0 ||
+                    prod['status'] == statusCategories[selectedCategory];
+                return matchesSearch && matchesCategory;
+              }).toList();
+
+              if (filteredProducts.isEmpty) {
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -122,16 +144,20 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
                       ),
                     ],
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  itemCount: filteredProducts.length,
-                  separatorBuilder: (c, i) => const SizedBox(height: 12),
-                  itemBuilder: (context, idx) {
-                    final product = filteredProducts[idx];
-                    return _ProductCardStatus(product: product);
-                  },
-                ),
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                itemCount: filteredProducts.length,
+                separatorBuilder: (c, i) => const SizedBox(height: 12),
+                itemBuilder: (context, idx) {
+                  final product = filteredProducts[idx];
+                  return _ProductCardStatus(product: product);
+                },
+              );
+            },
+          ),
         )
       ],
     );
@@ -216,7 +242,7 @@ class _StatusSelector extends StatelessWidget {
   }
 }
 
-// Card produk status, badge status lebih kecil, posisi & margin rapi
+// Card produk status
 class _ProductCardStatus extends StatelessWidget {
   final Map<String, dynamic> product;
   const _ProductCardStatus({required this.product});
@@ -267,15 +293,22 @@ class _ProductCardStatus extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image produk
+            // Image produk dari URL
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                product['image'],
-                width: 70,
-                height: 70,
-                fit: BoxFit.cover,
-              ),
+              child: (product['image'] as String).isNotEmpty
+                  ? Image.network(
+                      product['image'],
+                      width: 70,
+                      height: 70,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      width: 70,
+                      height: 70,
+                      color: Colors.grey[200],
+                      child: Icon(LucideIcons.image, color: Colors.grey[400], size: 32),
+                    ),
             ),
             const SizedBox(width: 13),
             // Info produk
@@ -300,14 +333,14 @@ class _ProductCardStatus extends StatelessWidget {
                         ),
                       ),
                       if (status.isNotEmpty) ...[
-                        const SizedBox(width: 8), // Lebih kecil agar tidak makan space
+                        const SizedBox(width: 8),
                         Container(
                           constraints: const BoxConstraints(
                             minWidth: 0,
-                            maxWidth: 74, // Lebih kecil!
+                            maxWidth: 74,
                           ),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3.5), // Lebih kecil!
+                              horizontal: 8, vertical: 3.5),
                           decoration: BoxDecoration(
                             color: _statusBgColor(status),
                             border: Border.all(
@@ -333,7 +366,7 @@ class _ProductCardStatus extends StatelessWidget {
                                   status,
                                   style: GoogleFonts.dmSans(
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 11.5, // Lebih kecil!
+                                    fontSize: 11.5,
                                     color: color,
                                   ),
                                   maxLines: 1,

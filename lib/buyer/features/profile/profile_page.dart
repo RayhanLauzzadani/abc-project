@@ -16,6 +16,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // Import halaman tujuan:
 import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 import 'package:abc_e_mart/seller/widgets/shop_verification_status_page.dart';
+import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -313,12 +314,20 @@ class _ProfilePageState extends State<ProfilePage> {
                             builder: (_) => const LogoutConfirmationDialog(),
                           );
                           if (result == true) {
-                            await FirebaseAuth.instance.signOut();
-                            if (context.mounted) {
-                              Navigator.of(context).pushNamedAndRemoveUntil(
-                                '/login',
-                                (route) => false,
-                              );
+                            try {
+                              await FirebaseAuth.instance.signOut();
+                              if (context.mounted) {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                                  (route) => false,
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Gagal logout: $e')),
+                                );
+                              }
                             }
                           }
                         },
