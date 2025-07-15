@@ -22,7 +22,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool _isDescExpanded = false;
   int _selectedVariant = 0;
 
-  final List<String> variants = ["Pedas", "Sedang", "Tidak Pedas"];
+  List<String> variants = [];
   static const int descLimit = 160;
 
   bool isFavoritedProduct = false;
@@ -36,7 +36,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   @override
   void initState() {
     super.initState();
-    _productImageUrl = widget.product['imageUrl']; // Langsung ambil dari Firestore
+    _productImageUrl = widget.product['imageUrl'];
+    // Ambil data varieties dari Firestore
+    variants = List<String>.from(widget.product['varieties'] ?? []);
     _checkIsFavoritedProduct();
   }
 
@@ -262,36 +264,45 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               ),
               SizedBox(
                 height: 36,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  itemCount: variants.length,
-                  itemBuilder: (context, i) => Padding(
-                    padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
-                    child: ChoiceChip(
-                      label: Text(
-                        variants[i],
-                        style: GoogleFonts.dmSans(
-                          color: _selectedVariant == i ? Colors.white : colorPrimary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                        ),
+                child: variants.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: Text("Tidak ada varian untuk produk ini.",
+                          style: GoogleFonts.dmSans(
+                            color: Colors.grey,
+                            fontSize: 13,
+                          )),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      itemCount: variants.length,
+                      itemBuilder: (context, i) => Padding(
+                        padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
+                        child: ChoiceChip(
+                          label: Text(
+                            variants[i],
+                            style: GoogleFonts.dmSans(
+                              color: _selectedVariant == i ? Colors.white : colorPrimary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                          selected: _selectedVariant == i,
+                          onSelected: (selected) {
+                            setState(() => _selectedVariant = i);
+                          },
+                          showCheckmark: false,
+                          selectedColor: colorPrimary,
+                          backgroundColor: const Color(0xFFF2F2F2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 2),
                       ),
-                      selected: _selectedVariant == i,
-                      onSelected: (selected) {
-                        setState(() => _selectedVariant = i);
-                      },
-                      showCheckmark: false,
-                      selectedColor: colorPrimary,
-                      backgroundColor: const Color(0xFFF2F2F2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 2),
                     ),
                   ),
-                ),
               ),
               const SizedBox(height: 90),
             ],
@@ -402,30 +413,33 @@ class _ProductImageWithBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final imageHeight = 210.0; // Konsisten seperti StoreDetailPage
+
     return Stack(
       children: [
-        Padding(
-          padding: EdgeInsets.only(top: topPadding + 12),
-          child: Center(
-            child: Container(
-              width: 240,
-              height: 160,
-              decoration: BoxDecoration(
-                image: imageUrl == null || imageUrl!.isEmpty
-                  ? const DecorationImage(
-                      image: AssetImage("assets/images/image-placeholder.png"),
-                      fit: BoxFit.contain)
-                  : DecorationImage(
-                      image: NetworkImage(imageUrl!),
-                      fit: BoxFit.contain,
-                    ),
-              ),
-            ),
+        // SafeArea hanya top: true supaya gambar tidak nabrak status bar
+        SafeArea(
+          top: true,
+          bottom: false,
+          child: Container(
+            width: screenWidth,
+            height: imageHeight,
+            color: Color(0xFFF5F5F5),
+            child: imageUrl == null || imageUrl!.isEmpty
+                ? const Icon(Icons.store, size: 100, color: _ProductDetailPageState.colorPrimary)
+                : Image.network(
+                    imageUrl!,
+                    width: screenWidth,
+                    height: imageHeight,
+                    fit: BoxFit.cover,
+                    errorBuilder: (ctx, _, __) => const Icon(Icons.store, size: 100, color: _ProductDetailPageState.colorPrimary),
+                  ),
           ),
         ),
+        // Tombol back posisinya menyesuaikan padding status bar
         Positioned(
-          top: topPadding + 12,
+          top: MediaQuery.of(context).padding.top + 12,
           left: 16,
           child: GestureDetector(
             onTap: onBackTap,
