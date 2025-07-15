@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan ini
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/seller/widgets/search_bar.dart' as custom_widgets;
 import '../../../widgets/category_selector.dart';
@@ -9,7 +8,9 @@ import 'package:abc_e_mart/seller/data/models/product_model.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class ProductsTabMine extends StatefulWidget {
-  const ProductsTabMine({super.key});
+  final String storeId; // TAMBAH PARAMETER INI
+
+  const ProductsTabMine({super.key, required this.storeId}); // <-- WAJIB DIISI
 
   @override
   State<ProductsTabMine> createState() => _ProductsTabMineState();
@@ -19,31 +20,11 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
   int selectedCategory = 0;
   String searchQuery = "";
 
-  String? myStoreId; // now nullable
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMyStoreId();
-  }
-
-  Future<void> _loadMyStoreId() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    setState(() {
-      myStoreId = userDoc.data()?['storeId'];
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (myStoreId == null) {
-      // Show loading until storeId is loaded
-      return const Center(child: CircularProgressIndicator());
-    }
+    final storeId = widget.storeId;
 
-    if (myStoreId!.isEmpty) {
+    if (storeId.isEmpty) {
       // Handle case: user belum punya toko (opsional)
       return Center(
         child: Text(
@@ -82,7 +63,7 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('products')
-                .where('shopId', isEqualTo: myStoreId)
+                .where('shopId', isEqualTo: storeId)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {

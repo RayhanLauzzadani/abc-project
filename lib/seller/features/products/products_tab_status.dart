@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/seller/widgets/search_bar.dart' as custom_widgets;
 import 'package:lucide_icons/lucide_icons.dart';
 
 class ProductsTabStatus extends StatefulWidget {
+  final String storeId;
   final int initialTab;
-  const ProductsTabStatus({super.key, this.initialTab = 0});
+  const ProductsTabStatus({
+    super.key,
+    required this.storeId,
+    this.initialTab = 0,
+  });
 
   @override
   State<ProductsTabStatus> createState() => _ProductsTabStatusState();
@@ -38,7 +42,7 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
     }
   }
 
-   @override
+  @override
   void initState() {
     super.initState();
     selectedCategory = widget.initialTab;
@@ -46,9 +50,10 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Center(child: Text("Belum login"));
+    final storeId = widget.storeId;
+
+    if (storeId.isEmpty) {
+      return const Center(child: Text("Toko belum ditemukan/Belum diapprove"));
     }
 
     return Column(
@@ -76,20 +81,19 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('productsApplication')
-                .where('ownerId', isEqualTo: user.uid)
+                .where('storeId', isEqualTo: storeId)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return Center(child: Text('Terjadi error!'));
+                return Center(child: Text('Error: ${snapshot.error}'));
               }
 
               final docs = snapshot.data?.docs ?? [];
               List<Map<String, dynamic>> products = docs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                // mapping status biar matching
                 final status = _mapStatus(data['status'] ?? '');
                 return {
                   'id': doc.id,
@@ -106,10 +110,16 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
               }).toList();
 
               // Filter produk sesuai search & status
-              List<Map<String, dynamic>> filteredProducts = products.where((prod) {
-                bool matchesSearch = searchQuery.isEmpty ||
-                    prod['name'].toLowerCase().contains(searchQuery.toLowerCase());
-                bool matchesCategory = selectedCategory == 0 ||
+              List<Map<String, dynamic>> filteredProducts = products.where((
+                prod,
+              ) {
+                bool matchesSearch =
+                    searchQuery.isEmpty ||
+                    prod['name'].toLowerCase().contains(
+                      searchQuery.toLowerCase(),
+                    );
+                bool matchesCategory =
+                    selectedCategory == 0 ||
                     prod['status'] == statusCategories[selectedCategory];
                 return matchesSearch && matchesCategory;
               }).toList();
@@ -148,7 +158,10 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
               }
 
               return ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 itemCount: filteredProducts.length,
                 separatorBuilder: (c, i) => const SizedBox(height: 12),
                 itemBuilder: (context, idx) {
@@ -158,7 +171,7 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
               );
             },
           ),
-        )
+        ),
       ],
     );
   }
@@ -206,7 +219,8 @@ class _StatusSelector extends StatelessWidget {
 
           return Padding(
             padding: EdgeInsets.only(
-                right: idx < statusList.length - 1 ? 8 : 0),
+              right: idx < statusList.length - 1 ? 8 : 0,
+            ),
             child: GestureDetector(
               onTap: () => onSelected(idx),
               child: Container(
@@ -280,10 +294,7 @@ class _ProductCardStatus extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(
-          color: const Color(0xFFE6E6E6),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFFE6E6E6), width: 1),
         borderRadius: BorderRadius.circular(13),
         color: Colors.white,
       ),
@@ -307,7 +318,11 @@ class _ProductCardStatus extends StatelessWidget {
                       width: 70,
                       height: 70,
                       color: Colors.grey[200],
-                      child: Icon(LucideIcons.image, color: Colors.grey[400], size: 32),
+                      child: Icon(
+                        LucideIcons.image,
+                        color: Colors.grey[400],
+                        size: 32,
+                      ),
                     ),
             ),
             const SizedBox(width: 13),
@@ -340,13 +355,12 @@ class _ProductCardStatus extends StatelessWidget {
                             maxWidth: 74,
                           ),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3.5),
+                            horizontal: 8,
+                            vertical: 3.5,
+                          ),
                           decoration: BoxDecoration(
                             color: _statusBgColor(status),
-                            border: Border.all(
-                              color: color,
-                              width: 1,
-                            ),
+                            border: Border.all(color: color, width: 1),
                             borderRadius: BorderRadius.circular(100),
                           ),
                           child: Row(
@@ -377,7 +391,7 @@ class _ProductCardStatus extends StatelessWidget {
                             ],
                           ),
                         ),
-                      ]
+                      ],
                     ],
                   ),
                   const SizedBox(height: 5),

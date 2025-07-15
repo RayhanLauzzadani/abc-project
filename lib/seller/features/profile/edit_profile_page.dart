@@ -4,8 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class EditProfilePageSeller extends StatefulWidget {
-  final String logoPath;
-  const EditProfilePageSeller({super.key, required this.logoPath});
+  final String storeId;
+  final String logoPath; // ini url logo, bukan asset
+  const EditProfilePageSeller({
+    super.key,
+    required this.storeId,
+    required this.logoPath,
+  });
 
   @override
   State<EditProfilePageSeller> createState() => _EditProfilePageSellerState();
@@ -26,7 +31,6 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
   bool _hasChanged = false;
   bool _loading = false;
   bool _firstLoad = true;
-  String? _storeId; // <- tambahkan field storeId
 
   @override
   void initState() {
@@ -35,54 +39,42 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     _listenChanges();
   }
 
-  /// Fetch storeId dari user, lalu fetch data toko berdasarkan storeId
+  /// Ambil data toko dari Firestore
   Future<void> _fetchData() async {
     setState(() => _loading = true);
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      if (mounted) Navigator.pop(context);
-      return;
-    }
+    try {
+      final storeDoc = await FirebaseFirestore.instance
+          .collection('stores')
+          .doc(widget.storeId)
+          .get();
+      final data = storeDoc.data();
 
-    // 1. Ambil data user untuk dapatkan storeId
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-    final userData = userDoc.data();
-    final storeId = userData?['storeId']; // <- pastikan field ini sudah ada di Firestore
+      _originalName = data?['name'] ?? "-";
+      _originalDesc = data?['description'] ?? "";
+      _originalAddress = data?['address'] ?? "";
+      _originalPhone = data?['phone'] ?? "";
+      _logoUrl = data?['logoUrl'] ?? widget.logoPath;
 
-    if (storeId == null) {
-      // User belum punya toko atau field storeId belum di-set
+      _nameController.text = _originalName;
+      _descController.text = _originalDesc;
+      _addressController.text = _originalAddress;
+      _phoneController.text = _originalPhone;
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Data toko tidak ditemukan (storeId kosong)")),
+          SnackBar(content: Text("Gagal memuat data: $e")),
         );
         Navigator.pop(context);
       }
-      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _firstLoad = false;
+          _loading = false;
+        });
+      }
     }
-
-    _storeId = storeId; // simpan agar bisa dipakai di save
-
-    // 2. Ambil data toko berdasar storeId (bukan uid)
-    final storeDoc = await FirebaseFirestore.instance.collection('stores').doc(storeId).get();
-    final data = storeDoc.data();
-
-    // Field yang dipakai sesuai standard baru:
-    _originalName = data?['name'] ?? "-";
-    _originalDesc = data?['description'] ?? "";
-    _originalAddress = data?['address'] ?? "";
-    _originalPhone = data?['phone'] ?? "";
-    _logoUrl = data?['photoUrl'] ?? widget.logoPath;
-
-    _nameController.text = _originalName;
-    _descController.text = _originalDesc;
-    _addressController.text = _originalAddress;
-    _phoneController.text = _originalPhone;
-
-    setState(() {
-      _firstLoad = false;
-      _loading = false;
-    });
   }
 
   void _listenChanges() {
@@ -94,10 +86,10 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
 
   void _detectChange() {
     final isChanged =
-      _nameController.text != _originalName ||
-      _descController.text != _originalDesc ||
-      _addressController.text != _originalAddress ||
-      _phoneController.text != _originalPhone;
+        _nameController.text != _originalName ||
+        _descController.text != _originalDesc ||
+        _addressController.text != _originalAddress ||
+        _phoneController.text != _originalPhone;
 
     if (_hasChanged != isChanged) {
       setState(() {
@@ -146,10 +138,10 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     setState(() => _loading = true);
 
     try {
-      final storeId = _storeId;
-      if (storeId == null) return;
-
-      await FirebaseFirestore.instance.collection('stores').doc(storeId).update({
+      await FirebaseFirestore.instance
+          .collection('stores')
+          .doc(widget.storeId)
+          .update({
         'name': _nameController.text.trim(),
         'description': _descController.text.trim(),
         'address': _addressController.text.trim(),
@@ -236,7 +228,7 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
                                   : Image.asset('assets/your_default_logo.png', fit: BoxFit.cover),
                             ),
                           ),
-                          // Jika ingin implement ganti logo, letakkan tombol edit disini
+                          // Kalau mau implement ganti logo, tinggal tambahkan logic upload di sini.
                           Positioned(
                             bottom: -12,
                             right: -12,
@@ -294,15 +286,15 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
                           elevation: 0,
                         ),
                         child: _loading
-                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.3))
-                          : Text(
-                              "Simpan Perubahan",
-                              style: GoogleFonts.dmSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.3))
+                            : Text(
+                                "Simpan Perubahan",
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
                               ),
-                            ),
                       ),
                     ),
                   ],
