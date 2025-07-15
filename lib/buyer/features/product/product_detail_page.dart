@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/cart/cart_item.dart';
 import '../../data/repositories/cart_repository.dart';
-import '../../data/dummy/dummy_data.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -23,7 +22,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   bool _isDescExpanded = false;
   int _selectedVariant = 0;
 
-  // Dummy varian produk
   final List<String> variants = ["Pedas", "Sedang", "Tidak Pedas"];
   static const int descLimit = 160;
 
@@ -33,9 +31,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   final CartRepository cartRepo = CartRepository();
 
+  String? _productImageUrl;
+
   @override
   void initState() {
     super.initState();
+    _productImageUrl = widget.product['imageUrl']; // Langsung ambil dari Firestore
     _checkIsFavoritedProduct();
   }
 
@@ -46,7 +47,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         .collection('users')
         .doc(user.uid)
         .collection('favoriteProducts')
-        .doc(widget.product['name'])
+        .doc(widget.product['id'])
         .get();
     setState(() {
       isFavoritedProduct = favDoc.exists;
@@ -61,18 +62,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         .collection('users')
         .doc(user.uid)
         .collection('favoriteProducts')
-        .doc(widget.product['name']);
+        .doc(widget.product['id']);
 
     if (isFavoritedProduct) {
       await docRef.delete();
     } else {
       await docRef.set({
-        'createdAt': DateTime.now(),
+        'id': widget.product['id'],
         'name': widget.product['name'],
-        'image': widget.product['image'],
+        'imageUrl': _productImageUrl ?? '',
         'price': widget.product['price'],
-        'rating': widget.product['rating'],
+        'rating': widget.product['rating'] ?? 0,
         'storeId': widget.product['storeId'],
+        'description': widget.product['description'] ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
       });
     }
     setState(() {
@@ -92,18 +95,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return;
     }
 
-    // Ambil storeName dari dummyStores berdasarkan storeId
     final String storeId = widget.product['storeId'];
-    final String storeName = dummyStores.firstWhere(
-      (store) => store['id'] == storeId,
-      orElse: () => {'name': ''}
-    )['name'] ?? '';
+    final String storeName = widget.product['storeName'] ?? '';
 
     final selectedVariantName = variants.isNotEmpty ? variants[_selectedVariant] : '';
     final cartItem = CartItem(
       id: widget.product['id'],
       name: widget.product['name'],
-      image: widget.product['image'],
+      image: _productImageUrl ?? '',
       price: widget.product['price'],
       quantity: 1,
       variant: selectedVariantName,
@@ -139,7 +138,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String image = widget.product['image'] ?? '';
     final String name = widget.product['name'] ?? '';
     final int price = widget.product['price'] ?? 0;
     final String description = widget.product['description'] ?? '';
@@ -156,7 +154,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             padding: EdgeInsets.zero,
             children: [
               _ProductImageWithBackButton(
-                imagePath: image,
+                imageUrl: _productImageUrl,
                 onBackTap: () => Navigator.of(context).pop(),
               ),
               Padding(
@@ -395,10 +393,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 }
 
 class _ProductImageWithBackButton extends StatelessWidget {
-  final String imagePath;
+  final String? imageUrl;
   final VoidCallback onBackTap;
   const _ProductImageWithBackButton({
-    required this.imagePath,
+    required this.imageUrl,
     required this.onBackTap,
   });
 
@@ -414,11 +412,14 @@ class _ProductImageWithBackButton extends StatelessWidget {
               width: 240,
               height: 160,
               decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(imagePath),
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                ),
+                image: imageUrl == null || imageUrl!.isEmpty
+                  ? const DecorationImage(
+                      image: AssetImage("assets/images/image-placeholder.png"),
+                      fit: BoxFit.contain)
+                  : DecorationImage(
+                      image: NetworkImage(imageUrl!),
+                      fit: BoxFit.contain,
+                    ),
               ),
             ),
           ),

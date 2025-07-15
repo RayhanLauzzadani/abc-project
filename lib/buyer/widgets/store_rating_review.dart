@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../features/store/store_detail_page.dart';
+// Tambahkan const ini!
+const colorInput = Color(0xFF404040);
 
 class StoreRatingReview extends StatelessWidget {
   const StoreRatingReview({super.key});
@@ -52,7 +53,7 @@ class StoreRatingReview extends StatelessWidget {
                   "Rating",
                   style: GoogleFonts.dmSans(
                     fontWeight: FontWeight.bold,
-                    fontSize: 18, // diperbesar
+                    fontSize: 18,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -109,7 +110,7 @@ class StoreRatingReview extends StatelessWidget {
                   "Ulasan Pelanggan",
                   style: GoogleFonts.dmSans(
                     fontWeight: FontWeight.bold,
-                    fontSize: 18, // diperbesar
+                    fontSize: 18,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -199,7 +200,6 @@ class _RatingBarColumn extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Penyesuaian mirip halaman rating seller
         const double leftNumWidth = 15;
         const double rightNumWidth = 38;
         const double spacing1 = 8;
