@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../widgets/search_bar.dart' as custom;
 import '../../widgets/banner/promo_banner_carousel.dart';
 import 'package:abc_e_mart/buyer/features/home/widgets/category_section.dart';
@@ -8,7 +9,6 @@ import 'package:abc_e_mart/buyer/features/store/store_card.dart';
 import 'package:abc_e_mart/buyer/features/product/product_card.dart';
 import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/favorite/favorite_page.dart';
-import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
 import 'package:abc_e_mart/buyer/features/notification/notification_page.dart';
 import '../profile/profile_page.dart';
 import 'package:abc_e_mart/buyer/features/cart/cart_page.dart';
@@ -135,26 +135,50 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
+        // List toko dari Firestore
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: dummyStores.map((store) {
-                return StoreCard(
-                  imagePath: store['image'],
-                  storeName: store['name'],
-                  distance: store['distance'],
-                  duration: store['duration'],
-                  rating: store['rating'],
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => StoreDetailPage(store: store),
-                      ),
+            child: FutureBuilder<QuerySnapshot>(
+              future: FirebaseFirestore.instance.collection('stores').get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 30),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text('Belum ada toko tersedia.')),
+                  );
+                }
+                final stores = snapshot.data!.docs;
+                return Column(
+                  children: stores.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return StoreCard(
+                      imageUrl: data['photoUrl'] ?? '',
+                      storeName: data['name'] ?? '',
+                      rating: (data['rating'] ?? 0).toDouble(),
+                      ratingCount: (data['ratingCount'] ?? 0).toInt(),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => StoreDetailPage(store: {
+                              ...data,
+                              'id': doc.id,
+                            }),
+                          ),
+                        );
+                      },
                     );
-                  },
+                  }).toList(),
                 );
-              }).toList(),
+              },
             ),
           ),
         ),
@@ -174,25 +198,49 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
+        // List produk dari Firestore
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: dummyProducts.map((product) {
-                return ProductCard(
-                  imagePath: product['image'],
-                  name: product['name'],
-                  price: product['price'],
-                  rating: product['rating'].toDouble(),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ProductDetailPage(product: product),
-                      ),
+            child: FutureBuilder<QuerySnapshot>(
+              future: FirebaseFirestore.instance.collection('products').get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 30),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text('Belum ada produk tersedia.')),
+                  );
+                }
+                final products = snapshot.data!.docs;
+                return Column(
+                  children: products.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return ProductCard(
+                      imageUrl: data['imageUrl'] ?? '',
+                      name: data['name'] ?? '',
+                      price: (data['price'] ?? 0),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProductDetailPage(product: {
+                              ...data,
+                              'id': doc.id,
+                            }),
+                          ),
+                        );
+                      },
                     );
-                  },
+                  }).toList(),
                 );
-              }).toList(),
+              },
             ),
           ),
         ),
