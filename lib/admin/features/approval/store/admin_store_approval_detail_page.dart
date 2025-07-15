@@ -17,7 +17,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     this.approvalData,
   });
 
-  // Fungsi penolakan
+  // Penolakan
   Future<void> _onReject(BuildContext context) async {
     final reason = await Navigator.push<String>(
       context,
@@ -27,91 +27,78 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     if (reason != null && reason.isNotEmpty) {
       try {
         await _sendRejectionMessage(context, reason);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Ajuan toko ditolak!")));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Ajuan toko ditolak!")));
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     }
   }
 
-  Future<void> _sendRejectionMessage(
-    BuildContext context,
-    String reason,
-  ) async {
+  Future<void> _sendRejectionMessage(BuildContext context, String reason) async {
     final shopDoc = FirebaseFirestore.instance
         .collection('shopApplications')
         .doc(docId);
     final shopData = await shopDoc.get();
     final buyerId = shopData.data()?['owner']?['uid'] ?? '';
 
-    // Update status di Firestore
     await shopDoc.update({
       'status': 'rejected',
       'rejectionReason': reason,
       'rejectedAt': FieldValue.serverTimestamp(),
     });
 
-    // Kirim ke subcollection notifikasi user
     if (buyerId != '') {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(buyerId)
           .collection('notifications')
           .add({
-            'title': 'Pengajuan Toko Ditolak',
-            'body': reason, // alasan penolakan
-            'timestamp': FieldValue.serverTimestamp(),
-            'isRead': false,
-            'type': 'rejected',
-          });
+        'title': 'Pengajuan Toko Ditolak',
+        'body': reason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'type': 'rejected',
+      });
     }
 
-    // Dialog sukses
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          const SuccessDialog(message: "Ajuan Toko Berhasil Ditolak"),
+      builder: (_) => const SuccessDialog(message: "Ajuan Toko Berhasil Ditolak"),
     );
     await Future.delayed(const Duration(seconds: 2));
     Navigator.of(context, rootNavigator: true).pop();
     await Future.delayed(const Duration(milliseconds: 200));
-    Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
+    Navigator.of(context).pop();
   }
 
-  // === APPROVE SEKALIGUS BUAT stores/{autoId} ===
+  // Persetujuan
   Future<void> _onAccept(BuildContext context) async {
     final shopDoc = FirebaseFirestore.instance
         .collection('shopApplications')
         .doc(docId);
 
     try {
-      // Update status pengajuan ke approved
       await shopDoc.update({
         'status': 'approved',
         'approvedAt': FieldValue.serverTimestamp(),
       });
 
-      // Ambil data pengajuan toko
       final shopDataSnap = await shopDoc.get();
       final shopData = shopDataSnap.data();
       final buyerId = shopData?['owner']?['uid'] ?? '';
 
       if (buyerId != '') {
-        final userRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(buyerId);
+        final userRef = FirebaseFirestore.instance.collection('users').doc(buyerId);
 
         // ==== BUAT stores/{autoId} ====
         final storesRef = FirebaseFirestore.instance.collection('stores');
         final storeMap = {
           'ownerId': buyerId,
           'name': shopData?['shopName'] ?? "",
-          'photoUrl': shopData?['logoUrl'] ?? "",
+          'logoUrl': shopData?['logoUrl'] ?? "",
           'address': shopData?['address'] ?? "",
           'isOpen': true,
           'description': shopData?['description'] ?? "",
@@ -119,10 +106,11 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           'rating': 0.0,
           'ratingCount': 0,
           'totalSales': 0,
-          'categories': <String>[],
-          'location': null,
+          'categories': null, // Null dulu, nanti seller update sendiri
+          'location': null,   // Null, bisa diisi GeoPoint nanti
           'phone': shopData?['phone'] ?? "",
         };
+        // ADD store & dapatkan storeId
         final newStoreDoc = await storesRef.add(storeMap);
         final storeId = newStoreDoc.id;
 
@@ -142,7 +130,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           transaction.update(userRef, {
             'role': currentRoles,
             'storeName': shopData?['shopName'] ?? "",
-            'storeId': storeId, // <--- ini yang utama!
+            'storeId': storeId,
           });
         });
 
@@ -152,15 +140,14 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
             .doc(buyerId)
             .collection('notifications')
             .add({
-              'title': 'Pengajuan Toko Disetujui',
-              'body': 'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
-              'timestamp': FieldValue.serverTimestamp(),
-              'isRead': false,
-              'type': 'approved',
-            });
+          'title': 'Pengajuan Toko Disetujui',
+          'body': 'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'approved',
+        });
       }
 
-      // Dialog sukses
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -171,9 +158,8 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       await Future.delayed(const Duration(milliseconds: 200));
       Navigator.of(context).pop();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui status: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
     }
   }
 
@@ -215,11 +201,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                 }
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.only(
-                    left: 20,
-                    right: 20,
-                    bottom: 110,
-                  ),
+                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 110),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -291,7 +273,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 17),
-
                       // Foto KTP
                       Text(
                         "Foto KTP",
@@ -361,7 +342,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 18),
                       // Nama
                       Text(
@@ -438,7 +418,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                           color: const Color(0xFF232323),
                         ),
                       ),
-
                       const SizedBox(height: 24),
                       Divider(
                         color: const Color(0xFFE5E7EB),
@@ -446,7 +425,6 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                         height: 1,
                       ),
                       const SizedBox(height: 18),
-
                       // Data Toko
                       Text(
                         "Data Toko",
@@ -497,9 +475,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                                 ),
                               ),
                       ),
-
                       const SizedBox(height: 14),
-
                       // Nama Toko
                       Text(
                         "Nama Toko",
@@ -587,10 +563,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 18,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -600,9 +573,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                       offset: const Offset(0, -3),
                     ),
                   ],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(22),
-                  ),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
                 ),
                 child: AdminDualActionButtons(
                   onReject: () => _onReject(context),

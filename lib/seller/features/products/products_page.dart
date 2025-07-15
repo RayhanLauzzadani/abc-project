@@ -5,7 +5,14 @@ import 'products_tab_status.dart';
 import 'package:abc_e_mart/seller/features/products/add_product/add_products.dart';
 
 class ProductsPage extends StatefulWidget {
-  const ProductsPage({super.key});
+  final String storeId;
+  final int initialTab; // Tambahkan ini!
+
+  const ProductsPage({
+    Key? key,
+    required this.storeId,
+    this.initialTab = 0, // Default ke tab pertama
+  }) : super(key: key);
 
   @override
   State<ProductsPage> createState() => _ProductsPageState();
@@ -13,13 +20,14 @@ class ProductsPage extends StatefulWidget {
 
 class _ProductsPageState extends State<ProductsPage>
     with SingleTickerProviderStateMixin {
-  int selectedIndex = 0;
+  late int selectedIndex;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    selectedIndex = widget.initialTab;
+    _tabController = TabController(length: 2, vsync: this, initialIndex: selectedIndex);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
         setState(() => selectedIndex = _tabController.index);
@@ -43,73 +51,73 @@ class _ProductsPageState extends State<ProductsPage>
           children: [
             // Header: Back, Title, Tambah Produk (button kecil)
             Padding(
-  padding: const EdgeInsets.fromLTRB(12, 22, 12, 8),
-  child: Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: Color(0xFF2056D3),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          'Produk Toko',
-          style: GoogleFonts.dmSans(
-            fontWeight: FontWeight.bold,
-            fontSize: 19,
-            color: const Color(0xFF373E3C),
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      SizedBox(
-        height: 32,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2056D3),
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              padding: const EdgeInsets.fromLTRB(12, 22, 12, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2056D3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Produk Toko',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 19,
+                        color: const Color(0xFF373E3C),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  SizedBox(
+                    height: 32,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2056D3),
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                        minimumSize: const Size(0, 32),
+                      ),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AddProductPage()),
+                        );
+                        if (result == true) {
+                          setState(() {});
+                        }
+                      },
+                      child: Text(
+                        '+ Tambah Produk',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            elevation: 0,
-            minimumSize: const Size(0, 32),
-          ),
-          onPressed: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AddProductPage()),
-            );
-            if (result == true) {
-              setState(() {});
-            }
-          },
-          child: Text(
-            '+ Tambah Produk',
-            style: GoogleFonts.dmSans(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    ],
-  ),
-),
 
             // Tab Bar
             Padding(
@@ -134,9 +142,9 @@ class _ProductsPageState extends State<ProductsPage>
               child: TabBarView(
                 controller: _tabController,
                 physics: const NeverScrollableScrollPhysics(),
-                children: const [
-                  ProductsTabMine(),
-                  ProductsTabStatus(),
+                children: [
+                  ProductsTabMine(storeId: widget.storeId),
+                  ProductsTabStatus(storeId: widget.storeId),
                 ],
               ),
             ),

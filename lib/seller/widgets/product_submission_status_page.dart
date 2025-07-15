@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
-import 'package:abc_e_mart/seller/features/products/products_tab_status.dart';
+import 'package:abc_e_mart/seller/features/products/products_page.dart'; // Import halaman produk utama!
 
 class ProductSubmissionStatusPage extends StatelessWidget {
-  const ProductSubmissionStatusPage({super.key});
+  final String storeId;
+
+  const ProductSubmissionStatusPage({
+    Key? key,
+    required this.storeId,
+  }) : super(key: key);
 
   static const colorPrimary = Color(0xFF1C55C0);
 
@@ -64,13 +69,14 @@ class ProductSubmissionStatusPage extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).pushAndRemoveUntil(
+                    // Ganti menjadi pushReplacement agar bisa back ke home (jika perlu)
+                    Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
-                        builder: (_) => const Scaffold(
-                          body: ProductsTabStatus(initialTab: 2),
+                        builder: (_) => ProductsPage(
+                          storeId: storeId,
+                          initialTab: 1, // Tab ke-2: "Menunggu Persetujuan"
                         ),
                       ),
-                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
