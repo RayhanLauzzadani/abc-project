@@ -56,6 +56,7 @@ dependencies:
   geocoding: ^2.1.0
   dio: ^5.4.0
   http: ^1.2.1 
+  focus_detector: ^2.0.1
   provider: ^6.1.5
   
 
