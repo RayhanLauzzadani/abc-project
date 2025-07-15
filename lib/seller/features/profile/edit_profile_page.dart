@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
 class EditProfilePageSeller extends StatefulWidget {
   final String storeId;
-  final String logoPath; // ini url logo, bukan asset
+  final String logoPath;
   const EditProfilePageSeller({
     super.key,
     required this.storeId,
@@ -32,6 +33,12 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
   bool _loading = false;
   bool _firstLoad = true;
 
+  // Google Places Autocomplete
+  List<dynamic> _addressPredictions = [];
+  static const String _googleApiKey = 'AIzaSyDBdLKjiFM1Hg41D4NtN295IKeR3m7S8X8'; // Ganti dengan API key-mu!
+  double? _shopLat;
+  double? _shopLng;
+
   @override
   void initState() {
     super.initState();
@@ -42,19 +49,19 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
   /// Ambil data toko dari Firestore
   Future<void> _fetchData() async {
     setState(() => _loading = true);
-
     try {
       final storeDoc = await FirebaseFirestore.instance
           .collection('stores')
           .doc(widget.storeId)
           .get();
       final data = storeDoc.data();
-
       _originalName = data?['name'] ?? "-";
       _originalDesc = data?['description'] ?? "";
       _originalAddress = data?['address'] ?? "";
       _originalPhone = data?['phone'] ?? "";
       _logoUrl = data?['logoUrl'] ?? widget.logoPath;
+      _shopLat = data?['latitude'] != null ? (data?['latitude'] as num).toDouble() : null;
+      _shopLng = data?['longitude'] != null ? (data?['longitude'] as num).toDouble() : null;
 
       _nameController.text = _originalName;
       _descController.text = _originalDesc;
@@ -90,13 +97,55 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
         _descController.text != _originalDesc ||
         _addressController.text != _originalAddress ||
         _phoneController.text != _originalPhone;
-
     if (_hasChanged != isChanged) {
       setState(() {
         _hasChanged = isChanged;
       });
     }
   }
+
+  // ================= AUTOCOMPLETE LOGIC ===================
+  Future<void> _searchAddress(String input) async {
+    if (input.isEmpty) {
+      setState(() => _addressPredictions = []);
+      return;
+    }
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=$_googleApiKey&components=country:id',
+    );
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (!mounted) return;
+      setState(() {
+        _addressPredictions = data['predictions'];
+      });
+    }
+  }
+
+  Future<void> _selectPrediction(Map prediction) async {
+    final placeId = prediction['place_id'];
+    setState(() {
+      _addressPredictions = [];
+    });
+    // Ambil detail tempat (koordinat, alamat lengkap)
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&fields=geometry,formatted_address&key=$_googleApiKey',
+    );
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final location = data['result']['geometry']['location'];
+      final formattedAddress = data['result']['formatted_address'];
+      // Update field controller dan lat lng
+      _addressController.text = formattedAddress;
+      _shopLat = location['lat'];
+      _shopLng = location['lng'];
+      setState(() {});
+      _detectChange();
+    }
+  }
+  // =======================================================
 
   Future<bool> _showConfirmSaveDialog() async {
     bool? confirmed = await showDialog<bool>(
@@ -136,7 +185,6 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
     if (!confirmed) return;
 
     setState(() => _loading = true);
-
     try {
       await FirebaseFirestore.instance
           .collection('stores')
@@ -145,6 +193,8 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
         'name': _nameController.text.trim(),
         'description': _descController.text.trim(),
         'address': _addressController.text.trim(),
+        'latitude': _shopLat,
+        'longitude': _shopLng,
         'phone': _phoneController.text.trim(),
       });
 
@@ -228,7 +278,7 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
                                   : Image.asset('assets/your_default_logo.png', fit: BoxFit.cover),
                             ),
                           ),
-                          // Kalau mau implement ganti logo, tinggal tambahkan logic upload di sini.
+                          // Kalau mau implement ganti logo, tambahkan logic upload di sini.
                           Positioned(
                             bottom: -12,
                             right: -12,
@@ -260,11 +310,75 @@ class _EditProfilePageSellerState extends State<EditProfilePageSeller> {
                       labelText: "Deskripsi Toko",
                     ),
                     const SizedBox(height: 16),
-                    _EditProfileBox(
-                      controller: _addressController,
-                      icon: Icons.location_on_rounded,
-                      labelText: "Alamat Toko",
+                    // -------- AUTOCOMPLETE FIELD --------
+                    Column(
+                      children: [
+                        _EditProfileBox(
+                          controller: _addressController,
+                          icon: Icons.location_on_rounded,
+                          labelText: "Alamat Toko",
+                          onChanged: (v) {
+                            _shopLat = null;
+                            _shopLng = null;
+                            _searchAddress(v);
+                            _detectChange();
+                          },
+                        ),
+                        if (_addressController.text.isNotEmpty && _addressPredictions.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(top: 0, left: 4, right: 4, bottom: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(color: Colors.grey.shade200),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            constraints: const BoxConstraints(
+                              maxHeight: 220,
+                            ),
+                            child: ListView.separated(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemCount: _addressPredictions.length,
+                              separatorBuilder: (_, __) => Divider(height: 1, color: Color(0xFFF2F2F3)),
+                              itemBuilder: (context, idx) {
+                                final pred = _addressPredictions[idx];
+                                return ListTile(
+                                  dense: true,
+                                  visualDensity: VisualDensity.compact,
+                                  leading: Icon(Icons.location_on_rounded, color: Color(0xFF1C55C0), size: 21),
+                                  title: Text(
+                                    pred['structured_formatting']?['main_text'] ?? pred['description'],
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    pred['description'],
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF9A9A9A),
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  onTap: () => _selectPrediction(pred),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
                     ),
+                    // -------- END AUTOCOMPLETE FIELD --------
                     const SizedBox(height: 16),
                     _EditProfileBox(
                       controller: _phoneController,
@@ -310,12 +424,14 @@ class _EditProfileBox extends StatelessWidget {
   final IconData icon;
   final String labelText;
   final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
 
   const _EditProfileBox({
     required this.controller,
     required this.icon,
     required this.labelText,
     this.keyboardType,
+    this.onChanged,
   });
 
   @override
@@ -351,6 +467,7 @@ class _EditProfileBox extends StatelessWidget {
                 TextField(
                   controller: controller,
                   keyboardType: keyboardType,
+                  onChanged: onChanged,
                   style: GoogleFonts.dmSans(fontSize: 15, color: const Color(0xFF232323)),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
@@ -367,9 +484,7 @@ class _EditProfileBox extends StatelessWidget {
   }
 }
 
-// -----------------
-// Custom Pop Up
-// -----------------
+// ------------- Custom Dialogs -------------
 class _CustomConfirmDialog extends StatelessWidget {
   final IconData icon;
   final Color iconColor;

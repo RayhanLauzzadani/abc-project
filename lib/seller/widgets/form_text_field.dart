@@ -11,6 +11,7 @@ class FormTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final TextEditingController? controller;
   final String? Function(String?)? validator; // <-- Tambahkan validator
+  final FocusNode? focusNode;
 
   const FormTextField({
     super.key,
@@ -23,6 +24,7 @@ class FormTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.controller,
     this.validator, // <-- Tambahkan validator
+    this.focusNode,
   });
 
   @override
