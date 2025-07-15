@@ -42,7 +42,7 @@ class _AddProductPageState extends State<AddProductPage> {
     "Makanan",
     "Minuman",
     "Snacks",
-    "Lainnya"
+    "Lainnya",
   ];
 
   @override
@@ -74,14 +74,19 @@ class _AddProductPageState extends State<AddProductPage> {
     String formatted = NumberFormat('#,###', 'id_ID').format(parsed);
     _priceController.value = TextEditingValue(
       text: formatted.replaceAll(',', '.'),
-      selection: TextSelection.collapsed(offset: formatted.replaceAll(',', '.').length),
+      selection: TextSelection.collapsed(
+        offset: formatted.replaceAll(',', '.').length,
+      ),
     );
     setState(() => _price = raw);
     _isFormattingPrice = false;
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
     if (pickedFile != null) {
       setState(() {
         _image = File(pickedFile.path);
@@ -92,28 +97,40 @@ class _AddProductPageState extends State<AddProductPage> {
   Future<void> _submitProduct() async {
     if (!_formKey.currentState!.validate()) return;
     if (_image == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto produk wajib diisi!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Foto produk wajib diisi!')));
       return;
     }
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw "Kamu harus login dulu!";
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final storeId = userDoc.data()?['storeId'];
       if (storeId == null || storeId.isEmpty) throw "Kamu belum punya toko!";
 
-      final storeDoc = await FirebaseFirestore.instance.collection('stores').doc(storeId).get();
+      final storeDoc = await FirebaseFirestore.instance
+          .collection('stores')
+          .doc(storeId)
+          .get();
       final storeName = storeDoc.data()?['name'] ?? '-';
 
-      final docRef = FirebaseFirestore.instance.collection('productsApplication').doc();
+      final docRef = FirebaseFirestore.instance
+          .collection('productsApplication')
+          .doc();
       final productId = docRef.id;
 
       final ext = _image!.path.split('.').last;
-      final storageRef = FirebaseStorage.instance.ref().child('product_logos/$productId.$ext');
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'product_logos/$productId.$ext',
+      );
       await storageRef.putFile(_image!);
       final imgUrl = await storageRef.getDownloadURL();
 
@@ -133,16 +150,22 @@ class _AddProductPageState extends State<AddProductPage> {
         "createdAt": FieldValue.serverTimestamp(),
       });
 
-      setState(() { _isLoading = false; });
+      setState(() {
+        _isLoading = false;
+      });
       // BUKAN POP ATAU SNACKBAR, tapi PUSH PAGE Lottie sukses
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ProductSubmissionStatusPage()),
+        MaterialPageRoute(
+          builder: (_) => ProductSubmissionStatusPage(storeId: storeId),
+        ),
       );
     } catch (e) {
-      setState(() { _isLoading = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal: $e')),
-      );
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
     }
   }
 
@@ -154,7 +177,9 @@ class _AddProductPageState extends State<AddProductPage> {
       ),
     );
     if (result != null) {
-      setState(() { _varieties = result; });
+      setState(() {
+        _varieties = result;
+      });
     }
   }
 
@@ -182,17 +207,27 @@ class _AddProductPageState extends State<AddProductPage> {
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
-                          width: 40, height: 40,
+                          width: 40,
+                          height: 40,
                           decoration: const BoxDecoration(
-                            color: Color(0xFF2056D3), shape: BoxShape.circle,
+                            color: Color(0xFF2056D3),
+                            shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 14),
                       Text(
                         "Tambah Produk",
-                        style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 20, color: textColor),
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          color: textColor,
+                        ),
                       ),
                     ],
                   ),
@@ -205,7 +240,10 @@ class _AddProductPageState extends State<AddProductPage> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+                    border: Border.all(
+                      color: const Color(0xFFE5E7EB),
+                      width: 1.2,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,15 +252,28 @@ class _AddProductPageState extends State<AddProductPage> {
                         children: [
                           RichText(
                             text: TextSpan(
-                              style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 15, color: textColor),
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: textColor,
+                              ),
                               children: const [
                                 TextSpan(text: "Foto Produk "),
-                                TextSpan(text: "*", style: TextStyle(color: Colors.red)),
+                                TextSpan(
+                                  text: "*",
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ],
                             ),
                           ),
                           const Spacer(),
-                          Text("Foto 1:1", style: GoogleFonts.dmSans(fontSize: 13, color: Color(0xFF949494))),
+                          Text(
+                            "Foto 1:1",
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              color: Color(0xFF949494),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -241,16 +292,33 @@ class _AddProductPageState extends State<AddProductPage> {
                               alignment: Alignment.center,
                               child: _image == null
                                   ? Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
-                                        Icon(LucideIcons.imagePlus, size: 38, color: Colors.grey[400]),
+                                        Icon(
+                                          LucideIcons.imagePlus,
+                                          size: 38,
+                                          color: Colors.grey[400],
+                                        ),
                                         const SizedBox(height: 4),
-                                        Text("Tambah Foto", style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[400], fontWeight: FontWeight.w600)),
+                                        Text(
+                                          "Tambah Foto",
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 15,
+                                            color: Colors.grey[400],
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ],
                                     )
                                   : ClipRRect(
                                       borderRadius: BorderRadius.circular(10),
-                                      child: Image.file(_image!, fit: BoxFit.cover, width: 120, height: 120),
+                                      child: Image.file(
+                                        _image!,
+                                        fit: BoxFit.cover,
+                                        width: 120,
+                                        height: 120,
+                                      ),
                                     ),
                             ),
                           ),
@@ -262,9 +330,27 @@ class _AddProductPageState extends State<AddProductPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("• Rasio ukuran: 1:1 (persegi)", style: GoogleFonts.dmSans(fontSize: 11.5, color: Colors.grey[500])),
-                            Text("• Format yang Didukung: JPG, PNG, JPEG", style: GoogleFonts.dmSans(fontSize: 11.5, color: Colors.grey[500])),
-                            Text("• Ukuran file maksimum: 2 MB", style: GoogleFonts.dmSans(fontSize: 11.5, color: Colors.grey[500])),
+                            Text(
+                              "• Rasio ukuran: 1:1 (persegi)",
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11.5,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            Text(
+                              "• Format yang Didukung: JPG, PNG, JPEG",
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11.5,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            Text(
+                              "• Ukuran file maksimum: 2 MB",
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11.5,
+                                color: Colors.grey[500],
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -276,7 +362,10 @@ class _AddProductPageState extends State<AddProductPage> {
                   padding: const EdgeInsets.only(bottom: 14, left: 2),
                   child: Text(
                     "Foto Produk Promosi akan digunakan di halaman promosi, hasil pencarian, rekomendasi, dll.",
-                    style: GoogleFonts.dmSans(fontSize: 14.5, color: const Color(0xFF555555)),
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14.5,
+                      color: const Color(0xFF555555),
+                    ),
                   ),
                 ),
                 // NAMA PRODUK, DESKRIPSI, HARGA (counter kanan, border sama)
@@ -285,7 +374,8 @@ class _AddProductPageState extends State<AddProductPage> {
                   required: true,
                   maxLength: 255,
                   onChanged: (v) => _name = v,
-                  validator: (v) => v == null || v.isEmpty ? "Nama produk wajib diisi" : null,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? "Nama produk wajib diisi" : null,
                   inputType: TextInputType.text,
                 ),
                 CustomInputField(
@@ -295,7 +385,8 @@ class _AddProductPageState extends State<AddProductPage> {
                   minLines: 1,
                   maxLines: 8,
                   onChanged: (v) => _desc = v,
-                  validator: (v) => v == null || v.isEmpty ? "Deskripsi wajib diisi" : null,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? "Deskripsi wajib diisi" : null,
                   inputType: TextInputType.text,
                 ),
                 CustomInputField(
@@ -304,17 +395,26 @@ class _AddProductPageState extends State<AddProductPage> {
                   controller: _priceController,
                   inputType: TextInputType.number,
                   onChanged: _onPriceChanged,
-                  validator: (v) => (_price.isEmpty || int.tryParse(_price) == null) ? "Harga wajib diisi" : null,
+                  validator: (v) =>
+                      (_price.isEmpty || int.tryParse(_price) == null)
+                      ? "Harga wajib diisi"
+                      : null,
                 ),
                 // KATEGORI
                 Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(top: 6, bottom: 13),
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+                    border: Border.all(
+                      color: const Color(0xFFE5E7EB),
+                      width: 1.2,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -322,18 +422,20 @@ class _AddProductPageState extends State<AddProductPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          decoration: InputDecoration.collapsed(
-                            hintText: "",
-                          ),
+                          decoration: InputDecoration.collapsed(hintText: ""),
                           isExpanded: true,
                           items: _categories.map((cat) {
                             return DropdownMenuItem(
                               value: cat,
-                              child: Text(cat, style: GoogleFonts.dmSans(fontSize: 15)),
+                              child: Text(
+                                cat,
+                                style: GoogleFonts.dmSans(fontSize: 15),
+                              ),
                             );
                           }).toList(),
                           onChanged: (val) => setState(() => _category = val),
-                          validator: (v) => v == null || v.isEmpty ? "Pilih kategori" : null,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? "Pilih kategori" : null,
                         ),
                       ),
                     ],
@@ -344,9 +446,22 @@ class _AddProductPageState extends State<AddProductPage> {
                   top: 20,
                   child: Row(
                     children: [
-                      Text("Kategori", style: GoogleFonts.dmSans(fontWeight: FontWeight.w500, fontSize: 15, color: Colors.grey[600])),
+                      Text(
+                        "Kategori",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                       const SizedBox(width: 4),
-                      const Text("*", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "*",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -354,11 +469,17 @@ class _AddProductPageState extends State<AddProductPage> {
                 Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 23),
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 11,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+                    border: Border.all(
+                      color: const Color(0xFFE5E7EB),
+                      width: 1.2,
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -366,11 +487,28 @@ class _AddProductPageState extends State<AddProductPage> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Icon(LucideIcons.layers, color: Colors.blue[800], size: 21),
+                          Icon(
+                            LucideIcons.layers,
+                            color: Colors.blue[800],
+                            size: 21,
+                          ),
                           const SizedBox(width: 11),
-                          Text("Variasi", style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, fontSize: 15, color: textColor)),
+                          Text(
+                            "Variasi",
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              color: textColor,
+                            ),
+                          ),
                           const SizedBox(width: 4),
-                          const Text("*", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          const Text(
+                            "*",
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const Spacer(),
                           TextButton(
                             onPressed: _openVarietyPage,
@@ -380,25 +518,52 @@ class _AddProductPageState extends State<AddProductPage> {
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: Text(
-                              _varieties.isEmpty ? "Tambah Variasi" : "${_varieties.length} Variasi",
-                              style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF2563EB), fontWeight: FontWeight.w500),
+                              _varieties.isEmpty
+                                  ? "Tambah Variasi"
+                                  : "${_varieties.length} Variasi",
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                color: const Color(0xFF2563EB),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 7.5),
-                        child: Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+                        child: Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Colors.grey[200],
+                        ),
                       ),
                       // Stok
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Icon(LucideIcons.box, color: Colors.grey[700], size: 21),
+                          Icon(
+                            LucideIcons.box,
+                            color: Colors.grey[700],
+                            size: 21,
+                          ),
                           const SizedBox(width: 11),
-                          Text("Stok", style: GoogleFonts.dmSans(fontWeight: FontWeight.w500, fontSize: 15, color: textColor.withOpacity(0.95))),
+                          Text(
+                            "Stok",
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                              color: textColor.withOpacity(0.95),
+                            ),
+                          ),
                           const SizedBox(width: 4),
-                          const Text("*", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          const Text(
+                            "*",
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const Spacer(),
                           SizedBox(
                             width: 64,
@@ -406,11 +571,16 @@ class _AddProductPageState extends State<AddProductPage> {
                               controller: _stockController,
                               decoration: InputDecoration.collapsed(
                                 hintText: "0",
-                                hintStyle: GoogleFonts.dmSans(color: hintColor, fontWeight: FontWeight.w500, fontSize: 15),
+                                hintStyle: GoogleFonts.dmSans(
+                                  color: hintColor,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 15,
+                                ),
                               ),
                               keyboardType: TextInputType.number,
                               textAlign: TextAlign.right,
-                              validator: (v) => (v == null || v.isEmpty) ? "Wajib" : null,
+                              validator: (v) =>
+                                  (v == null || v.isEmpty) ? "Wajib" : null,
                               onChanged: (v) => _stock = v,
                               style: GoogleFonts.dmSans(fontSize: 15),
                             ),
@@ -419,17 +589,38 @@ class _AddProductPageState extends State<AddProductPage> {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 7.5),
-                        child: Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+                        child: Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Colors.grey[200],
+                        ),
                       ),
                       // Min. Jumlah Pembelian
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Icon(LucideIcons.layers, color: Colors.grey[700], size: 21),
+                          Icon(
+                            LucideIcons.layers,
+                            color: Colors.grey[700],
+                            size: 21,
+                          ),
                           const SizedBox(width: 11),
-                          Text("Min. Jumlah Pembelian", style: GoogleFonts.dmSans(fontWeight: FontWeight.w500, fontSize: 15, color: textColor.withOpacity(0.95))),
+                          Text(
+                            "Min. Jumlah Pembelian",
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                              color: textColor.withOpacity(0.95),
+                            ),
+                          ),
                           const SizedBox(width: 4),
-                          const Text("*", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          const Text(
+                            "*",
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const Spacer(),
                           SizedBox(
                             width: 64,
@@ -437,11 +628,16 @@ class _AddProductPageState extends State<AddProductPage> {
                               controller: _minBuyController,
                               decoration: InputDecoration.collapsed(
                                 hintText: "1",
-                                hintStyle: GoogleFonts.dmSans(color: hintColor, fontWeight: FontWeight.w500, fontSize: 15),
+                                hintStyle: GoogleFonts.dmSans(
+                                  color: hintColor,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 15,
+                                ),
                               ),
                               keyboardType: TextInputType.number,
                               textAlign: TextAlign.right,
-                              validator: (v) => (v == null || v.isEmpty) ? "Wajib" : null,
+                              validator: (v) =>
+                                  (v == null || v.isEmpty) ? "Wajib" : null,
                               onChanged: (v) => _minBuy = v,
                               style: GoogleFonts.dmSans(fontSize: 15),
                             ),
@@ -459,12 +655,28 @@ class _AddProductPageState extends State<AddProductPage> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       backgroundColor: const Color(0xFF2563EB),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                       elevation: 0,
                     ),
                     child: _isLoading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text("Tambah Produk", style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white)),
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            "Tambah Produk",
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -564,27 +776,47 @@ class _CustomInputFieldState extends State<CustomInputField> {
                       color: Colors.grey[600],
                     ),
                   ),
+                  if (widget.required) const SizedBox(width: 4),
                   if (widget.required)
-                    const SizedBox(width: 4),
-                  if (widget.required)
-                    const Text("*", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    const Text(
+                      "*",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                 ],
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1.2),
+                borderSide: const BorderSide(
+                  color: Color(0xFFE5E7EB),
+                  width: 1.2,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1.2),
+                borderSide: const BorderSide(
+                  color: Color(0xFFE5E7EB),
+                  width: 1.2,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF2563EB),
+                  width: 1.2,
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 13,
+              ),
               hintText: "Masukkan ${widget.label}",
-              hintStyle: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[400]),
+              hintStyle: GoogleFonts.dmSans(
+                fontSize: 15,
+                color: Colors.grey[400],
+              ),
               counterText: "",
             ),
             onChanged: null, // handled by controller listener
@@ -595,7 +827,10 @@ class _CustomInputFieldState extends State<CustomInputField> {
               bottom: 8,
               child: Text(
                 "${_currentLength}/${widget.maxLength}",
-                style: GoogleFonts.dmSans(fontSize: 13.5, color: Colors.grey[500]),
+                style: GoogleFonts.dmSans(
+                  fontSize: 13.5,
+                  color: Colors.grey[500],
+                ),
               ),
             ),
         ],
