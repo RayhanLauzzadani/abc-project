@@ -22,7 +22,7 @@ class ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.only(top: 23),
+          padding: const EdgeInsets.only(top: 10),
           child: SizedBox(
             height: 53,
             child: Stack(
