@@ -4,16 +4,20 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AdminSummaryCard extends StatelessWidget {
   final int tokoBaru;
-  final int produkBaru;
-  final int iklanBaru;
   final int tokoTerdaftar;
+  final int produkBaru;
+  final int produkDisetujui;
+  final int iklanBaru;
+  final int iklanAktif;
 
   const AdminSummaryCard({
     super.key,
     required this.tokoBaru,
-    required this.produkBaru,
-    required this.iklanBaru,
     required this.tokoTerdaftar,
+    required this.produkBaru,
+    required this.produkDisetujui,
+    required this.iklanBaru,
+    required this.iklanAktif,
   });
 
   @override
@@ -53,11 +57,13 @@ class AdminSummaryCard extends StatelessWidget {
               builder: (context, constraints) {
                 double parentWidth = constraints.maxWidth;
                 double gap = 16;
-                // **Selalu 2 kolom per baris**
                 int maxInRow = 2;
                 double minCardWidth = 120;
                 double maxCardWidth = 180;
-                double cardWidth = ((parentWidth - gap) / maxInRow).clamp(minCardWidth, maxCardWidth);
+                double cardWidth = ((parentWidth - gap) / maxInRow).clamp(
+                  minCardWidth,
+                  maxCardWidth,
+                );
 
                 final List<_AdminSummaryItem> items = [
                   _AdminSummaryItem(
@@ -76,17 +82,23 @@ class AdminSummaryCard extends StatelessWidget {
                     width: cardWidth,
                   ),
                   _AdminSummaryItem(
+                    title: "Produk Disetujui",
+                    value: produkDisetujui.toString(),
+                    width: cardWidth,
+                  ),
+                  _AdminSummaryItem(
                     title: "Iklan Baru",
                     value: iklanBaru.toString(),
                     width: cardWidth,
                   ),
+                  _AdminSummaryItem(
+                    title: "Iklan Aktif",
+                    value: iklanAktif.toString(),
+                    width: cardWidth,
+                  ),
                 ];
 
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: items,
-                );
+                return Wrap(spacing: gap, runSpacing: gap, children: items);
               },
             ),
           ],
@@ -191,13 +203,7 @@ class _QuarterCirclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
     final rect = Rect.fromLTWH(40, 50, size.width, size.height);
-    canvas.drawArc(
-      rect,
-      math.pi,
-      math.pi / 2,
-      true,
-      paint,
-    );
+    canvas.drawArc(rect, math.pi, math.pi / 2, true, paint);
   }
 
   @override

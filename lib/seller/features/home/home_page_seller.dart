@@ -26,9 +26,8 @@ class HomePageSeller extends StatelessWidget {
             ? const Center(child: Text("User belum login"))
             : StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
-                    .collection('shopApplications')
-                    .where('owner.uid', isEqualTo: uid)
-                    .where('status', isEqualTo: 'approved')
+                    .collection('stores')
+                    .where('ownerId', isEqualTo: uid)
                     .limit(1)
                     .snapshots(),
                 builder: (context, snapshot) {
@@ -36,14 +35,21 @@ class HomePageSeller extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text("Toko tidak ditemukan/Belum diapprove"));
+                    return const Center(
+                      child: Text("Toko tidak ditemukan/Belum diapprove"),
+                    );
                   }
 
-                  final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
-                  final shopName = data['shopName'] ?? "-";
-                  final description = data['description'] ?? "Menjual berbagai kebutuhan";
+                  // Ambil data store pertama
+                  final data =
+                      snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                  final storeId = snapshot.data!.docs.first.id;
+                  final shopName = data['name'] ?? "-";
+                  final description =
+                      data['description'] ?? "Menjual berbagai kebutuhan";
                   final address = data['address'] ?? "-";
                   final logoUrl = data['logoUrl'] ?? "";
+                  final phone = data['phone'] ?? "-";
 
                   // Sisa data dummy, nanti integrasi dengan Firestore juga
                   final pesananMasuk = 42;
@@ -61,7 +67,9 @@ class HomePageSeller extends StatelessWidget {
                         children: [
                           const SizedBox(height: 31),
                           SellerAppBar(
-                            onBack: () {},
+                            onBack: () {
+                              Navigator.pop(context);
+                            },
                             onNotif: () {},
                           ),
                           const SizedBox(height: 23),
@@ -75,6 +83,7 @@ class HomePageSeller extends StatelessWidget {
                                 MaterialPageRoute(
                                   builder: (_) => EditProfilePageSeller(
                                     logoPath: logoUrl,
+                                    storeId: storeId,
                                   ),
                                 ),
                               );
@@ -84,16 +93,21 @@ class HomePageSeller extends StatelessWidget {
                           SellerQuickAccess(
                             onTap: (index) {
                               switch (index) {
-                                case 0:
+                                case 0: // Produk Toko
                                   Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => const ProductsPage()),
+                                    MaterialPageRoute(
+                                      builder: (_) => ProductsPage(storeId: storeId),
+                                    ),
                                   );
                                   break;
                                 case 3:
                                   Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => const StoreRatingPage()),
+                                    MaterialPageRoute(
+                                      builder: (_) => const StoreRatingPage(),
+                                    ),
                                   );
                                   break;
+                                // Tambahkan case lain jika ada fitur quick access lain
                               }
                             },
                           ),
@@ -105,7 +119,6 @@ class HomePageSeller extends StatelessWidget {
                             saldo: saldo,
                             saldoTertahan: saldoTertahan,
                           ),
-                          const SizedBox(height: 23),
                           SellerTransactionSection(
                             transactions: [
                               SellerTransactionCardData(

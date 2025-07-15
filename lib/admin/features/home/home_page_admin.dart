@@ -43,7 +43,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
       // Jika bukan admin, force logout!
       if (claims == null || claims['admin'] != true) {
-        _forceLogoutWithMsg('Akses admin diperlukan. Silakan login dengan akun admin.');
+        _forceLogoutWithMsg(
+          'Akses admin diperlukan. Silakan login dengan akun admin.',
+        );
       }
     } catch (e) {
       _forceLogoutWithMsg('Terjadi error: $e');
@@ -53,7 +55,6 @@ class _HomePageAdminState extends State<HomePageAdmin> {
   void _forceLogoutWithMsg(String message) async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
-    // Tampilkan dialog sebelum logout
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -126,38 +127,83 @@ class _HomePageAdminState extends State<HomePageAdmin> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // --- Admin Summary Card ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
                           .collection('shopApplications')
                           .snapshots(),
-                      builder: (context, snapshot) {
+                      builder: (context, shopSnapshot) {
                         int tokoBaru = 0;
                         int tokoTerdaftar = 0;
-                        if (snapshot.hasData) {
-                          final docs = snapshot.data!.docs;
+                        if (shopSnapshot.hasData) {
+                          final docs = shopSnapshot.data!.docs;
                           tokoBaru = docs
                               .where(
-                                (doc) => (doc['status'] ?? '') == 'approved',
+                                (doc) =>
+                                    (doc['status'] ?? '')
+                                        .toString()
+                                        .toLowerCase() ==
+                                    'pending',
                               )
                               .length;
                           tokoTerdaftar = docs
                               .where(
-                                (doc) => (doc['status'] ?? '') != 'approved',
+                                (doc) =>
+                                    (doc['status'] ?? '')
+                                        .toString()
+                                        .toLowerCase() ==
+                                    'approved',
                               )
                               .length;
                         }
-                        return AdminSummaryCard(
-                          tokoBaru: tokoBaru,
-                          tokoTerdaftar: tokoTerdaftar,
-                          produkBaru: 5, // TODO: Integrasi produk baru
-                          iklanBaru: 30, // TODO: Integrasi iklan baru
+                        // Stream produk application (untuk summary produk baru/disetujui)
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('productsApplication')
+                              .snapshots(),
+                          builder: (context, prodSnapshot) {
+                            int produkBaru = 0;
+                            int produkDisetujui = 0;
+                            if (prodSnapshot.hasData) {
+                              final prods = prodSnapshot.data!.docs;
+                              produkBaru = prods.where((doc) {
+                                final status = (doc['status'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                return status == 'menunggu' ||
+                                    status == 'pending';
+                              }).length;
+                              produkDisetujui = prods.where((doc) {
+                                final status = (doc['status'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                return status == 'sukses' ||
+                                    status == 'approved';
+                              }).length;
+                            }
+
+                            // TODO: Untuk iklan, implementasi mirip (belum diambil Firestore)
+                            int iklanBaru = 0;
+                            int iklanAktif = 0;
+
+                            return AdminSummaryCard(
+                              tokoBaru: tokoBaru,
+                              tokoTerdaftar: tokoTerdaftar,
+                              produkBaru: produkBaru,
+                              produkDisetujui: produkDisetujui,
+                              iklanBaru: iklanBaru,
+                              iklanAktif: iklanAktif,
+                            );
+                          },
                         );
                       },
                     ),
                   ),
+
                   const SizedBox(height: 20),
+
                   // ====== STREAMBUILDER Ajuan Toko Terbaru ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -231,40 +277,74 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                       },
                     ),
                   ),
+
                   const SizedBox(height: 20),
-                  // PRODUCT SECTION (dummy/hardcoded)
+                  // ====== PRODUCT SECTION: produkApplication terbaru (pending) ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AdminProductSubmissionSection(
-                      submissions: [
-                        AdminProductSubmissionData(
-                          imagePath: 'assets/images/nihonmart.png',
-                          productName: 'Ayam Betutu',
-                          category: 'Makanan',
-                          categoryType: CategoryType.makanan,
-                          storeName: 'Nippon Mart',
-                          date: '30/04/2025, 4:21 PM',
-                        ),
-                        AdminProductSubmissionData(
-                          imagePath: 'assets/images/nihonmart.png',
-                          productName: 'Ayam Betutu',
-                          category: 'Minuman',
-                          categoryType: CategoryType.minuman,
-                          storeName: 'Nippon Mart',
-                          date: '30/04/2025, 4:21 PM',
-                        ),
-                      ],
-                      onSeeAll: () {
-                        setState(() {
-                          _currentIndex = 2;
-                        });
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('productsApplication')
+                          .where('status', whereIn: ['Menunggu', 'pending'])
+                          .orderBy('createdAt', descending: true)
+                          .limit(2)
+                          .snapshots(),
+                      builder: (context, prodSnap) {
+                        if (prodSnap.hasError) {
+                          return Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text('Terjadi kesalahan: ${prodSnap.error}'),
+                          );
+                        }
+                        if (prodSnap.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 30),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        final submissions = (prodSnap.data?.docs ?? []).map((
+                          doc,
+                        ) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return AdminProductSubmissionData(
+                            id: doc.id, // <--- Tambahkan ini!
+                            imagePath: data['imageUrl'] ?? '',
+                            productName: data['name'] ?? '-',
+                            category: data['category'] ?? '-',
+                            categoryType: _parseCategoryType(data['category']),
+                            storeName: data['storeName'] ?? '-',
+                            date:
+                                (data['createdAt'] != null &&
+                                    data['createdAt'] is Timestamp)
+                                ? _formatDate(
+                                    (data['createdAt'] as Timestamp).toDate(),
+                                  )
+                                : '-',
+                          );
+                        }).toList();
+
+                        return AdminProductSubmissionSection(
+                          submissions: submissions, // <-- Ini HARUS ADA!
+                          onSeeAll: () {
+                            setState(() {
+                              _currentIndex = 2;
+                            });
+                          },
+                          onDetail: (submission) {
+                            // TODO: Navigasi ke detail produk approval
+                          },
+                        );
                       },
-                      onDetail: (submission) {},
-                      // isNetworkImage: jangan dikasih! hanya untuk logo toko!
                     ),
                   ),
+
                   const SizedBox(height: 20),
-                  // IKLAN SECTION (dummy/hardcoded)
+
+                  // ====== IKLAN SECTION (dummy/hardcoded) ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: AdminAdSubmissionSection(
@@ -309,5 +389,21 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         },
       ),
     );
+  }
+}
+
+/// Helper: auto-mapping kategori string ke CategoryType enum
+CategoryType _parseCategoryType(String? cat) {
+  switch ((cat ?? '').toLowerCase()) {
+    case 'makanan':
+      return CategoryType.makanan;
+    case 'minuman':
+      return CategoryType.minuman;
+    case 'snacks':
+      return CategoryType.snacks;
+    case 'merchandise':
+      return CategoryType.merchandise;
+    default:
+      return CategoryType.makanan;
   }
 }
