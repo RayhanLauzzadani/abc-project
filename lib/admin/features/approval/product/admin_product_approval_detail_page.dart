@@ -1,3 +1,4 @@
+// lib/admin/features/approval/product/admin_product_approval_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
@@ -242,6 +243,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                       fontWeight: FontWeight.normal,
                       fontSize: 14,
                       color: const Color(0xFF232323),
+                      height: 1.45, // Supaya multi-line deskripsi rapi
                     ),
                   ),
                   const SizedBox(height: 13),
@@ -292,8 +294,10 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                   variations.isNotEmpty
                       ? Wrap(
                           spacing: 10,
+                          runSpacing: 10, // Supaya baris variasi ada jaraknya
                           children: variations.map((v) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                            margin: const EdgeInsets.only(bottom: 0), // just in case, tapi runSpacing sudah cukup
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: BoxDecoration(
                               border: Border.all(color: const Color(0xFFCBCBCB)),
                               borderRadius: BorderRadius.circular(20),
@@ -379,7 +383,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
   }
 }
 
-// Tetap gunakan badge kategori versi sebelumnya
+// Badge Kategori
 class _CategoryBadge extends StatelessWidget {
   final CategoryType type;
   const _CategoryBadge({required this.type});
@@ -390,30 +394,34 @@ class _CategoryBadge extends StatelessWidget {
     final color = getCategoryColor(type);
 
     return Container(
-      width: 85,
-      height: 20,
-      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: getCategoryBgColor(type),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color, width: 1.2),
       ),
+      // Row auto-fit
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 7,
             height: 7,
             margin: const EdgeInsets.only(right: 7),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
           ),
           Text(
             label,
             style: GoogleFonts.dmSans(
               color: color,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
