@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/models/cart/cart_item.dart';
 
+String formatRupiah(int price) {
+  return price.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (Match m) => '${m[1]}.'
+  );
+}
+
 class CartBox extends StatelessWidget {
   final String title; // e.g., 'Keranjang 1'
   final String storeName;
@@ -125,10 +132,15 @@ class CartBox extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(10),
-                            image: DecorationImage(
-                              image: AssetImage(item.image),
-                              fit: BoxFit.cover,
-                            ),
+                            image: item.image.startsWith('http')
+                              ? DecorationImage(
+                                  image: NetworkImage(item.image),
+                                  fit: BoxFit.cover,
+                                )
+                              : DecorationImage(
+                                  image: AssetImage(item.image),
+                                  fit: BoxFit.cover,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 13),
@@ -154,7 +166,7 @@ class CartBox extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Text(
-                                    "Rp ${item.price}",
+                                    "Rp ${formatRupiah(item.price)}",
                                     style: GoogleFonts.dmSans(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/cart/cart_item.dart';
 import '../../data/repositories/cart_repository.dart';
+import '../../widgets/success_add_cart_popup.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -97,9 +98,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return;
     }
 
-    final String storeId = widget.product['storeId'];
+    final String storeId = widget.product['shopId'];
     final String storeName = widget.product['storeName'] ?? '';
-
     final selectedVariantName = variants.isNotEmpty ? variants[_selectedVariant] : '';
     final cartItem = CartItem(
       id: widget.product['id'],
@@ -119,13 +119,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Produk berhasil ditambahkan ke keranjang!"),
-          backgroundColor: colorPrimary,
-          behavior: SnackBarBehavior.floating,
+      // --- POPUP LOTTIE SUCCESS, auto-close 2 detik ---
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const SuccessPopup(
+          message: "Produk berhasil ditambahkan ke keranjang!",
         ),
       );
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) Navigator.of(context, rootNavigator: true).pop(); // close popup
+
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
