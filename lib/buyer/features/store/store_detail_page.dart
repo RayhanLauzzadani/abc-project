@@ -3,17 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/widgets/search_bar.dart' as custom_widgets;
 import 'package:abc_e_mart/buyer/widgets/store_product_card.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
-import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
 import 'package:abc_e_mart/buyer/widgets/store_rating_review.dart';
 import 'package:abc_e_mart/widgets/category_selector.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 const colorPrimary = Color(0xFF1C55C0);
-const colorInput = Color(0xFF404040);
 const colorPlaceholder = Color(0xFF757575);
 
-// === Pakai global ===
 final List<CategoryType> categoryList = [
   CategoryType.merchandise,
   CategoryType.alatTulis,
@@ -39,16 +37,11 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
   int selectedCategory = 0;
   int tabIndex = 0;
   late TabController _tabController;
-  late List<Map<String, dynamic>> allProducts;
   String searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    allProducts = dummyProducts
-        .where((prod) => prod['storeId'] == widget.store['id'])
-        .toList();
-
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
@@ -59,46 +52,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
     });
   }
 
-  // Mapping string dari dummy ke enum CategoryType
-  CategoryType? stringToCategoryType(String value) {
-    switch (value.trim().toLowerCase()) {
-      case "merchandise": return CategoryType.merchandise;
-      case "alat tulis kantor (atk)":
-      case "alat tulis": return CategoryType.alatTulis;
-      case "perlengkapan lab":
-      case "alat lab": return CategoryType.alatLab;
-      case "recycling product":
-      case "produk daur ulang": return CategoryType.produkDaurUlang;
-      case "produk kesehatan": return CategoryType.produkKesehatan;
-      case "makanan": return CategoryType.makanan;
-      case "minuman": return CategoryType.minuman;
-      case "snacks": return CategoryType.snacks;
-      case "lainnya": return CategoryType.lainnya;
-      default: return null;
-    }
-  }
-
-  List<Map<String, dynamic>> get filteredProducts {
-    // 0 = Semua
-    if (selectedCategory == 0) {
-      return allProducts.where((prod) =>
-        prod["name"].toString().toLowerCase().contains(searchQuery.toLowerCase())
-      ).toList();
-    }
-    final CategoryType selected = categoryList[selectedCategory - 1];
-    return allProducts.where((prod) {
-      final catType = stringToCategoryType(prod["category"] ?? "");
-      final matchCategory = catType == selected;
-      final matchQuery = prod["name"].toString().toLowerCase().contains(searchQuery.toLowerCase());
-      return matchCategory && matchQuery;
-    }).toList();
-  }
-
-  void _handleSearch(String value) {
-    setState(() {
-      searchQuery = value;
-    });
-  }
+  void _handleSearch(String value) => setState(() => searchQuery = value);
 
   @override
   void dispose() {
@@ -107,6 +61,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
     super.dispose();
   }
 
+  // Bagian atas sampai dengan Info Toko
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -115,45 +70,50 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- BACK + LOGO
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 20),
-                    child: Align(
-                      alignment: Alignment.center,
-                      child: Image.asset(
-                        widget.store['image'] ?? 'assets/images/logo.png',
-                        height: 100,
-                        fit: BoxFit.contain,
+            // --- LOGO BESAR & TOMBOL BACK ---
+            Stack(
+              children: [
+                // Gambar/logo toko
+                SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  height: 210, // Atur tinggi sesuai selera, bisa 200~240
+                  child: (widget.store['photoUrl'] != null && widget.store['photoUrl'].toString().isNotEmpty)
+                    ? Image.network(
+                        widget.store['photoUrl'],
+                        width: MediaQuery.of(context).size.width,
+                        height: 210,
+                        fit: BoxFit.cover, // Cover biar nempel tepi kiri-kanan
+                        alignment: Alignment.center,
+                        errorBuilder: (ctx, _, __) => Container(
+                          color: Color(0xFFF5F5F5),
+                          child: const Icon(Icons.store, size: 100, color: colorPrimary),
+                        ),
+                      )
+                    : Container(
+                        color: Color(0xFFF5F5F5),
+                        child: const Icon(Icons.store, size: 100, color: colorPrimary),
                       ),
+                ),
+                // Tombol back (di atas logo, tetap aman)
+                Positioned(
+                  top: 18,
+                  left: 18,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: colorPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
-                  Positioned(
-                    top: 8,
-                    left: 16,
-                    child: SafeArea(
-                      bottom: false,
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: const BoxDecoration(
-                          color: colorPrimary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // --- Info Toko
             Padding(
@@ -163,20 +123,14 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                 children: [
                   Text(
                     widget.store['name'] ?? '',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
-                    ),
+                    style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    "${widget.store['distance']} • ${widget.store['duration']}",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 13.5,
-                      color: colorPlaceholder,
+                  if (widget.store['distance'] != null && widget.store['duration'] != null)
+                    Text(
+                      "${widget.store['distance']} • ${widget.store['duration']}",
+                      style: GoogleFonts.dmSans(fontSize: 13.5, color: colorPlaceholder),
                     ),
-                  ),
                   const SizedBox(height: 2),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -184,7 +138,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                       const Icon(Icons.star, color: Colors.amber, size: 17),
                       const SizedBox(width: 2),
                       Text(
-                        "${widget.store['rating']} ",
+                        "${widget.store['rating'] ?? '-'} ",
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
                           color: Colors.orange[700],
@@ -192,7 +146,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                         ),
                       ),
                       Text(
-                        "(435 Ratings)",
+                        "(${widget.store['ratingCount'] ?? '0'} Ratings)",
                         style: GoogleFonts.dmSans(
                           color: Colors.orange[700],
                           fontSize: 13.5,
@@ -204,6 +158,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                 ],
               ),
             ),
+          // ... lanjutkan kode search bar, tab bar, dsb
             const SizedBox(height: 6),
 
             // --- Search Bar
@@ -237,21 +192,12 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                 controller: _tabController,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  // TAB 1: Katalog
-                  _KatalogTabGlobalCategory(
+                  // TAB 1: Katalog (pakai shopId untuk filter produk milik toko ini)
+                  _FirestoreProductList(
+                    shopId: widget.store['id'],
                     selectedCategory: selectedCategory,
-                    onCategorySelected: (i) {
-                      setState(() => selectedCategory = i);
-                    },
-                    filteredProducts: filteredProducts,
-                    onProductTap: (product) {
-                      FocusScope.of(context).unfocus();
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ProductDetailPage(product: product),
-                        ),
-                      );
-                    },
+                    onCategorySelected: (i) => setState(() => selectedCategory = i),
+                    searchQuery: searchQuery,
                   ),
                   // TAB 2: Rating & Ulasan
                   const StoreRatingReview(),
@@ -268,10 +214,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
 class _StoreTabBar extends StatelessWidget {
   final int tabIndex;
   final ValueChanged<int> onTabChanged;
-  const _StoreTabBar({
-    required this.tabIndex,
-    required this.onTabChanged,
-  });
+  const _StoreTabBar({required this.tabIndex, required this.onTabChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -358,26 +301,25 @@ class _StoreTabBar extends StatelessWidget {
   }
 }
 
-// --- Tab Katalog Pakai CategorySelector global! ---
-class _KatalogTabGlobalCategory extends StatelessWidget {
+// ---------- Product List Realtime (Firestore) ----------
+// ---------- Product List Realtime (Firestore) ----------
+class _FirestoreProductList extends StatelessWidget {
+  final String shopId;
   final int selectedCategory;
   final ValueChanged<int> onCategorySelected;
-  final List<Map<String, dynamic>> filteredProducts;
-  final void Function(Map<String, dynamic> product) onProductTap;
-
-  const _KatalogTabGlobalCategory({
+  final String searchQuery;
+  const _FirestoreProductList({
+    required this.shopId,
     required this.selectedCategory,
     required this.onCategorySelected,
-    required this.filteredProducts,
-    required this.onProductTap,
+    required this.searchQuery,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Gunakan widget CategorySelector global
+        // CategorySelector global
         Padding(
           padding: const EdgeInsets.only(top: 14, left: 4, bottom: 8, right: 0),
           child: CategorySelector(
@@ -387,28 +329,53 @@ class _KatalogTabGlobalCategory extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: filteredProducts.isEmpty
-              ? Center(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('products')
+                .where('shopId', isEqualTo: shopId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData) {
+                return Center(child: Text("Gagal memuat data produk"));
+              }
+              
+              // --- Filter Category & Search
+              List<DocumentSnapshot> docs = snapshot.data!.docs;
+              if (selectedCategory > 0) {
+                final catStr = categoryLabels[categoryList[selectedCategory - 1]]!;
+                docs = docs.where((doc) {
+                  final c = doc['category'] ?? '';
+                  return c.toString().toLowerCase().contains(catStr.toLowerCase());
+                }).toList();
+              }
+              if (searchQuery.isNotEmpty) {
+                docs = docs.where((doc) =>
+                    doc['name'].toString().toLowerCase().contains(searchQuery.toLowerCase())
+                ).toList();
+              }
+
+              // --- Jika tidak ada produk setelah filter, tampilkan pesan UX
+              if (docs.isEmpty) {
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        LucideIcons.packageSearch,
-                        size: 105,
-                        color: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 28),
+                      Icon(LucideIcons.packageSearch, size: 85, color: Colors.grey[300]),
+                      const SizedBox(height: 18),
                       Text(
-                        "Tidak ada produk yang ditemukan",
+                        "Produk tidak ditemukan",
                         style: GoogleFonts.dmSans(
-                          fontSize: 17,
+                          fontSize: 16.5,
                           fontWeight: FontWeight.bold,
                           color: Colors.grey[700],
                         ),
                       ),
-                      const SizedBox(height: 7),
+                      const SizedBox(height: 8),
                       Text(
-                        "Mohon cek katalog lainnya.",
+                        "Coba pilih kategori lain,\natau cari dengan kata kunci berbeda.",
                         style: GoogleFonts.dmSans(
                           fontSize: 14,
                           color: Colors.grey[500],
@@ -417,28 +384,38 @@ class _KatalogTabGlobalCategory extends StatelessWidget {
                       ),
                     ],
                   ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.only(left: 6, right: 6, top: 0),
-                  child: GridView.builder(
-                    itemCount: filteredProducts.length,
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 180,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.78,
-                    ),
-                    itemBuilder: (context, index) {
-                      final product = filteredProducts[index];
-                      return StoreProductCard(
-                        name: product["name"] ?? "",
-                        price: "Rp ${product["price"].toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}",
-                        imagePath: product["image"] ?? "",
-                        onTap: () => onProductTap(product),
-                      );
-                    },
+                );
+              }
+
+              // --- Jika ada produk, tampilkan Grid
+              return Padding(
+                padding: const EdgeInsets.only(left: 6, right: 6, top: 0),
+                child: GridView.builder(
+                  itemCount: docs.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 180,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.78,
                   ),
+                  itemBuilder: (context, index) {
+                    final product = docs[index].data() as Map<String, dynamic>;
+                    product['id'] = docs[index].id;
+                    return StoreProductCard(
+                      name: product["name"] ?? "",
+                      price: "Rp ${product["price"].toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}",
+                      imagePath: product['imageUrl'] ?? '',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetailPage(product: {...product}),
+                        ),
+                      ),
+                    );
+                  },
                 ),
+              );
+            },
+          ),
         )
       ],
     );

@@ -10,8 +10,7 @@ class FavoritePage extends StatefulWidget {
   State<FavoritePage> createState() => _FavoritePageState();
 }
 
-class _FavoritePageState extends State<FavoritePage>
-    with SingleTickerProviderStateMixin {
+class _FavoritePageState extends State<FavoritePage> with SingleTickerProviderStateMixin {
   int selectedIndex = 0;
   late TabController _tabController;
 
