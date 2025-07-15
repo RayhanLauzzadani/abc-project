@@ -7,6 +7,7 @@ import 'package:abc_e_mart/admin/features/approval/product/admin_product_approva
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
 import 'package:abc_e_mart/widgets/category_selector.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class AdminProductApprovalPage extends StatefulWidget {
   const AdminProductApprovalPage({super.key});
@@ -139,13 +140,38 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
               }).toList();
 
               if (filteredProducts.isEmpty) {
-                return const Center(
-                  child: Text(
-                    "Belum ada pengajuan produk yang menunggu persetujuan.",
-                    style: TextStyle(
-                      color: Color(0xFF9A9A9A),
-                      fontSize: 16,
-                    ),
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        LucideIcons.packageSearch,
+                        size: 86,
+                        color: Colors.grey[300],
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        _selectedCategory == 0 && _searchText.isEmpty
+                            ? "Belum ada pengajuan produk yang menunggu persetujuan."
+                            : "Tidak ada produk di kategori ini",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _selectedCategory == 0 && _searchText.isEmpty
+                            ? "Semua produk yang diajukan akan tampil di sini."
+                            : "Coba pilih kategori lain atau cek kembali.",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 );
               }

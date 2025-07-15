@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
-import 'package:abc_e_mart/seller/features/products/products_page.dart'; // Import halaman produk utama!
+import 'package:abc_e_mart/seller/features/products/products_page.dart';
 
 class ProductSubmissionStatusPage extends StatelessWidget {
   final String storeId;
@@ -44,7 +44,7 @@ class ProductSubmissionStatusPage extends StatelessWidget {
               ),
               const SizedBox(height: 37),
               Text(
-                "Produk Anda Berhasil Diajukan",
+                "Produk Berhasil Diajukan",
                 style: GoogleFonts.dmSans(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -54,7 +54,7 @@ class ProductSubmissionStatusPage extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                "Produk Anda sedang dalam proses verifikasi admin. Kami akan memberi notifikasi setelah produk diverifikasi.",
+                "Produk kamu sedang menunggu verifikasi dari admin.",
                 style: GoogleFonts.dmSans(
                   fontSize: 16,
                   color: const Color(0xFF9A9A9A),
@@ -69,14 +69,15 @@ class ProductSubmissionStatusPage extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Ganti menjadi pushReplacement agar bisa back ke home (jika perlu)
-                    Navigator.of(context).pushReplacement(
+                    Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
                         builder: (_) => ProductsPage(
                           storeId: storeId,
-                          initialTab: 1, // Tab ke-2: "Menunggu Persetujuan"
+                          initialTab: 1,
+                          fromSubmission: true, // penting!
                         ),
                       ),
+                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -87,12 +88,13 @@ class ProductSubmissionStatusPage extends StatelessWidget {
                     elevation: 0,
                   ),
                   child: Text(
-                    "Kembali ke Produk Menunggu Persetujuan",
+                    "Lihat Produk Menunggu Persetujuan",
                     style: GoogleFonts.dmSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
