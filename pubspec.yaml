@@ -59,6 +59,7 @@ dependencies:
   focus_detector: ^2.0.1
   provider: ^6.1.5
   shared_preferences: ^2.2.2
+  qr_flutter: ^4.1.0
   
 
 dev_dependencies:
