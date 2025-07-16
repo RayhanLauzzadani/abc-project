@@ -14,6 +14,10 @@ class SellerRegistrationProvider with ChangeNotifier {
   String shopAddress = '';
   String shopPhone = '';
 
+  // Tambahkan koordinat toko
+  double? shopLat;
+  double? shopLng;
+
   bool agreeTerms = false;
 
   // ---- Individual Setters ----
@@ -67,6 +71,13 @@ class SellerRegistrationProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Setter untuk lat/lng toko
+  void setShopLatLng(double? lat, double? lng) {
+    shopLat = lat;
+    shopLng = lng;
+    notifyListeners();
+  }
+
   void setAgreeTerms(bool value) {
     agreeTerms = value;
     notifyListeners();
@@ -83,6 +94,8 @@ class SellerRegistrationProvider with ChangeNotifier {
     shopDesc = '';
     shopAddress = '';
     shopPhone = '';
+    shopLat = null;
+    shopLng = null;
     agreeTerms = false;
     notifyListeners();
   }
