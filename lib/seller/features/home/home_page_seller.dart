@@ -2,7 +2,6 @@ import 'package:abc_e_mart/seller/features/ads/ads_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:abc_e_mart/seller/widgets/seller_app_bar.dart';
 import 'package:abc_e_mart/seller/widgets/seller_profile_card.dart';
 import 'package:abc_e_mart/seller/widgets/seller_quick_access.dart';
@@ -13,9 +12,48 @@ import 'package:abc_e_mart/seller/features/products/products_page.dart';
 import 'package:abc_e_mart/seller/features/profile/edit_profile_page.dart';
 import 'package:abc_e_mart/seller/features/rating/store_rating_page.dart';
 import 'package:abc_e_mart/seller/features/notification/notification_page_seller.dart';
+import 'package:abc_e_mart/seller/features/chat/chat_list_page.dart';
 
-class HomePageSeller extends StatelessWidget {
+class HomePageSeller extends StatefulWidget {
   const HomePageSeller({super.key});
+
+  @override
+  State<HomePageSeller> createState() => _HomePageSellerState();
+}
+
+class _HomePageSellerState extends State<HomePageSeller> {
+  String? _storeId;
+
+  Future<void> _setOnlineStatus(bool isOnline, {bool updateLastLogin = false}) async {
+    if (_storeId != null) {
+      final updateData = <String, dynamic>{
+        'isOnline': isOnline,
+      };
+      if (updateLastLogin) {
+        updateData['lastLogin'] = FieldValue.serverTimestamp();
+      }
+      await FirebaseFirestore.instance
+          .collection('stores')
+          .doc(_storeId)
+          .set(updateData, SetOptions(merge: true));
+    }
+  }
+
+  @override
+  void dispose() {
+    // Update store: set offline & lastLogin
+    _setOnlineStatus(false, updateLastLogin: true);
+    
+    // Update user: set isOnline true (balik ke buyer)
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'isOnline': true,
+      }, SetOptions(merge: true));
+    }
+
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +81,17 @@ class HomePageSeller extends StatelessWidget {
                   }
 
                   // Ambil data store pertama
-                  final data =
-                      snapshot.data!.docs.first.data() as Map<String, dynamic>;
-                  final storeId = snapshot.data!.docs.first.id;
+                  final doc = snapshot.data!.docs.first;
+                  final data = doc.data() as Map<String, dynamic>;
+                  final storeId = doc.id;
+
+                  // Simpan storeId agar bisa update status di dispose
+                  if (_storeId != storeId) {
+                    _storeId = storeId;
+                    // Saat masuk halaman seller: set isOnline=true
+                    _setOnlineStatus(true);
+                  }
+
                   final shopName = data['name'] ?? "-";
                   final description =
                       data['description'] ?? "Menjual berbagai kebutuhan";
@@ -75,8 +121,7 @@ class HomePageSeller extends StatelessWidget {
                             onNotif: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const NotificationPageSeller(),
+                                  builder: (_) => const NotificationPageSeller(),
                                 ),
                               );
                             },
@@ -105,8 +150,14 @@ class HomePageSeller extends StatelessWidget {
                                 case 0: // Produk Toko
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) =>
-                                          ProductsPage(storeId: storeId),
+                                      builder: (_) => ProductsPage(storeId: storeId),
+                                    ),
+                                  );
+                                  break;
+                                case 2: // Obrolan/Chat
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SellerChatListPage(),
                                     ),
                                   );
                                   break;

@@ -43,7 +43,25 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'isOnline': true,
+      }, SetOptions(merge: true));
+    }
     _selectedIndex = widget.initialIndex;
+  }
+
+  @override
+  void dispose() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'isOnline': false,
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    super.dispose();
   }
 
   @override
@@ -85,6 +103,9 @@ class _HomeMainContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userUid = user?.uid ?? '';
+
     return CustomScrollView(
       slivers: [
         // Sticky: Header + SearchBar (1 background putih, shadow 0.06)
@@ -170,7 +191,17 @@ class _HomeMainContent extends StatelessWidget {
                     child: Center(child: Text('Belum ada toko tersedia.')),
                   );
                 }
-                final stores = snapshot.data!.docs;
+                // --- FILTER TOKO BUKAN MILIK SENDIRI ---
+                final stores = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return data['ownerId'] != userUid;
+                }).toList();
+                if (stores.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text('Belum ada toko tersedia.')),
+                  );
+                }
                 return Column(
                   children: stores.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -233,7 +264,17 @@ class _HomeMainContent extends StatelessWidget {
                     child: Center(child: Text('Belum ada produk tersedia.')),
                   );
                 }
-                final products = snapshot.data!.docs;
+                // --- FILTER PRODUK BUKAN MILIK SENDIRI ---
+                final products = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return data['ownerId'] != userUid;
+                }).toList();
+                if (products.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text('Belum ada produk tersedia.')),
+                  );
+                }
                 return Column(
                   children: products.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
