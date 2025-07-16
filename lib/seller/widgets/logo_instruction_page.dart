@@ -43,8 +43,6 @@ class LogoInstructionPage extends StatelessWidget {
                       color: const Color(0xFF373E3C),
                     ),
                   ),
-                  // Atau, kalau mau pakai gambar asset:
-                  // child: Image.asset('assets/icons/registration/logo_placeholder.png', width: 56),
                 ),
               ),
             ),

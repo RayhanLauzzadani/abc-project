@@ -8,7 +8,7 @@ import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
 import 'package:abc_e_mart/buyer/widgets/address_success_dialog.dart';
-import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
+// import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_map_picker_page.dart';
 
 class AddressDetailPage extends StatefulWidget {
@@ -21,6 +21,7 @@ class AddressDetailPage extends StatefulWidget {
   final double? longitude;
   final String? addressId;
   final bool isEdit;
+  final bool isPrimary;
 
   const AddressDetailPage({
     super.key,
@@ -33,6 +34,7 @@ class AddressDetailPage extends StatefulWidget {
     this.longitude,
     this.addressId,
     this.isEdit = false,
+    this.isPrimary = false,
   });
 
   @override
@@ -160,19 +162,20 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
         return;
       }
 
-      final address = AddressModel(
-        id: widget.isEdit && widget.addressId != null
-            ? widget.addressId!
-            : const Uuid().v4(),
-        label: _labelController.text.trim(),
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        address: _fullAddress!,
-        locationTitle: _locationTitle!,
-        latitude: _latitude!,
-        longitude: _longitude!,
-        createdAt: DateTime.now(),
-      );
+        final address = AddressModel(
+          id: widget.isEdit && widget.addressId != null
+              ? widget.addressId!
+              : const Uuid().v4(),
+          label: _labelController.text.trim(),
+          name: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _fullAddress!,
+          locationTitle: _locationTitle!,
+          latitude: _latitude!,
+          longitude: _longitude!,
+          createdAt: DateTime.now(),
+          isPrimary: widget.isEdit ? widget.isPrimary : false, // <-- Inilah fixnya!
+        );
 
       if (widget.isEdit && widget.addressId != null) {
         // UPDATE (mode edit)
@@ -194,11 +197,7 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
           ),
         );
         if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const AddressListPage()),
-            (route) => false,
-          );
+          Navigator.pop(context, address); 
         }
       }
     } catch (e) {

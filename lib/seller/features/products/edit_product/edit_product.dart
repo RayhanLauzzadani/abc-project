@@ -4,22 +4,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'variety_products.dart';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:intl/intl.dart';
-import 'package:abc_e_mart/seller/widgets/product_submission_status_page.dart';
+import '../add_product/variety_products.dart';
+import '../../../widgets/custom_input_field.dart';
+import 'package:abc_e_mart/seller/widgets/success_edit_product_dialog.dart';
 
-class AddProductPage extends StatefulWidget {
-  const AddProductPage({Key? key}) : super(key: key);
+class EditProductPage extends StatefulWidget {
+  final String productId;
+
+  const EditProductPage({Key? key, required this.productId}) : super(key: key);
 
   @override
-  State<AddProductPage> createState() => _AddProductPageState();
+  State<EditProductPage> createState() => _EditProductPageState();
 }
 
-class _AddProductPageState extends State<AddProductPage> {
+class _EditProductPageState extends State<EditProductPage> {
   File? _image;
+  String? _imageUrl;
   final picker = ImagePicker();
   final _formKey = GlobalKey<FormState>();
   String? _name, _desc, _category;
@@ -29,6 +32,8 @@ class _AddProductPageState extends State<AddProductPage> {
   List<String> _varieties = [];
   bool _isLoading = false;
 
+  final _nameController = TextEditingController();
+  final _descController = TextEditingController();
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
   final _minBuyController = TextEditingController(text: '1');
@@ -45,15 +50,39 @@ class _AddProductPageState extends State<AddProductPage> {
     "Lainnya",
   ];
 
+  bool _isFormattingPrice = false;
+
   @override
-  void dispose() {
-    _priceController.dispose();
-    _stockController.dispose();
-    _minBuyController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _fetchProduct();
   }
 
-  bool _isFormattingPrice = false;
+  Future<void> _fetchProduct() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('products')
+        .doc(widget.productId)
+        .get();
+
+    final data = doc.data();
+    if (data == null) return;
+
+    setState(() {
+      _imageUrl = data['imageUrl'];
+      _name = data['name'];
+      _desc = data['description'];
+      _category = data['category'];
+      _price = data['price']?.toString() ?? '';
+      _stock = data['stock']?.toString() ?? '';
+      _minBuy = data['minBuy']?.toString() ?? '1';
+      _varieties = List<String>.from(data['varieties'] ?? []);
+      _nameController.text = _name ?? "";
+      _descController.text = _desc ?? "";
+      _priceController.text = NumberFormat('#,###', 'id_ID').format(data['price'] ?? 0).replaceAll(',', '.');
+      _stockController.text = _stock;
+      _minBuyController.text = _minBuy;
+    });
+  }
 
   void _onPriceChanged(String value) {
     if (_isFormattingPrice) return;
@@ -113,94 +142,6 @@ class _AddProductPageState extends State<AddProductPage> {
     }
   }
 
-  Future<void> _submitProduct() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_image == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Foto produk wajib diisi!')));
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) throw "Kamu harus login dulu!";
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final storeId = userDoc.data()?['storeId'];
-      if (storeId == null || storeId.isEmpty) throw "Kamu belum punya toko!";
-
-      final storeDoc = await FirebaseFirestore.instance
-          .collection('stores')
-          .doc(storeId)
-          .get();
-      final storeName = storeDoc.data()?['name'] ?? '-';
-
-      final docRef = FirebaseFirestore.instance
-          .collection('productsApplication')
-          .doc();
-      final productId = docRef.id;
-
-      final ext = _image!.path.split('.').last;
-      final storageRef = FirebaseStorage.instance.ref().child(
-        'product_logos/$productId.$ext',
-      );
-      await storageRef.putFile(_image!);
-      final imgUrl = await storageRef.getDownloadURL();
-
-      await docRef.set({
-        "ownerId": uid,
-        "storeId": storeId,
-        "storeName": storeName,
-        "imageUrl": imgUrl,
-        "name": _name,
-        "description": _desc,
-        "category": _category,
-        "price": int.tryParse(_price) ?? 0,
-        "stock": int.tryParse(_stock) ?? 0,
-        "minBuy": int.tryParse(_minBuy) ?? 1,
-        "varieties": _varieties,
-        "status": "Menunggu",
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      await FirebaseFirestore.instance.collection('admin_notifications').add({
-        "title": "Pengajuan Produk Baru",
-        "body":
-            "Produk \"$_name\" dari toko $storeName telah diajukan dan menunggu persetujuan.",
-        "timestamp": FieldValue.serverTimestamp(),
-        "isRead": false,
-        "type": "produk",
-        "productApplicationId": productId,
-        "storeName": storeName,
-        "storeId": storeId,
-        "status": "pending",
-      });
-
-      setState(() {
-        _isLoading = false;
-      });
-      // BUKAN POP ATAU SNACKBAR, tapi PUSH PAGE Lottie sukses
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ProductSubmissionStatusPage(storeId: storeId),
-        ),
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
-    }
-  }
-
   Future<void> _openVarietyPage() async {
     final result = await Navigator.push<List<String>>(
       context,
@@ -212,6 +153,62 @@ class _AddProductPageState extends State<AddProductPage> {
       setState(() {
         _varieties = result;
       });
+    }
+  }
+
+  Future<void> _submitEdit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String? imageUrl = _imageUrl;
+      if (_image != null) {
+        // upload ke storage
+        final ext = _image!.path.split('.').last;
+        final storageRef = FirebaseStorage.instance.ref().child(
+          'product_logos/${widget.productId}.$ext',
+        );
+        await storageRef.putFile(_image!);
+        imageUrl = await storageRef.getDownloadURL();
+      }
+      // Update data
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(widget.productId)
+          .update({
+        "imageUrl": imageUrl ?? '',
+        "name": _name,
+        "description": _desc,
+        "category": _category,
+        "price": int.tryParse(_price) ?? 0,
+        "stock": int.tryParse(_stock) ?? 0,
+        "minBuy": int.tryParse(_minBuy) ?? 1,
+        "varieties": _varieties,
+        "updatedAt": FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const SuccessEditProductDialog(),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        Navigator.of(context)
+          ..pop() // pop dialog
+          ..pop(true); // pop halaman edit, balik ke daftar, biar refresh
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal update: $e')),
+      );
     }
   }
 
@@ -254,7 +251,7 @@ class _AddProductPageState extends State<AddProductPage> {
                       ),
                       const SizedBox(width: 14),
                       Text(
-                        "Tambah Produk",
+                        "Edit Produk",
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
                           fontSize: 20,
@@ -322,28 +319,8 @@ class _AddProductPageState extends State<AddProductPage> {
                               width: 120,
                               height: 120,
                               alignment: Alignment.center,
-                              child: _image == null
-                                  ? Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          LucideIcons.imagePlus,
-                                          size: 38,
-                                          color: Colors.grey[400],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          "Tambah Foto",
-                                          style: GoogleFonts.dmSans(
-                                            fontSize: 15,
-                                            color: Colors.grey[400],
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : ClipRRect(
+                              child: _image != null
+                                  ? ClipRRect(
                                       borderRadius: BorderRadius.circular(10),
                                       child: Image.file(
                                         _image!,
@@ -351,7 +328,36 @@ class _AddProductPageState extends State<AddProductPage> {
                                         width: 120,
                                         height: 120,
                                       ),
-                                    ),
+                                    )
+                                  : (_imageUrl != null && _imageUrl!.isNotEmpty
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Image.network(
+                                            _imageUrl!,
+                                            fit: BoxFit.cover,
+                                            width: 120,
+                                            height: 120,
+                                          ),
+                                        )
+                                      : Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              LucideIcons.imagePlus,
+                                              size: 38,
+                                              color: Colors.grey[400],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              "Tambah Foto",
+                                              style: GoogleFonts.dmSans(
+                                                fontSize: 15,
+                                                color: Colors.grey[400],
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        )),
                             ),
                           ),
                         ),
@@ -405,6 +411,7 @@ class _AddProductPageState extends State<AddProductPage> {
                   label: "Nama Produk",
                   required: true,
                   maxLength: 255,
+                  controller: _nameController,
                   onChanged: (v) => _name = v,
                   validator: (v) =>
                       v == null || v.isEmpty ? "Nama produk wajib diisi" : null,
@@ -416,6 +423,7 @@ class _AddProductPageState extends State<AddProductPage> {
                   maxLength: 3000,
                   minLines: 1,
                   maxLines: 8,
+                  controller: _descController,
                   onChanged: (v) => _desc = v,
                   validator: (v) =>
                       v == null || v.isEmpty ? "Deskripsi wajib diisi" : null,
@@ -438,7 +446,6 @@ class _AddProductPageState extends State<AddProductPage> {
                   child: DropdownButtonFormField<String>(
                     value: _category,
                     decoration: InputDecoration(
-                      // Tidak usah pakai label!
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: const BorderSide(
@@ -684,11 +691,11 @@ class _AddProductPageState extends State<AddProductPage> {
                     ],
                   ),
                 ),
-                // TOMBOL SUBMIT
+                // TOMBOL SIMPAN
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submitProduct,
+                    onPressed: _isLoading ? null : _submitEdit,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       backgroundColor: const Color(0xFF2563EB),
@@ -707,7 +714,7 @@ class _AddProductPageState extends State<AddProductPage> {
                             ),
                           )
                         : Text(
-                            "Tambah Produk",
+                            "Simpan",
                             style: GoogleFonts.dmSans(
                               fontWeight: FontWeight.bold,
                               fontSize: 17,
@@ -721,156 +728,6 @@ class _AddProductPageState extends State<AddProductPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// Custom Input Field dengan counter kanan
-class CustomInputField extends StatefulWidget {
-  final String label;
-  final int? maxLength;
-  final int? minLines;
-  final int? maxLines;
-  final TextInputType inputType;
-  final TextEditingController? controller;
-  final bool required;
-  final String? Function(String?)? validator;
-  final void Function(String)? onChanged;
-
-  const CustomInputField({
-    required this.label,
-    this.maxLength,
-    this.minLines,
-    this.maxLines,
-    this.inputType = TextInputType.text,
-    this.controller,
-    this.required = false,
-    this.validator,
-    this.onChanged,
-    Key? key,
-  }) : super(key: key);
-
-  @override
-  State<CustomInputField> createState() => _CustomInputFieldState();
-}
-
-class _CustomInputFieldState extends State<CustomInputField> {
-  late TextEditingController _controller;
-  int _currentLength = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = widget.controller ?? TextEditingController();
-    _controller.addListener(() {
-      if (widget.maxLength != null) {
-        setState(() {
-          _currentLength = _controller.text.characters.length;
-        });
-      }
-      if (widget.onChanged != null) {
-        widget.onChanged!(_controller.text);
-      }
-    });
-    if (widget.maxLength != null) {
-      _currentLength = _controller.text.characters.length;
-    }
-  }
-
-  @override
-  void dispose() {
-    if (widget.controller == null) {
-      _controller.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 11),
-      child: Stack(
-        children: [
-          TextFormField(
-            controller: _controller,
-            maxLength: widget.maxLength,
-            minLines: widget.minLines,
-            maxLines: widget.maxLines,
-            keyboardType: widget.inputType,
-            validator: widget.validator,
-            style: GoogleFonts.dmSans(fontSize: 15, color: Colors.black87),
-            decoration: InputDecoration(
-              label: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    widget.label,
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 15,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  if (widget.required) const SizedBox(width: 4),
-                  if (widget.required)
-                    const Text(
-                      "*",
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                ],
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFFE5E7EB),
-                  width: 1.2,
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFFE5E7EB),
-                  width: 1.2,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFF2563EB),
-                  width: 1.2,
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 13,
-              ),
-              hintText: "Masukkan ${widget.label}",
-              hintStyle: GoogleFonts.dmSans(
-                fontSize: 15,
-                color: Colors.grey[400],
-              ),
-              counterText: "",
-            ),
-            onChanged: null, // handled by controller listener
-          ),
-          if (widget.maxLength != null)
-            Positioned(
-              right: 14,
-              bottom: 8,
-              child: Text(
-                "${_currentLength}/${widget.maxLength}",
-                style: GoogleFonts.dmSans(
-                  fontSize: 13.5,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }
