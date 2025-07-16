@@ -3,15 +3,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'products_tab_mine.dart';
 import 'products_tab_status.dart';
 import 'package:abc_e_mart/seller/features/products/add_product/add_products.dart';
+import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 
 class ProductsPage extends StatefulWidget {
   final String storeId;
-  final int initialTab; // Tambahkan ini!
+  final int initialTab;
+  final bool fromSubmission; // <--- penting!
 
   const ProductsPage({
     Key? key,
     required this.storeId,
-    this.initialTab = 0, // Default ke tab pertama
+    this.initialTab = 0,
+    this.fromSubmission = false,
   }) : super(key: key);
 
   @override
@@ -43,112 +46,135 @@ class _ProductsPageState extends State<ProductsPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header: Back, Title, Tambah Produk (button kecil)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 22, 12, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF2056D3),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Produk Toko',
-                      style: GoogleFonts.dmSans(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 19,
-                        color: const Color(0xFF373E3C),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  SizedBox(
-                    height: 32,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2056D3),
-                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                        minimumSize: const Size(0, 32),
-                      ),
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const AddProductPage()),
-                        );
-                        if (result == true) {
-                          setState(() {});
+    // Wrap seluruh Scaffold dengan WillPopScope
+    return WillPopScope(
+      onWillPop: () async {
+        if (widget.fromSubmission) {
+          // Kembali ke HomePageSeller & HAPUS stack sebelumnya
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomePageSeller()),
+            (route) => false,
+          );
+          return false; // cegah pop default
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header: Back, Title, Tambah Produk (button kecil)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 22, 12, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        if (widget.fromSubmission) {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const HomePageSeller()),
+                            (route) => false,
+                          );
+                        } else {
+                          Navigator.pop(context);
                         }
                       },
-                      child: Text(
-                        '+ Tambah Produk',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF2056D3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
                           color: Colors.white,
+                          size: 20,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Produk Toko',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 19,
+                          color: const Color(0xFF373E3C),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(
+                      height: 32,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2056D3),
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                          minimumSize: const Size(0, 32),
+                        ),
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AddProductPage()),
+                          );
+                          if (result == true) {
+                            setState(() {});
+                          }
+                        },
+                        child: Text(
+                          '+ Tambah Produk',
+                          style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // Tab Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _AnimatedTabBar(
-                selectedIndex: selectedIndex,
-                onTabChanged: (idx) {
-                  setState(() {
-                    selectedIndex = idx;
-                    _tabController.animateTo(idx);
-                  });
-                },
-                tabs: const [
-                  "Produk Saya",
-                  "Menunggu Persetujuan",
-                ],
+              // Tab Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _AnimatedTabBar(
+                  selectedIndex: selectedIndex,
+                  onTabChanged: (idx) {
+                    setState(() {
+                      selectedIndex = idx;
+                      _tabController.animateTo(idx);
+                    });
+                  },
+                  tabs: const [
+                    "Produk Saya",
+                    "Menunggu Persetujuan",
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            // TabBarView
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  ProductsTabMine(storeId: widget.storeId),
-                  ProductsTabStatus(storeId: widget.storeId),
-                ],
+              const SizedBox(height: 6),
+              // TabBarView
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    ProductsTabMine(storeId: widget.storeId),
+                    ProductsTabStatus(storeId: widget.storeId),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

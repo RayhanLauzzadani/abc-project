@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminRejectReasonPage extends StatefulWidget {
   final Function(String reason)? onConfirmed;
@@ -13,7 +12,6 @@ class AdminRejectReasonPage extends StatefulWidget {
 
 class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
   final _controller = TextEditingController();
-  String? _errorText;
 
   @override
   void dispose() {
@@ -23,27 +21,6 @@ class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
 
   bool get _canSubmit =>
       _controller.text.trim().isNotEmpty && _controller.text.length <= 255;
-
-  Future<void> _sendRejectionMessage(String reason) async {
-    // Ambil ID toko dan pembeli dari Firestore (anda perlu menyesuaikan struktur data)
-    final shopDoc = FirebaseFirestore.instance.collection('shopApplications').doc('docId');
-    final shopData = await shopDoc.get();
-    final buyerId = shopData.data()?['buyerId'] ?? '';
-
-    // Update status penolakan di Firestore
-    await shopDoc.update({
-      'status': 'rejected',
-      'rejectionReason': reason,
-    });
-
-    // Mengirim pesan penolakan ke pembeli (misal, menggunakan Firestore)
-    final messagesRef = FirebaseFirestore.instance.collection('messages');
-    await messagesRef.add({
-      'buyerId': buyerId,
-      'message': reason,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,35 +208,32 @@ class _AdminRejectReasonPageState extends State<AdminRejectReasonPage> {
                   onPressed: _canSubmit
                       ? () async {
                           if (_controller.text.trim().isEmpty) {
-                            setState(() => _errorText = "Wajib diisi");
+                            // Bisa kasih SnackBar atau gausah apa2, tp _canSubmit sdh ngeblock submit kok.
                             return;
                           }
-                          // 1. Munculkan dialog sukses!
+                          // 1. Dialog sukses (opsional, biar UX smooth)
                           showDialog(
                             context: context,
                             barrierDismissible: false,
                             builder: (_) => const SuccessDialog(
-                              message: "Ajuan Toko Berhasil Ditolak",
+                              message: "Ajuan Berhasil Ditolak",
                             ),
                           );
                           await Future.delayed(
-                            const Duration(milliseconds: 1800),
+                            const Duration(milliseconds: 1200),
                           );
                           Navigator.of(
                             context,
                             rootNavigator: true,
                           ).pop(); // tutup dialog
-                          await Future.delayed(
-                            const Duration(milliseconds: 200),
-                          );
-                          // Kirim pesan penolakan ke pembeli
-                          await _sendRejectionMessage(_controller.text.trim());
-                          Navigator.of(context).pop(
-                            _controller.text.trim(),
-                          ); // pop page + return alasan ke parent
+
+                          // 2. Panggil callback (jika ada)
+                          widget.onConfirmed?.call(_controller.text.trim());
+
+                          // 3. Return alasan ke parent
+                          Navigator.of(context).pop(_controller.text.trim());
                         }
                       : null,
-
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _canSubmit
                         ? const Color(0xFF1C55C0)

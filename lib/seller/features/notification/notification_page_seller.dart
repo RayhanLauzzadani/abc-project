@@ -3,19 +3,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// Ganti ini dengan halaman toko seller kamu
-import 'package:abc_e_mart/seller/features/home/home_page_seller.dart'; // <-- Contoh! Ganti ke page kamu sendiri.
 
-class NotificationPage extends StatelessWidget {
-  const NotificationPage({super.key});
+class NotificationPageSeller extends StatelessWidget {
+  const NotificationPageSeller({super.key});
 
-  // Notifikasi khusus buyer
-  static const Set<String> buyerTypes = {
+  // Daftar tipe notif yang ditujukan untuk seller
+  static const Set<String> sellerTypes = {
+    'product_approved',
+    'product_rejected',
     'store_approved',
     'store_rejected',
-    'order_update',
-    'promo',
-    // Tambahkan jika ada tipe lain
+    // Tambah lagi jika ada tipe baru untuk seller
   };
 
   @override
@@ -81,17 +79,17 @@ class NotificationPage extends StatelessWidget {
                   );
                 }
 
-                // Filter hanya notif buyer
+                // Hanya notif yang tipenya ditujukan ke seller
                 final notifications = snapshot.data!.docs.where((notifDoc) {
                   final data = notifDoc.data() as Map<String, dynamic>;
                   final type = data['type']?.toString() ?? '';
-                  return buyerTypes.contains(type);
+                  return sellerTypes.contains(type);
                 }).toList();
 
                 if (notifications.isEmpty) {
                   return Center(
                     child: Text(
-                      "Belum ada notifikasi untuk Anda.",
+                      "Belum ada notifikasi untuk seller.",
                       style: GoogleFonts.dmSans(
                         fontStyle: FontStyle.italic,
                         fontSize: 15,
@@ -109,70 +107,45 @@ class NotificationPage extends StatelessWidget {
                     final notifDoc = notifications[index];
                     final data = notifDoc.data() as Map<String, dynamic>;
                     final type = data['type']?.toString() ?? '';
-                    final isRejected = type == 'store_rejected';
-                    final isApproved = type == 'store_approved';
-                    final isPromo = type == 'promo';
-                    final isOrderUpdate = type == 'order_update';
+                    final isRejected = type.contains('rejected');
+                    final isApproved = type.contains('approved');
 
-                    // Warna
+                    // Warna notif
                     final bgColor = isRejected
                         ? Colors.red.shade50
                         : isApproved
-                        ? Colors.green.shade50
-                        : isPromo
-                        ? Colors.yellow.shade50
-                        : isOrderUpdate
-                        ? Colors.blue.shade50
-                        : Colors.grey.shade100;
+                            ? Colors.green.shade50
+                            : Colors.grey.shade100;
                     final iconBg = isRejected
                         ? Colors.red.shade100
                         : isApproved
-                        ? Colors.green.shade100
-                        : isPromo
-                        ? Colors.yellow.shade200
-                        : isOrderUpdate
-                        ? Colors.blue.shade100
-                        : Colors.grey.shade300;
+                            ? Colors.green.shade100
+                            : Colors.grey.shade300;
                     final iconColor = isRejected
                         ? Colors.red
                         : isApproved
-                        ? Colors.green.shade800
-                        : isPromo
-                        ? Colors.orange
-                        : isOrderUpdate
-                        ? Colors.blue
-                        : Colors.grey;
+                            ? Colors.green.shade800
+                            : Colors.grey;
                     final iconData = isRejected
                         ? Icons.close_rounded
                         : isApproved
-                        ? Icons.check_rounded
-                        : isPromo
-                        ? Icons.campaign_rounded
-                        : isOrderUpdate
-                        ? Icons.local_shipping_rounded
-                        : Icons.notifications_none_rounded;
+                            ? Icons.check_rounded
+                            : Icons.notifications_none_rounded;
 
                     return GestureDetector(
                       onTap: () async {
+                        // Tandai notif sudah dibaca
                         if (data['isRead'] != true) {
                           await notifDoc.reference.update({'isRead': true});
                         }
 
-                        if (isApproved) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const HomePageSeller(),
-                            ),
-                          );
-                        } else if (isRejected) {
+                        if (isRejected) {
                           showDialog(
                             context: context,
                             builder: (_) => AlertDialog(
                               title: Text(
                                 data['title'] ?? 'Pengajuan Ditolak',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               content: Text(
                                 data['body'] ?? 'Ajuan Anda ditolak.',
@@ -186,51 +159,28 @@ class NotificationPage extends StatelessWidget {
                               ],
                             ),
                           );
-                        } else if (isPromo) {
+                        } else if (isApproved) {
                           showDialog(
                             context: context,
                             builder: (_) => AlertDialog(
                               title: Text(
-                                data['title'] ?? 'Promo',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                data['title'] ?? 'Pengajuan Disetujui',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               content: Text(
-                                data['body'] ?? '-',
+                                data['body'] ?? 'Ajuan Anda disetujui!',
                                 style: const TextStyle(fontSize: 15),
                               ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else if (isOrderUpdate) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: Text(
-                                data['title'] ?? 'Update Pesanan',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              content: Text(
-                                data['body'] ?? '-',
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('OK'),
+                                  child: const Text('Tutup'),
                                 ),
                               ],
                             ),
                           );
                         }
+                        // else: kamu bisa tambah handle notif lain jika perlu
                       },
                       child: Container(
                         decoration: BoxDecoration(
@@ -259,7 +209,11 @@ class NotificationPage extends StatelessWidget {
                                 color: iconBg,
                               ),
                               padding: const EdgeInsets.all(8),
-                              child: Icon(iconData, color: iconColor, size: 22),
+                              child: Icon(
+                                iconData,
+                                color: iconColor,
+                                size: 22,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             // Text content
@@ -280,18 +234,12 @@ class NotificationPage extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      if (data['isRead'] == false ||
-                                          data['isRead'] == null)
+                                      if (data['isRead'] == false || data['isRead'] == null)
                                         Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
                                             color: Colors.green,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
+                                            borderRadius: BorderRadius.circular(12),
                                           ),
                                           child: const Text(
                                             'New',
@@ -300,7 +248,7 @@ class NotificationPage extends StatelessWidget {
                                               fontSize: 12,
                                             ),
                                           ),
-                                        ),
+                                        )
                                     ],
                                   ),
                                   const SizedBox(height: 4),
@@ -308,12 +256,8 @@ class NotificationPage extends StatelessWidget {
                                   // Date
                                   Text(
                                     data['timestamp'] != null
-                                        ? DateFormat(
-                                            'dd MMM, yyyy | HH:mm',
-                                          ).format(
-                                            (data['timestamp'] as Timestamp)
-                                                .toDate(),
-                                          )
+                                        ? DateFormat('dd MMM, yyyy | HH:mm').format(
+                                            (data['timestamp'] as Timestamp).toDate())
                                         : '-',
                                     style: const TextStyle(
                                       color: Colors.grey,

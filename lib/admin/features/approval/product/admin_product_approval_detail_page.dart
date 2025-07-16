@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:abc_e_mart/data/models/category_type.dart'; // pastikan sudah ada CategoryBadge
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:abc_e_mart/data/models/category_type.dart'; // Untuk CategoryBadge
 import 'package:abc_e_mart/admin/data/models/admin_product_data.dart';
 import 'package:abc_e_mart/admin/widgets/admin_dual_action_buttons.dart';
 import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
 import 'package:abc_e_mart/admin/widgets/admin_reject_reason_page.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminProductApprovalDetailPage extends StatelessWidget {
   final AdminProductData data;
 
   const AdminProductApprovalDetailPage({super.key, required this.data});
 
+  // REJECT PRODUCT (plus push notif ke seller, not to buyer!)
   Future<void> _onReject(BuildContext context) async {
     final reason = await Navigator.push<String>(
       context,
@@ -20,36 +22,59 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
 
     if (reason != null && reason.isNotEmpty) {
       try {
-        await FirebaseFirestore.instance
+        final productDoc = FirebaseFirestore.instance
             .collection('productsApplication')
-            .doc(data.docId)
-            .update({
+            .doc(data.docId);
+
+        // Update status product application
+        await productDoc.update({
           'status': 'Ditolak',
           'rejectionReason': reason,
           'rejectedAt': FieldValue.serverTimestamp(),
         });
 
+        // ONLY to seller (ownerId)
+        final ownerId = data.rawData['ownerId'] ?? '';
+        if (ownerId != '') {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(ownerId)
+              .collection('notifications')
+              .add({
+            'title': 'Produk Ditolak',
+            'body':
+                'Produk "${data.rawData['name'] ?? ''}" dari toko ${data.rawData['storeName'] ?? ''} ditolak. Alasan: $reason',
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'type': 'product_rejected',
+            'productId': data.docId,
+            'reason': reason, // simpan alasan agar bisa ditampilkan
+          });
+        }
+
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (_) => const SuccessDialog(message: "Ajuan Produk Berhasil Ditolak"),
+          builder: (_) =>
+              const SuccessDialog(message: "Ajuan Produk Berhasil Ditolak"),
         );
         await Future.delayed(const Duration(seconds: 2));
         Navigator.of(context, rootNavigator: true).pop();
         await Future.delayed(const Duration(milliseconds: 200));
         Navigator.of(context).pop();
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal memperbarui status: $e')));
       }
     }
   }
 
+  // APPROVE PRODUCT (plus push notif ke seller only)
   Future<void> _onAccept(BuildContext context) async {
     try {
       final productData = data.rawData;
 
+      // Update product application status
       await FirebaseFirestore.instance
           .collection('productsApplication')
           .doc(data.docId)
@@ -58,6 +83,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
         'approvedAt': FieldValue.serverTimestamp(),
       });
 
+      // Publish product ke collection utama
       final productId = data.docId;
       await FirebaseFirestore.instance
           .collection('products')
@@ -78,19 +104,37 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
         'storeName': productData['storeName'] ?? '-',
       });
 
+      // ONLY to seller (ownerId)
+      final ownerId = productData['ownerId'] ?? '';
+      if (ownerId != '') {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(ownerId)
+            .collection('notifications')
+            .add({
+          'title': 'Produk Disetujui',
+          'body':
+              'Produk "${productData['name'] ?? ''}" dari toko ${productData['storeName'] ?? ''} telah disetujui dan tayang di ABC e-Mart.',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'product_approved',
+          'productId': productId,
+        });
+      }
+
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const SuccessDialog(message: "Ajuan Produk Berhasil Diterima"),
+        builder: (_) =>
+            const SuccessDialog(message: "Ajuan Produk Berhasil Diterima"),
       );
       await Future.delayed(const Duration(seconds: 2));
       Navigator.of(context, rootNavigator: true).pop();
       await Future.delayed(const Duration(milliseconds: 200));
       Navigator.of(context).pop();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui status: $e')));
     }
   }
 
@@ -106,7 +150,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
           children: [
             // ----- MAIN CONTENT -----
             Padding(
-              padding: const EdgeInsets.only(top: 70), // Supaya tidak ketiban header
+              padding: const EdgeInsets.only(top: 70),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(left: 20, right: 20, bottom: 110),
                 child: Column(
@@ -213,6 +257,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                         fontWeight: FontWeight.normal,
                         fontSize: 14,
                         color: const Color(0xFF232323),
+                        height: 1.45,
                       ),
                     ),
                     const SizedBox(height: 13),
@@ -247,7 +292,6 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Gunakan CategoryBadge global
                     CategoryBadge(type: data.categoryType),
                     const SizedBox(height: 13),
 
@@ -264,30 +308,26 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                     variations.isNotEmpty
                         ? Wrap(
                             spacing: 10,
+                            runSpacing: 10,
                             children: variations
-                                .map(
-                                  (v) => Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: const Color(0xFFCBCBCB),
+                                .map((v) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                            color: const Color(0xFFCBCBCB)),
+                                        borderRadius: BorderRadius.circular(20),
+                                        color: Colors.white,
                                       ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      color: Colors.white,
-                                    ),
-                                    child: Text(
-                                      v.toString(),
-                                      style: GoogleFonts.dmSans(
-                                        fontWeight: FontWeight.normal,
-                                        fontSize: 13,
-                                        color: const Color(0xFF373E3C),
+                                      child: Text(
+                                        v.toString(),
+                                        style: GoogleFonts.dmSans(
+                                          fontWeight: FontWeight.normal,
+                                          fontSize: 13,
+                                          color: const Color(0xFF373E3C),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                )
+                                    ))
                                 .toList(),
                           )
                         : Text(

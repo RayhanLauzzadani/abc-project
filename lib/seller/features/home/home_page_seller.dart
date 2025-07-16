@@ -11,6 +11,7 @@ import 'package:abc_e_mart/seller/data/models/seller_transaction_card_data.dart'
 import 'package:abc_e_mart/seller/features/products/products_page.dart';
 import 'package:abc_e_mart/seller/features/profile/edit_profile_page.dart';
 import 'package:abc_e_mart/seller/features/rating/store_rating_page.dart';
+import 'package:abc_e_mart/seller/features/notification/notification_page_seller.dart';
 
 class HomePageSeller extends StatelessWidget {
   const HomePageSeller({super.key});
@@ -70,7 +71,14 @@ class HomePageSeller extends StatelessWidget {
                             onBack: () {
                               Navigator.pop(context);
                             },
-                            onNotif: () {},
+                            onNotif: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const NotificationPageSeller(),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 23),
                           SellerProfileCard(
@@ -96,7 +104,8 @@ class HomePageSeller extends StatelessWidget {
                                 case 0: // Produk Toko
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => ProductsPage(storeId: storeId),
+                                      builder: (_) =>
+                                          ProductsPage(storeId: storeId),
                                     ),
                                   );
                                   break;
