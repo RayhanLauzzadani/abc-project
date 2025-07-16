@@ -81,4 +81,10 @@ class AddressService {
           return AddressModel.fromMap(doc.id, doc.data());
         });
   }
+
+  // ==== Tambahan: Fungsi hapus alamat ====
+  Future<void> deleteAddress(String userId, String addressId) async {
+    final ref = _firestore.collection('users').doc(userId).collection('addresses');
+    await ref.doc(addressId).delete();
+  }
 }

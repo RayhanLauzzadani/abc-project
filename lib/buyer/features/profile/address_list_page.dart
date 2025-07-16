@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:abc_e_mart/buyer/widgets/delete_address_confirmation_dialog.dart';
 
 class AddressListPage extends StatefulWidget {
   const AddressListPage({super.key});
@@ -25,17 +26,19 @@ class _AddressListPageState extends State<AddressListPage> {
     userId = FirebaseAuth.instance.currentUser?.uid;
   }
 
-  // Fungsi untuk set address jadi utama
   Future<void> setAsPrimary(String addressId) async {
     if (userId == null) return;
     await AddressService().setPrimaryAddress(userId!, addressId);
   }
 
-  // Callback saat tambah address baru, langsung jadikan utama jika belum ada address
+  Future<void> deleteAddress(String addressId) async {
+    if (userId == null) return;
+    await AddressService().deleteAddress(userId!, addressId);
+  }
+
   Future<void> onAddAddress(Map<String, dynamic> result, int addressCount) async {
     if (userId == null) return;
     final isFirst = addressCount == 0;
-    // Setelah ambil lokasi, lanjut ke detail pengisian alamat (dari AddressDetailPage)
     final detailResult = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -48,7 +51,6 @@ class _AddressListPageState extends State<AddressListPage> {
       ),
     );
     if (detailResult != null && detailResult is AddressModel) {
-      // Tambah ke Firestore
       await AddressService().addAddress(userId!, detailResult, setAsPrimary: isFirst);
     }
   }
@@ -181,12 +183,20 @@ class _AddressListPageState extends State<AddressListPage> {
                                   ),
                                 ),
                               );
-                              // Jika hasil edit ingin dijadikan utama
                               if (detailResult != null &&
                                   detailResult is AddressModel &&
                                   detailResult.isPrimary &&
                                   !address.isPrimary) {
                                 await setAsPrimary(address.id);
+                              }
+                            },
+                            onDelete: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => const DeleteAddressConfirmationDialog(),
+                              );
+                              if (confirm == true) {
+                                await deleteAddress(address.id);
                               }
                             },
                             onSetPrimary: address.id == primaryId
@@ -246,6 +256,7 @@ class _AddressListPageState extends State<AddressListPage> {
     required bool isPrimary,
     required bool isPrimaryVisual,
     required VoidCallback onEdit,
+    required VoidCallback onDelete,
     required VoidCallback? onSetPrimary,
   }) {
     return Container(
@@ -270,85 +281,111 @@ class _AddressListPageState extends State<AddressListPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Atas: label + tombol
+          // LABEL, BADGE, TITIK TIGA RATA DALAM SATU ROW
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                address.label,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF373E3C),
+              Expanded(
+                child: Text(
+                  address.label,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF373E3C),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Row(
-                children: [
-                  // Jika bukan utama, tombol 'Jadikan Utama'
-                  if (!isPrimaryVisual && onSetPrimary != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: ElevatedButton(
-                        onPressed: onSetPrimary,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2056D3),
-                          minimumSize: const Size(0, 32),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          "Jadikan Utama",
-                          style: GoogleFonts.dmSans(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
+              if (isPrimaryVisual)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2056D3).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Color(0xFF2056D3), size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Utama",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF2056D3),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.more_vert, color: Color(0xFF9A9A9A), size: 22),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: Color(0xFFD8DADC)),
+                ),
+                color: Colors.white,
+                elevation: 2,
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else if (value == 'delete') {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, color: Colors.grey[500], size: 20),
+                        const SizedBox(width: 12),
+                        const Text('Edit Alamat'),
+                      ],
                     ),
-                  // Jika utama, badge utama
-                  if (isPrimaryVisual)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2056D3).withOpacity(0.07),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF2056D3), size: 17),
-                          const SizedBox(width: 4),
-                          Text(
-                            "Utama",
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF2056D3),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  // Edit button selalu kanan
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: onEdit,
-                    child: SvgPicture.asset(
-                      'assets/icons/edit.svg',
-                      width: 18,
-                      height: 18,
-                      colorFilter: const ColorFilter.mode(
-                          Color(0xFF9A9A9A), BlendMode.srcIn),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: Colors.grey[500], size: 20),
+                        const SizedBox(width: 12),
+                        const Text('Hapus Alamat'),
+                      ],
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          // Tombol Jadikan Utama (jika bukan utama)
+          if (!isPrimaryVisual && onSetPrimary != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 2),
+              child: ElevatedButton(
+                onPressed: onSetPrimary,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2056D3),
+                  minimumSize: const Size(0, 30),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  "Jadikan Utama",
+                  style: GoogleFonts.dmSans(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
           const Divider(
             height: 1,
             thickness: 1,
