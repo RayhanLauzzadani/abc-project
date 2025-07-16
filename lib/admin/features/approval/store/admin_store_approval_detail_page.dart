@@ -27,16 +27,21 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
     if (reason != null && reason.isNotEmpty) {
       try {
         await _sendRejectionMessage(context, reason);
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Ajuan toko ditolak!")));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Ajuan toko ditolak!")));
       } catch (e) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     }
   }
 
-  Future<void> _sendRejectionMessage(BuildContext context, String reason) async {
+  Future<void> _sendRejectionMessage(
+    BuildContext context,
+    String reason,
+  ) async {
     final shopDoc = FirebaseFirestore.instance
         .collection('shopApplications')
         .doc(docId);
@@ -55,18 +60,19 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           .doc(buyerId)
           .collection('notifications')
           .add({
-        'title': 'Pengajuan Toko Ditolak',
-        'body': reason,
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'type': 'rejected',
-      });
+            'title': 'Pengajuan Toko Ditolak',
+            'body': reason,
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'type': 'store_rejected',
+          });
     }
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const SuccessDialog(message: "Ajuan Toko Berhasil Ditolak"),
+      builder: (_) =>
+          const SuccessDialog(message: "Ajuan Toko Berhasil Ditolak"),
     );
     await Future.delayed(const Duration(seconds: 2));
     Navigator.of(context, rootNavigator: true).pop();
@@ -91,7 +97,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       final buyerId = shopData?['owner']?['uid'] ?? '';
 
       if (buyerId != '') {
-        final userRef = FirebaseFirestore.instance.collection('users').doc(buyerId);
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(buyerId);
 
         // ==== BUAT stores/{autoId} ====
         final storesRef = FirebaseFirestore.instance.collection('stores');
@@ -107,7 +115,7 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
           'ratingCount': 0,
           'totalSales': 0,
           'categories': null, // Null dulu, nanti seller update sendiri
-          'location': null,   // Null, bisa diisi GeoPoint nanti
+          'location': null, // Null, bisa diisi GeoPoint nanti
           'phone': shopData?['phone'] ?? "",
         };
         // ADD store & dapatkan storeId
@@ -140,12 +148,14 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
             .doc(buyerId)
             .collection('notifications')
             .add({
-          'title': 'Pengajuan Toko Disetujui',
-          'body': 'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
-          'timestamp': FieldValue.serverTimestamp(),
-          'isRead': false,
-          'type': 'approved',
-        });
+              'title': 'Pengajuan Toko Disetujui',
+              'body':
+                  'Selamat, pengajuan toko Anda telah disetujui! Sekarang toko Anda sudah aktif.',
+              'timestamp': FieldValue.serverTimestamp(),
+              'isRead': false,
+              'type': 'store_approved',
+              'storeId': storeId, // <- Tambahkan ini!
+            });
       }
 
       showDialog(
@@ -158,8 +168,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
       await Future.delayed(const Duration(milliseconds: 200));
       Navigator.of(context).pop();
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
     }
   }
 
@@ -201,7 +212,11 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                 }
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 110),
+                  padding: const EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: 110,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -563,7 +578,10 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -573,7 +591,9 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
                       offset: const Offset(0, -3),
                     ),
                   ],
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(22),
+                  ),
                 ),
                 child: AdminDualActionButtons(
                   onReject: () => _onReject(context),

@@ -6,11 +6,13 @@ import '../../../widgets/category_selector.dart';
 import '../../../data/models/category_type.dart';
 import 'package:abc_e_mart/seller/data/models/product_model.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:abc_e_mart/seller/widgets/success_delete_product.dart';
 
 class ProductsTabMine extends StatefulWidget {
-  final String storeId; // TAMBAH PARAMETER INI
+  final String storeId;
 
-  const ProductsTabMine({super.key, required this.storeId}); // <-- WAJIB DIISI
+  const ProductsTabMine({super.key, required this.storeId});
 
   @override
   State<ProductsTabMine> createState() => _ProductsTabMineState();
@@ -222,15 +224,49 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () async {
+                    // Tutup dialog konfirmasi dulu
                     Navigator.pop(context);
-                    // Delete produk dari Firestore
+
+                    // Tunggu sedikit supaya context benar-benar balik ke layar utama
+                    await Future.delayed(const Duration(milliseconds: 100));
+
+                    // Proses hapus
+                    try {
+                      // 1. Hapus file di Storage kalau ada
+                      String? imageUrl = product.imageUrl;
+                      if (imageUrl.isNotEmpty) {
+                        Uri uri = Uri.parse(imageUrl);
+                        String? pathInStorage;
+                        final segments = uri.pathSegments;
+                        final oIndex = segments.indexOf('o');
+                        if (oIndex != -1 && oIndex + 1 < segments.length) {
+                          pathInStorage = Uri.decodeFull(segments[oIndex + 1]);
+                        } else {
+                          pathInStorage = uri.queryParameters['name'];
+                        }
+                        if (pathInStorage != null && pathInStorage.isNotEmpty) {
+                          final ref = FirebaseStorage.instance.ref().child(pathInStorage);
+                          await ref.delete();
+                        }
+                      }
+                    } catch (_) {}
+
+                    // 2. Hapus data Firestore
                     await FirebaseFirestore.instance
                         .collection('products')
                         .doc(product.id)
                         .delete();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Produk "${product.name}" dihapus')),
-                    );
+
+                    // 3. Tampilkan dialog animasi berhasil hapus (otomatis menutup)
+                    if (mounted) {
+                      await SuccessDeleteDialog(
+                        context: context,
+                        title: 'Produk berhasil dihapus!',
+                        message: 'Produk "${product.name}" telah dihapus dari toko kamu.',
+                        lottieAsset: 'assets/lottie/success_check.json', // ganti sesuai asset kamu
+                        duration: const Duration(milliseconds: 1600),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF5B5B),

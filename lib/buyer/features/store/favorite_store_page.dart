@@ -97,11 +97,10 @@ class FavoriteStorePage extends StatelessWidget {
           itemBuilder: (context, index) {
             final favData = docs[index].data() as Map<String, dynamic>;
             return StoreCard(
-              imagePath: favData['image'] ?? '',
+              imageUrl: favData['photoUrl'] ?? '',
               storeName: favData['name'] ?? '',
-              distance: favData['distance'] ?? '',
-              duration: favData['duration'] ?? '',
               rating: (favData['rating'] as num?)?.toDouble() ?? 0,
+              ratingCount: (favData['ratingCount'] as num?)?.toInt() ?? 0,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(

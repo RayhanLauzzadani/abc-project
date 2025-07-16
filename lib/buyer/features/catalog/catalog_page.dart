@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:abc_e_mart/buyer/data/dummy/dummy_data.dart';
 import 'package:abc_e_mart/buyer/widgets/search_bar.dart' as custom_widgets;
 import 'package:abc_e_mart/buyer/features/product/product_card.dart';
 import 'package:abc_e_mart/widgets/category_selector.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 const colorPlaceholder = Color(0xFF757575);
 
@@ -33,41 +33,6 @@ class _CatalogPageState extends State<CatalogPage> {
   int selectedCategory = 0;
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-
-  // mapping String (dummyProducts) ke CategoryType
-  CategoryType? stringToCategoryType(String value) {
-    switch (value.trim().toLowerCase()) {
-      case "merchandise": return CategoryType.merchandise;
-      case "alat tulis kantor (atk)":
-      case "alat tulis": return CategoryType.alatTulis;
-      case "perlengkapan lab":
-      case "alat lab": return CategoryType.alatLab;
-      case "recycling product":
-      case "produk daur ulang": return CategoryType.produkDaurUlang;
-      case "produk kesehatan": return CategoryType.produkKesehatan;
-      case "makanan": return CategoryType.makanan;
-      case "minuman": return CategoryType.minuman;
-      case "snacks": return CategoryType.snacks;
-      case "lainnya": return CategoryType.lainnya;
-      default: return null;
-    }
-  }
-
-  List<Map<String, dynamic>> get filteredProducts {
-    // 0 = Semua
-    if (selectedCategory == 0) {
-      return dummyProducts.where((prod) =>
-        prod["name"].toString().toLowerCase().contains(searchQuery.toLowerCase())
-      ).toList();
-    }
-    final CategoryType selected = categoryList[selectedCategory - 1];
-    return dummyProducts.where((prod) {
-      final catType = stringToCategoryType(prod["category"] ?? "");
-      final matchCategory = catType == selected;
-      final matchQuery = prod["name"].toString().toLowerCase().contains(searchQuery.toLowerCase());
-      return matchCategory && matchQuery;
-    }).toList();
-  }
 
   @override
   void dispose() {
@@ -114,65 +79,108 @@ class _CatalogPageState extends State<CatalogPage> {
             onSelected: (i) => setState(() => selectedCategory = i),
           ),
           const SizedBox(height: 6),
-          // Product List
+          // Product List Realtime dari Firestore
           Expanded(
-            child: filteredProducts.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          LucideIcons.packageSearch,
-                          size: 105,
-                          color: Colors.grey[300],
-                        ),
-                        
-                        const SizedBox(height: 28),
-                        Text(
-                          "Tidak ada produk yang ditemukan",
-                          style: GoogleFonts.dmSans(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          "Mohon cek katalog lainnya atau kata kunci yang berbeda.",
-                          style: GoogleFonts.dmSans(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    itemCount: filteredProducts.length,
-                    separatorBuilder: (context, idx) => const SizedBox(height: 2),
-                    itemBuilder: (context, idx) {
-                      final product = filteredProducts[idx];
-                      return ProductCard(
-                        imagePath: product['image'] ?? '',
-                        name: product['name'] ?? '',
-                        price: product['price'] ?? 0,
-                        rating: (product['rating'] as num?)?.toDouble() ?? 0,
-                        onTap: () {
-                          FocusScope.of(context).unfocus();
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ProductDetailPage(product: product),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('products').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return _emptyCatalog();
+                }
+
+                // --- Filter Data dari Firestore ---
+                List<DocumentSnapshot> docs = snapshot.data!.docs;
+                // Filter kategori
+                if (selectedCategory > 0) {
+                  final catStr = categoryLabels[categoryList[selectedCategory - 1]]!;
+                  docs = docs.where((doc) {
+                    final c = doc['category'] ?? '';
+                    return c.toString().toLowerCase().contains(catStr.toLowerCase());
+                  }).toList();
+                }
+                // Filter search
+                if (searchQuery.isNotEmpty) {
+                  docs = docs.where((doc) =>
+                      doc['name'].toString().toLowerCase().contains(searchQuery.toLowerCase())
+                  ).toList();
+                }
+
+                if (docs.isEmpty) {
+                  return _emptyCatalog();
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  itemCount: docs.length,
+                  separatorBuilder: (context, idx) => const SizedBox(height: 2),
+                  itemBuilder: (context, idx) {
+                    final product = docs[idx].data() as Map<String, dynamic>;
+                    product['id'] = docs[idx].id;
+                    return _ProductCardWithStorageImage(product: product);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _emptyCatalog() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(LucideIcons.packageSearch, size: 105, color: Colors.grey[300]),
+          const SizedBox(height: 28),
+          Text(
+            "Tidak ada produk yang ditemukan",
+            style: GoogleFonts.dmSans(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            "Mohon cek katalog lainnya atau kata kunci yang berbeda.",
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Product Card langsung dari Firestore, tidak perlu FutureBuilder
+class _ProductCardWithStorageImage extends StatelessWidget {
+  final Map<String, dynamic> product;
+  const _ProductCardWithStorageImage({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return ProductCard(
+      imageUrl: product['imageUrl'] ?? '', // Ambil langsung dari Firestore
+      name: product['name'] ?? '',
+      price: product['price'] ?? 0,
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProductDetailPage(product: {
+              ...product,
+            }),
+          ),
+        );
+      },
     );
   }
 }

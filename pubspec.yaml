@@ -44,7 +44,6 @@ dependencies:
   lottie: 3.3.1
   google_sign_in: ^6.1.0
   flutter_svg: ^2.2.0
-  http: ^1.2.0
   dotted_border: ^2.1.0
   image_picker: ^1.1.2
   permission_handler: ^11.3.0
@@ -56,6 +55,8 @@ dependencies:
   geolocator: ^10.1.0
   geocoding: ^2.1.0
   dio: ^5.4.0
+  http: ^1.2.1 
+  focus_detector: ^2.0.1
   provider: ^6.1.5
   
 

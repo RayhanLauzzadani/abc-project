@@ -155,52 +155,55 @@ class _AddressListPageState extends State<AddressListPage> {
                             },
                           ),
                         )),
-                    const SizedBox(height: 28),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () async {
-                          // --- MODIFIKASI JUGA DI SINI! ---
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AddressMapPickerPage(),
-                            ),
-                          );
-                          if (result != null && mounted) {
-                            Navigator.push(
+                    // Hanya tampil jika jumlah address < 3
+                    if (addresses.length < 3) ...[
+                      const SizedBox(height: 28),
+                      Center(
+                        child: GestureDetector(
+                          onTap: () async {
+                            // --- MODIFIKASI JUGA DI SINI! ---
+                            final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => AddressDetailPage(
-                                  fullAddress: result['fullAddress'],
-                                  locationTitle: result['locationTitle'],
-                                  latitude: result['latitude'],
-                                  longitude: result['longitude'],
-                                ),
+                                builder: (context) => const AddressMapPickerPage(),
                               ),
                             );
-                          }
-                        },
-                        child: Column(
-                          children: [
-                            SvgPicture.asset(
-                              'assets/icons/plus.svg',
-                              width: 32,
-                              height: 32,
-                              color: const Color(0xFF9A9A9A),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Tambah Alamat Baru',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF9A9A9A),
+                            if (result != null && mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AddressDetailPage(
+                                    fullAddress: result['fullAddress'],
+                                    locationTitle: result['locationTitle'],
+                                    latitude: result['latitude'],
+                                    longitude: result['longitude'],
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: Column(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icons/plus.svg',
+                                width: 32,
+                                height: 32,
+                                color: const Color(0xFF9A9A9A),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tambah Alamat Baru',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF9A9A9A),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 );
               },
