@@ -175,7 +175,7 @@ class _HomeMainContent extends StatelessWidget {
                   children: stores.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     return StoreCard(
-                      imageUrl: data['photoUrl'] ?? '',
+                      imageUrl: data['logoUrl'] ?? '',
                       storeName: data['name'] ?? '',
                       rating: (data['rating'] ?? 0).toDouble(),
                       ratingCount: (data['ratingCount'] ?? 0).toInt(),
