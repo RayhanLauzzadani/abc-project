@@ -281,7 +281,7 @@ class _AddressListPageState extends State<AddressListPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // LABEL, BADGE, TITIK TIGA RATA DALAM SATU ROW
+          // LABEL, BADGE/JADIKAN UTAMA, TITIK TIGA dalam satu row
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -317,6 +317,31 @@ class _AddressListPageState extends State<AddressListPage> {
                         ),
                       ),
                     ],
+                  ),
+                )
+              else if (onSetPrimary != null)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  height: 28,
+                  child: ElevatedButton(
+                    onPressed: onSetPrimary,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2056D3),
+                      minimumSize: const Size(0, 28),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      "Jadikan Utama",
+                      style: GoogleFonts.dmSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
               PopupMenuButton<String>(
@@ -360,31 +385,6 @@ class _AddressListPageState extends State<AddressListPage> {
               ),
             ],
           ),
-          // Tombol Jadikan Utama (jika bukan utama)
-          if (!isPrimaryVisual && onSetPrimary != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 2),
-              child: ElevatedButton(
-                onPressed: onSetPrimary,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2056D3),
-                  minimumSize: const Size(0, 30),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  "Jadikan Utama",
-                  style: GoogleFonts.dmSans(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ),
           const SizedBox(height: 10),
           const Divider(
             height: 1,
