@@ -8,6 +8,8 @@ import 'package:abc_e_mart/seller/data/models/product_model.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:abc_e_mart/seller/widgets/success_delete_product.dart';
+import 'package:abc_e_mart/seller/features/products/edit_product/edit_product.dart';
+import 'package:abc_e_mart/seller/features/products/detail_product/detail_product.dart';
 
 class ProductsTabMine extends StatefulWidget {
   final String storeId;
@@ -136,14 +138,33 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
                 separatorBuilder: (c, i) => const SizedBox(height: 12),
                 itemBuilder: (context, idx) {
                   final product = products[idx];
-                  return _ProductCardMine(
-                    product: product,
-                    onEdit: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Fitur Edit belum tersedia')),
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SellerProductDetailPage(
+                            productId: product.id,
+                            fromApplication: false,
+                          ),
+                        ),
                       );
                     },
-                    onDelete: () => _showDeleteDialog(context, product),
+                    child: _ProductCardMine(
+                      product: product,
+                      onEdit: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EditProductPage(productId: product.id),
+                          ),
+                        );
+                        if (result == true) {
+                          setState(() {});
+                        }
+                      },
+                      onDelete: () => _showDeleteDialog(context, product),
+                    ),
                   );
                 },
               );
@@ -226,8 +247,6 @@ class _ProductsTabMineState extends State<ProductsTabMine> {
                   onPressed: () async {
                     // Tutup dialog konfirmasi dulu
                     Navigator.pop(context);
-
-                    // Tunggu sedikit supaya context benar-benar balik ke layar utama
                     await Future.delayed(const Duration(milliseconds: 100));
 
                     // Proses hapus
