@@ -341,9 +341,12 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                       // AUTOCOMPLETE DROPDOWN
                       if (_placePredictions.isNotEmpty && _searchFocus.hasFocus)
                         ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxHeight: 142,
-                          ),
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height
+                              - MediaQuery.of(context).viewInsets.bottom // tinggi keyboard
+                              - kToolbarHeight // tinggi appbar (kalau ada)
+                              - 330, // kira-kira offset lain (map, search bar, dsb)
+                        ),
                           child: Container(
                             margin: const EdgeInsets.only(top: 8),
                             decoration: BoxDecoration(
