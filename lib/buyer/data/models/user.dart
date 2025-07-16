@@ -57,7 +57,7 @@ class UserModel {
       'phone': phone,
       'role': role,
       'storeName': storeName,
-      'storeId': storeId, // <---
+      'storeId': storeId,
       'createdAt': createdAt,
       'addressList': addressList,
       if (favorites != null) 'favorites': favorites,

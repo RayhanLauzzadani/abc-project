@@ -104,20 +104,23 @@ class AdminStoreApprovalDetailPage extends StatelessWidget {
         // ==== BUAT stores/{autoId} ====
         final storesRef = FirebaseFirestore.instance.collection('stores');
         final storeMap = {
-          'ownerId': buyerId,
-          'name': shopData?['shopName'] ?? "",
-          'logoUrl': shopData?['logoUrl'] ?? "",
-          'address': shopData?['address'] ?? "",
-          'isOpen': true,
-          'description': shopData?['description'] ?? "",
-          'createdAt': FieldValue.serverTimestamp(),
-          'rating': 0.0,
-          'ratingCount': 0,
-          'totalSales': 0,
-          'categories': null, // Null dulu, nanti seller update sendiri
-          'location': null, // Null, bisa diisi GeoPoint nanti
-          'phone': shopData?['phone'] ?? "",
-        };
+        'ownerId': buyerId,
+        'name': shopData?['shopName'] ?? "",
+        'logoUrl': shopData?['logoUrl'] ?? "",
+        'address': shopData?['address'] ?? "",
+        'isOpen': true,
+        'description': shopData?['description'] ?? "",
+        'createdAt': FieldValue.serverTimestamp(),
+        'rating': 0.0,
+        'ratingCount': 0,
+        'totalSales': 0,
+        'phone': shopData?['phone'] ?? "",
+        'isOnline': true,
+        'lastLogin': FieldValue.serverTimestamp(),
+        'latitude': shopData?['latitude'] ?? 0.0,
+        'longitude': shopData?['longitude'] ?? 0.0,
+      };
+
         // ADD store & dapatkan storeId
         final newStoreDoc = await storesRef.add(storeMap);
         final storeId = newStoreDoc.id;
