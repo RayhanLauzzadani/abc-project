@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/seller/widgets/search_bar.dart' as custom_widgets;
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:abc_e_mart/seller/features/products/detail_product/detail_product.dart';
 
 class ProductsTabStatus extends StatefulWidget {
   final String storeId;
@@ -23,7 +24,6 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
 
   final List<String> statusCategories = [
     'Semua',
-    'Sukses',
     'Menunggu',
     'Ditolak',
   ];
@@ -31,8 +31,6 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
   // mapping firestore status -> label status UI
   String _mapStatus(String firestoreStatus) {
     switch (firestoreStatus) {
-      case "approved":
-        return "Sukses";
       case "pending":
         return "Menunggu";
       case "rejected":
@@ -165,9 +163,22 @@ class _ProductsTabStatusState extends State<ProductsTabStatus> {
                 itemCount: filteredProducts.length,
                 separatorBuilder: (c, i) => const SizedBox(height: 12),
                 itemBuilder: (context, idx) {
-                  final product = filteredProducts[idx];
-                  return _ProductCardStatus(product: product);
-                },
+                final product = filteredProducts[idx];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SellerProductDetailPage(
+                          productId: product['id'],
+                          fromApplication: true,
+                        ),
+                      ),
+                    );
+                  },
+                  child: _ProductCardStatus(product: product),
+                );
+              }
               );
             },
           ),
@@ -191,14 +202,12 @@ class _StatusSelector extends StatelessWidget {
 
   Color _getColor(String label) {
     switch (label) {
-      case 'Sukses':
-        return const Color(0xFF18BC5B);
       case 'Menunggu':
         return const Color(0xFFFFD600);
       case 'Ditolak':
         return const Color(0xFFFF5B5B);
       default:
-        return const Color(0xFF2066CF); // blue for 'Semua'
+        return const Color(0xFF2066CF);
     }
   }
 
@@ -267,8 +276,6 @@ class _ProductCardStatus extends StatelessWidget {
         return const Color(0xFFFFB800);
       case 'Ditolak':
         return const Color(0xFFFF5B5B);
-      case 'Sukses':
-        return const Color(0xFF18BC5B);
       default:
         return Colors.grey;
     }
@@ -280,8 +287,6 @@ class _ProductCardStatus extends StatelessWidget {
         return const Color(0x14FFD600);
       case 'Ditolak':
         return const Color(0x14FF5B5B);
-      case 'Sukses':
-        return const Color(0x1418BC5B);
       default:
         return Colors.grey.shade100;
     }
