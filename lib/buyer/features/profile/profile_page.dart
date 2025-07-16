@@ -17,6 +17,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 import 'package:abc_e_mart/seller/widgets/shop_verification_status_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
+import 'package:abc_e_mart/seller/widgets/shop_rejected_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -244,13 +245,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               );
                             } else if (status == 'rejected') {
-                              // Ditolak, bisa ke halaman status (atau pendaftaran ulang? sesuai bisnis logic)
-                              // Di sini asumsikan ke halaman status saja
+                              // --> Update di sini!
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const ShopVerificationStatusPage(),
+                                  builder: (_) => ShopRejectedPage(
+                                    rejectionReason:
+                                        shopData['rejectionReason'] ?? '-',
+                                  ),
                                 ),
                               );
                             } else {
@@ -318,7 +320,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               await FirebaseAuth.instance.signOut();
                               if (context.mounted) {
                                 Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginPage(),
+                                  ),
                                   (route) => false,
                                 );
                               }

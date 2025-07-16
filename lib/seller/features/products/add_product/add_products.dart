@@ -150,6 +150,19 @@ class _AddProductPageState extends State<AddProductPage> {
         "createdAt": FieldValue.serverTimestamp(),
       });
 
+      await FirebaseFirestore.instance.collection('admin_notifications').add({
+        "title": "Pengajuan Produk Baru",
+        "body":
+            "Produk \"$_name\" dari toko $storeName telah diajukan dan menunggu persetujuan.",
+        "timestamp": FieldValue.serverTimestamp(),
+        "isRead": false,
+        "type": "produk",
+        "productApplicationId": productId,
+        "storeName": storeName,
+        "storeId": storeId,
+        "status": "pending",
+      });
+
       setState(() {
         _isLoading = false;
       });

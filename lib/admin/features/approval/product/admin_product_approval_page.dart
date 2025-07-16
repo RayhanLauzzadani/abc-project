@@ -13,7 +13,8 @@ class AdminProductApprovalPage extends StatefulWidget {
   const AdminProductApprovalPage({super.key});
 
   @override
-  State<AdminProductApprovalPage> createState() => _AdminProductApprovalPageState();
+  State<AdminProductApprovalPage> createState() =>
+      _AdminProductApprovalPageState();
 }
 
 class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
@@ -76,7 +77,10 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('productsApplication')
-                .where('status', isEqualTo: 'Menunggu') // sesuai struktur Firestore kamu!
+                .where(
+                  'status',
+                  isEqualTo: 'Menunggu',
+                ) // sesuai struktur Firestore kamu!
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
@@ -104,7 +108,8 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
                       ? createdAt.toDate()
                       : DateTime.tryParse(createdAt.toString());
                   if (dt != null) {
-                    date = "${dt.day.toString().padLeft(2, '0')}/"
+                    date =
+                        "${dt.day.toString().padLeft(2, '0')}/"
                         "${dt.month.toString().padLeft(2, '0')}/"
                         "${dt.year}, "
                         "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
@@ -119,8 +124,12 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
                   date: date,
                   status: data['status'] ?? 'Menunggu',
                   description: data['description'] ?? '-',
-                  price: (data['price'] is int) ? data['price'] : int.tryParse('${data['price'] ?? 0}') ?? 0,
-                  stock: (data['stock'] is int) ? data['stock'] : int.tryParse('${data['stock'] ?? 0}') ?? 0,
+                  price: (data['price'] is int)
+                      ? data['price']
+                      : int.tryParse('${data['price'] ?? 0}') ?? 0,
+                  stock: (data['stock'] is int)
+                      ? data['stock']
+                      : int.tryParse('${data['stock'] ?? 0}') ?? 0,
                   shopId: data['shopId'] ?? '',
                   ownerId: data['ownerId'] ?? '',
                   rawData: data, // agar nanti detail mudah
@@ -134,50 +143,54 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
                     : p.categoryType == categories[_selectedCategory - 1];
                 final matchSearch = _searchText.isEmpty
                     ? true
-                    : p.productName.toLowerCase().contains(_searchText.toLowerCase()) ||
-                      p.storeName.toLowerCase().contains(_searchText.toLowerCase());
+                    : p.productName.toLowerCase().contains(
+                            _searchText.toLowerCase(),
+                          ) ||
+                          p.storeName.toLowerCase().contains(
+                            _searchText.toLowerCase(),
+                          );
                 return matchCategory && matchSearch;
               }).toList();
 
               if (filteredProducts.isEmpty) {
                 return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        LucideIcons.packageSearch,
-                        size: 86,
-                        color: Colors.grey[300],
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        _selectedCategory == 0 && _searchText.isEmpty
-                            ? "Belum ada pengajuan produk yang menunggu persetujuan."
-                            : "Tidak ada produk di kategori ini",
-                        style: GoogleFonts.dmSans(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[700],
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 64),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.inbox_rounded,
+                          size: 54,
+                          color: const Color(0xFFE2E7EF),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _selectedCategory == 0 && _searchText.isEmpty
-                            ? "Semua produk yang diajukan akan tampil di sini."
-                            : "Coba pilih kategori lain atau cek kembali.",
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          color: Colors.grey[500],
+                        const SizedBox(height: 16),
+                        Text(
+                          "Belum ada pengajuan produk",
+                          style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: const Color(0xFF373E3C),
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          "Semua pengajuan produk akan tampil di sini\njika ada produk baru dari penjual.",
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            color: const Color(0xFF9A9A9A),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
 
               return ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 itemCount: filteredProducts.length,
                 itemBuilder: (context, idx) {
                   final p = filteredProducts[idx];
@@ -187,9 +200,8 @@ class _AdminProductApprovalPageState extends State<AdminProductApprovalPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AdminProductApprovalDetailPage(
-                            data: p,
-                          ),
+                          builder: (_) =>
+                              AdminProductApprovalDetailPage(data: p),
                         ),
                       );
                     },
