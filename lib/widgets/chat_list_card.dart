@@ -45,22 +45,18 @@ class ChatListCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
                 image: avatarUrl.isNotEmpty
                     ? DecorationImage(
-                        image: AssetImage(avatarUrl),
+                        image: NetworkImage(avatarUrl), // <--- ini
                         fit: BoxFit.cover,
                       )
                     : null,
               ),
               child: avatarUrl.isEmpty
-                  ? Center(
-                      child: Text(
-                        "70 × 70",
-                        style: GoogleFonts.dmSans(
-                          color: Colors.grey[400],
-                          fontSize: 12,
-                        ),
-                      ),
-                    )
-                  : null,
+                ? Icon(
+                    Icons.person,
+                    color: Color(0xFFB5B5B5),
+                    size: 38,
+                  )
+                : null,
             ),
             // Chat info (expanded)
             Expanded(
