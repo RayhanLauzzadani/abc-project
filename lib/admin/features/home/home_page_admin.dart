@@ -13,6 +13,7 @@ import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_page.dar
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
 import 'package:abc_e_mart/admin/features/notification/notification_page_admin.dart';
+import 'package:abc_e_mart/data/models/category_type.dart';
 
 class HomePageAdmin extends StatefulWidget {
   const HomePageAdmin({super.key});
@@ -37,15 +38,10 @@ class _HomePageAdminState extends State<HomePageAdmin> {
       return;
     }
     try {
-      final token = await user.getIdTokenResult(true); // refresh token
+      final token = await user.getIdTokenResult(true);
       final claims = token.claims;
-      print('>>> CUSTOM CLAIMS: $claims');
-
-      // Jika bukan admin, force logout!
       if (claims == null || claims['admin'] != true) {
-        _forceLogoutWithMsg(
-          'Akses admin diperlukan. Silakan login dengan akun admin.',
-        );
+        _forceLogoutWithMsg('Akses admin diperlukan. Silakan login dengan akun admin.');
       }
     } catch (e) {
       _forceLogoutWithMsg('Terjadi error: $e');
@@ -105,9 +101,24 @@ class _HomePageAdminState extends State<HomePageAdmin> {
     } else {
       mainBody = Column(
         children: [
+          // HEADER: TANPA GAP ATAS, SHADOW MODERN, PADDING TOP SESUAI STATUS BAR
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.only(left: 20, right: 20, top: 0),
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: 16,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.07),
+                  blurRadius: 16,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
             child: AdminHomeHeader(
               onNotif: () {
                 Navigator.push(
@@ -120,7 +131,8 @@ class _HomePageAdminState extends State<HomePageAdmin> {
               onLogoutTap: _logout,
             ),
           ),
-          const SizedBox(height: 15),
+          // JANGAN PAKAI SizedBox(height: xx) DISINI!
+          // Content langsung di bawah header tanpa gap!
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 0),
@@ -139,26 +151,13 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                         int tokoTerdaftar = 0;
                         if (shopSnapshot.hasData) {
                           final docs = shopSnapshot.data!.docs;
-                          tokoBaru = docs
-                              .where(
-                                (doc) =>
-                                    (doc['status'] ?? '')
-                                        .toString()
-                                        .toLowerCase() ==
-                                    'pending',
-                              )
-                              .length;
-                          tokoTerdaftar = docs
-                              .where(
-                                (doc) =>
-                                    (doc['status'] ?? '')
-                                        .toString()
-                                        .toLowerCase() ==
-                                    'approved',
-                              )
-                              .length;
+                          tokoBaru = docs.where((doc) =>
+                            (doc['status'] ?? '').toString().toLowerCase() == 'pending'
+                          ).length;
+                          tokoTerdaftar = docs.where((doc) =>
+                            (doc['status'] ?? '').toString().toLowerCase() == 'approved'
+                          ).length;
                         }
-                        // Stream produk application (untuk summary produk baru/disetujui)
                         return StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection('productsApplication')
@@ -169,25 +168,16 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             if (prodSnapshot.hasData) {
                               final prods = prodSnapshot.data!.docs;
                               produkBaru = prods.where((doc) {
-                                final status = (doc['status'] ?? '')
-                                    .toString()
-                                    .toLowerCase();
-                                return status == 'menunggu' ||
-                                    status == 'pending';
+                                final status = (doc['status'] ?? '').toString().toLowerCase();
+                                return status == 'menunggu' || status == 'pending';
                               }).length;
                               produkDisetujui = prods.where((doc) {
-                                final status = (doc['status'] ?? '')
-                                    .toString()
-                                    .toLowerCase();
-                                return status == 'sukses' ||
-                                    status == 'approved';
+                                final status = (doc['status'] ?? '').toString().toLowerCase();
+                                return status == 'sukses' || status == 'approved';
                               }).length;
                             }
-
-                            // TODO: Untuk iklan, implementasi mirip (belum diambil Firestore)
                             int iklanBaru = 0;
                             int iklanAktif = 0;
-
                             return AdminSummaryCard(
                               tokoBaru: tokoBaru,
                               tokoTerdaftar: tokoTerdaftar,
@@ -216,16 +206,12 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
-                          print(
-                            'Firestore StreamBuilder error: ${snapshot.error}',
-                          );
                           return Padding(
                             padding: const EdgeInsets.all(20),
                             child: Text('Terjadi kesalahan: ${snapshot.error}'),
                           );
                         }
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 30),
@@ -233,27 +219,19 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             ),
                           );
                         }
-
-                        final submissions = (snapshot.data?.docs ?? []).map((
-                          doc,
-                        ) {
+                        final submissions = (snapshot.data?.docs ?? []).map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           return AdminStoreSubmissionData(
                             imagePath: data['logoUrl'] ?? '',
                             storeName: data['shopName'] ?? '-',
                             storeAddress: data['address'] ?? '-',
                             submitter: data['owner']?['nama'] ?? '-',
-                            date:
-                                (data['submittedAt'] != null &&
-                                    data['submittedAt'] is Timestamp)
-                                ? _formatDate(
-                                    (data['submittedAt'] as Timestamp).toDate(),
-                                  )
+                            date: (data['submittedAt'] != null && data['submittedAt'] is Timestamp)
+                                ? _formatDate((data['submittedAt'] as Timestamp).toDate())
                                 : '-',
                             docId: doc.id,
                           );
                         }).toList();
-
                         return AdminStoreSubmissionSection(
                           submissions: submissions,
                           onSeeAll: () {
@@ -267,7 +245,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                               MaterialPageRoute(
                                 builder: (_) => AdminStoreApprovalDetailPage(
                                   docId: submission.docId,
-                                  approvalData: null, // ambil dari Firestore
+                                  approvalData: null,
                                 ),
                               ),
                             );
@@ -279,6 +257,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                   ),
 
                   const SizedBox(height: 20),
+
                   // ====== PRODUCT SECTION: produkApplication terbaru (pending) ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -296,8 +275,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             child: Text('Terjadi kesalahan: ${prodSnap.error}'),
                           );
                         }
-                        if (prodSnap.connectionState ==
-                            ConnectionState.waiting) {
+                        if (prodSnap.connectionState == ConnectionState.waiting) {
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 30),
@@ -305,37 +283,25 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             ),
                           );
                         }
-
-                        final submissions = (prodSnap.data?.docs ?? []).map((
-                          doc,
-                        ) {
+                        final submissions = (prodSnap.data?.docs ?? []).map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           return AdminProductSubmissionData(
-                            id: doc.id, // <--- Tambahkan ini!
+                            id: doc.id,
                             imagePath: data['imageUrl'] ?? '',
                             productName: data['name'] ?? '-',
-                            category: data['category'] ?? '-',
-                            categoryType: _parseCategoryType(data['category']),
+                            categoryType: mapCategoryType(data['category']),
                             storeName: data['storeName'] ?? '-',
-                            date:
-                                (data['createdAt'] != null &&
-                                    data['createdAt'] is Timestamp)
-                                ? _formatDate(
-                                    (data['createdAt'] as Timestamp).toDate(),
-                                  )
+                            date: (data['createdAt'] != null && data['createdAt'] is Timestamp)
+                                ? _formatDate((data['createdAt'] as Timestamp).toDate())
                                 : '-',
                           );
                         }).toList();
-
                         return AdminProductSubmissionSection(
-                          submissions: submissions, // <-- Ini HARUS ADA!
+                          submissions: submissions,
                           onSeeAll: () {
                             setState(() {
                               _currentIndex = 2;
                             });
-                          },
-                          onDetail: (submission) {
-                            // TODO: Navigasi ke detail produk approval
                           },
                         );
                       },
@@ -379,7 +345,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(child: mainBody),
+      body: mainBody, // SafeArea cukup di header aja
       bottomNavigationBar: AdminBottomNavbar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -389,21 +355,5 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         },
       ),
     );
-  }
-}
-
-/// Helper: auto-mapping kategori string ke CategoryType enum
-CategoryType _parseCategoryType(String? cat) {
-  switch ((cat ?? '').toLowerCase()) {
-    case 'makanan':
-      return CategoryType.makanan;
-    case 'minuman':
-      return CategoryType.minuman;
-    case 'snacks':
-      return CategoryType.snacks;
-    case 'merchandise':
-      return CategoryType.merchandise;
-    default:
-      return CategoryType.makanan;
   }
 }
