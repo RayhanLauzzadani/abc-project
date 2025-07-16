@@ -8,11 +8,13 @@ import '../../data/repositories/cart_repository.dart';
 class CartTabMine extends StatefulWidget {
   final Map<String, bool> storeChecked;
   final Function(String, bool) onStoreCheckedChanged;
+  final void Function(List<String> storeIds)? onStoreListChanged;
 
   const CartTabMine({
     Key? key,
     required this.storeChecked,
     required this.onStoreCheckedChanged,
+    this.onStoreListChanged,
   }) : super(key: key);
 
   @override
@@ -38,6 +40,7 @@ class _CartTabMineState extends State<CartTabMine> {
       setState(() {
         isLoading = false;
       });
+      widget.onStoreListChanged?.call([]);
       return;
     }
     setState(() => isLoading = true);
@@ -46,6 +49,8 @@ class _CartTabMineState extends State<CartTabMine> {
       storeCarts = carts;
       isLoading = false;
     });
+    // Sync ke parent list storeId
+    widget.onStoreListChanged?.call(storeCarts.map((e) => e.storeId).toList());
   }
 
   Future<void> _onQtyChanged(StoreCart store, int idx, int qty) async {
