@@ -3,14 +3,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/widgets/search_bar.dart' as custom_widgets;
 import 'package:abc_e_mart/buyer/widgets/store_product_card.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
+import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
 import 'package:abc_e_mart/buyer/widgets/store_rating_review.dart';
 import 'package:abc_e_mart/widgets/category_selector.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 const colorPrimary = Color(0xFF1C55C0);
 const colorPlaceholder = Color(0xFF757575);
+const colorDivider = Color(0xFFE5E5E5);
 
 final List<CategoryType> categoryList = [
   CategoryType.merchandise,
@@ -39,6 +42,10 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
   late TabController _tabController;
   String searchQuery = '';
 
+  bool isFavoritedStore = false;
+  bool favLoading = false;
+  User? _currentUser;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +56,50 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
           tabIndex = _tabController.index;
         });
       }
+    });
+    _currentUser = FirebaseAuth.instance.currentUser;
+    _checkIsFavoritedStore();
+  }
+
+  Future<void> _checkIsFavoritedStore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final favDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('favoriteStores')
+        .doc(widget.store['id'])
+        .get();
+    setState(() {
+      isFavoritedStore = favDoc.exists;
+    });
+  }
+
+  Future<void> _toggleFavoriteStore() async {
+    setState(() => favLoading = true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('favoriteStores')
+        .doc(widget.store['id']);
+
+    if (isFavoritedStore) {
+      await docRef.delete();
+    } else {
+      await docRef.set({
+        'id': widget.store['id'],
+        'name': widget.store['name'],
+        'logoUrl': widget.store['logoUrl'] ?? '',
+        'rating': widget.store['rating'] ?? 0,
+        'ownerId': widget.store['ownerId'] ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    setState(() {
+      isFavoritedStore = !isFavoritedStore;
+      favLoading = false;
     });
   }
 
@@ -61,28 +112,30 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
     super.dispose();
   }
 
-  // Bagian atas sampai dengan Info Toko
+  // --- Bagian utama
   @override
   Widget build(BuildContext context) {
+    final store = widget.store;
+    final isSelfStore = _currentUser?.uid == (store['ownerId'] ?? '');
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- LOGO BESAR & TOMBOL BACK ---
+            // LOGO, BACK, dan tombol Chat/Favorite
             Stack(
               children: [
-                // Gambar/logo toko
                 SizedBox(
                   width: MediaQuery.of(context).size.width,
-                  height: 210, // Atur tinggi sesuai selera, bisa 200~240
-                  child: (widget.store['photoUrl'] != null && widget.store['photoUrl'].toString().isNotEmpty)
+                  height: 210,
+                  child: (store['logoUrl'] != null && store['logoUrl'].toString().isNotEmpty)
                     ? Image.network(
-                        widget.store['photoUrl'],
+                        store['logoUrl'],
                         width: MediaQuery.of(context).size.width,
                         height: 210,
-                        fit: BoxFit.cover, // Cover biar nempel tepi kiri-kanan
+                        fit: BoxFit.cover,
                         alignment: Alignment.center,
                         errorBuilder: (ctx, _, __) => Container(
                           color: Color(0xFFF5F5F5),
@@ -94,7 +147,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                         child: const Icon(Icons.store, size: 100, color: colorPrimary),
                       ),
                 ),
-                // Tombol back (di atas logo, tetap aman)
+                // Tombol back
                 Positioned(
                   top: 18,
                   left: 18,
@@ -115,53 +168,75 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
             ),
             const SizedBox(height: 10),
 
-            // --- Info Toko
+            // Info Toko
             Padding(
-              padding: const EdgeInsets.only(left: 20, right: 16),
-              child: Column(
+              padding: const EdgeInsets.only(left: 20, right: 16, top: 6),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.store['name'] ?? '',
-                    style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
-                  ),
-                  const SizedBox(height: 4),
-                  if (widget.store['distance'] != null && widget.store['duration'] != null)
-                    Text(
-                      "${widget.store['distance']} • ${widget.store['duration']}",
-                      style: GoogleFonts.dmSans(fontSize: 13.5, color: colorPlaceholder),
+                  // Nama toko dan info rating (kiri)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          store['name'] ?? '',
+                          style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+                        ),
+                        const SizedBox(height: 4),
+                        if (store['distance'] != null && store['duration'] != null)
+                          Text(
+                            "${store['distance']} • ${store['duration']}",
+                            style: GoogleFonts.dmSans(fontSize: 13.5, color: colorPlaceholder),
+                          ),
+                        const SizedBox(height: 2),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 17),
+                            const SizedBox(width: 2),
+                            Text(
+                              "${store['rating'] ?? '-'} ",
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[700],
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            Text(
+                              "(${store['ratingCount'] ?? '0'} Ratings)",
+                              style: GoogleFonts.dmSans(
+                                color: Colors.orange[700],
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  const SizedBox(height: 2),
+                  ),
+                  // Tombol chat & fav (kanan)
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 17),
-                      const SizedBox(width: 2),
-                      Text(
-                        "${widget.store['rating'] ?? '-'} ",
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange[700],
-                          fontSize: 13.5,
+                      if (!isSelfStore)
+                        _circleIcon(
+                          icon: Icons.chat_bubble_outline,
+                          onTap: () => _goToChatDetail(context, store),
                         ),
-                      ),
-                      Text(
-                        "(${widget.store['ratingCount'] ?? '0'} Ratings)",
-                        style: GoogleFonts.dmSans(
-                          color: Colors.orange[700],
-                          fontSize: 13.5,
-                        ),
+                      if (!isSelfStore) const SizedBox(width: 10),
+                      _circleIcon(
+                        icon: isFavoritedStore ? Icons.favorite : Icons.favorite_border,
+                        iconColor: isFavoritedStore ? Colors.red : colorPrimary,
+                        onTap: favLoading ? null : _toggleFavoriteStore,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
                 ],
               ),
             ),
-          // ... lanjutkan kode search bar, tab bar, dsb
             const SizedBox(height: 6),
 
-            // --- Search Bar
+            // Search Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: custom_widgets.SearchBar(
@@ -171,7 +246,7 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
             ),
             const SizedBox(height: 14),
 
-            // --- Tab Bar Custom
+            // Tab Bar
             Padding(
               padding: const EdgeInsets.only(left: 18, right: 30),
               child: _StoreTabBar(
@@ -186,25 +261,94 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
             ),
             const SizedBox(height: 4),
 
-            // --- Content
+            // Content
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  // TAB 1: Katalog (pakai shopId untuk filter produk milik toko ini)
                   _FirestoreProductList(
-                    shopId: widget.store['id'],
+                    shopId: store['id'],
                     selectedCategory: selectedCategory,
                     onCategorySelected: (i) => setState(() => selectedCategory = i),
                     searchQuery: searchQuery,
                   ),
-                  // TAB 2: Rating & Ulasan
                   const StoreRatingReview(),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // Widget circle icon (chat/fav)
+  Widget _circleIcon({
+    required IconData icon,
+    required VoidCallback? onTap,
+    Color? iconColor,
+    double size = 44,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: iconColor ?? colorPrimary, size: 22),
+      ),
+    );
+  }
+
+  // Navigasi ke halaman chat detail (buat chat jika belum ada, pastikan tidak self-chat)
+  Future<void> _goToChatDetail(BuildContext context, Map<String, dynamic> store) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Anda belum login!")));
+      return;
+    }
+    // Cek self chat (user adalah owner toko)
+    if (user.uid == (store['ownerId'] ?? '')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tidak bisa chat ke toko sendiri!")));
+      return;
+    }
+
+    // Cari apakah chat sudah ada
+    final chatQuery = await FirebaseFirestore.instance
+        .collection('chats')
+        .where('buyerId', isEqualTo: user.uid)
+        .where('shopId', isEqualTo: store['id'])
+        .limit(1)
+        .get();
+
+    String chatId;
+    if (chatQuery.docs.isNotEmpty) {
+      // Sudah ada chat
+      chatId = chatQuery.docs.first.id;
+    } else {
+      // Buat chat baru (chat dibuat setelah kirim pesan pertama, namun di sini boleh dibuat dummy entry)
+      final newChat = await FirebaseFirestore.instance.collection('chats').add({
+        'buyerId': user.uid,
+        'buyerName': user.displayName ?? '',
+        'shopId': store['id'],
+        'shopName': store['name'],
+        'shopAvatar': store['logoUrl'] ?? '',
+        'lastMessage': '',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+      });
+      chatId = newChat.id;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatDetailPage(
+          chatId: chatId,
+          shopId: store['id'],
+          shopName: store['name'],
         ),
       ),
     );
@@ -301,7 +445,6 @@ class _StoreTabBar extends StatelessWidget {
   }
 }
 
-// ---------- Product List Realtime (Firestore) ----------
 // ---------- Product List Realtime (Firestore) ----------
 class _FirestoreProductList extends StatelessWidget {
   final String shopId;
