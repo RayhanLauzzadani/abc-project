@@ -2,14 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddressModel {
   final String id;
-  final String label; 
-  final String name;  
-  final String phone; 
-  final String address; 
-  final String locationTitle; 
+  final String label;
+  final String name;
+  final String phone;
+  final String address;
+  final String locationTitle;
   final double latitude;
   final double longitude;
   final DateTime createdAt;
+  final bool isPrimary;
 
   AddressModel({
     required this.id,
@@ -21,9 +22,9 @@ class AddressModel {
     required this.latitude,
     required this.longitude,
     required this.createdAt,
+    required this.isPrimary,
   });
 
-  // Factory fromMap (Firestore)
   factory AddressModel.fromMap(String id, Map<String, dynamic> map) {
     return AddressModel(
       id: id,
@@ -37,10 +38,10 @@ class AddressModel {
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
+      isPrimary: map['isPrimary'] ?? false,
     );
   }
 
-  // toMap (for Firestore)
   Map<String, dynamic> toMap() {
     return {
       'label': label,
@@ -51,6 +52,7 @@ class AddressModel {
       'latitude': latitude,
       'longitude': longitude,
       'createdAt': createdAt,
+      'isPrimary': isPrimary,
     };
   }
 }

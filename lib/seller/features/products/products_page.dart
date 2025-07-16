@@ -50,12 +50,8 @@ class _ProductsPageState extends State<ProductsPage>
     return WillPopScope(
       onWillPop: () async {
         if (widget.fromSubmission) {
-          // Kembali ke HomePageSeller & HAPUS stack sebelumnya
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomePageSeller()),
-            (route) => false,
-          );
-          return false; // cegah pop default
+          Navigator.of(context).pop(); // cukup pop
+          return false;
         }
         return true;
       },
@@ -74,10 +70,7 @@ class _ProductsPageState extends State<ProductsPage>
                     GestureDetector(
                       onTap: () {
                         if (widget.fromSubmission) {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => const HomePageSeller()),
-                            (route) => false,
-                          );
+                          Navigator.of(context).pop(); // cukup pop saja
                         } else {
                           Navigator.pop(context);
                         }
