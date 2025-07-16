@@ -1,3 +1,4 @@
+import 'package:abc_e_mart/seller/features/ads/ads_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -113,6 +114,16 @@ class HomePageSeller extends StatelessWidget {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => const StoreRatingPage(),
+                                    ),
+                                  );
+                                  break;
+                                        case 5: // <--- INI UNTUK IKLAN
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => AdsListPage(
+                                        // Kirim storeId atau sellerId sesuai page mu
+                                        sellerId: uid,
+                                      ),
                                     ),
                                   );
                                   break;
