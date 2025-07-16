@@ -33,6 +33,13 @@ class _CartPageState extends State<CartPage> with SingleTickerProviderStateMixin
     });
   }
 
+  // SYNC CHECKBOX: remove checked store that no longer in cart
+  void _syncStoreChecked(List<String> storeIds) {
+    setState(() {
+      storeChecked.removeWhere((storeId, _) => !storeIds.contains(storeId));
+    });
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -77,6 +84,7 @@ class _CartPageState extends State<CartPage> with SingleTickerProviderStateMixin
                 CartTabMine(
                   storeChecked: storeChecked,
                   onStoreCheckedChanged: onStoreCheckedChanged,
+                  onStoreListChanged: _syncStoreChecked, // <--- tambahkan ini!
                 ),
                 CartTabInProgress(),
                 CartTabHistory(),

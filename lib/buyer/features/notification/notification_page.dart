@@ -3,13 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// Ganti ini dengan halaman toko seller kamu
-import 'package:abc_e_mart/seller/features/home/home_page_seller.dart'; // <-- Contoh! Ganti ke page kamu sendiri.
+import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
+import 'package:abc_e_mart/seller/widgets/shop_rejected_page.dart';
 
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
 
-  // Notifikasi khusus buyer
   static const Set<String> buyerTypes = {
     'store_approved',
     'store_rejected',
@@ -81,7 +80,6 @@ class NotificationPage extends StatelessWidget {
                   );
                 }
 
-                // Filter hanya notif buyer
                 final notifications = snapshot.data!.docs.where((notifDoc) {
                   final data = notifDoc.data() as Map<String, dynamic>;
                   final type = data['type']?.toString() ?? '';
@@ -154,6 +152,7 @@ class NotificationPage extends StatelessWidget {
 
                     return GestureDetector(
                       onTap: () async {
+                        // Mark as read
                         if (data['isRead'] != true) {
                           await notifDoc.reference.update({'isRead': true});
                         }
@@ -165,25 +164,13 @@ class NotificationPage extends StatelessWidget {
                             ),
                           );
                         } else if (isRejected) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: Text(
-                                data['title'] ?? 'Pengajuan Ditolak',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                          // Update juga "hasOpenedRejectedPage" kalau mau
+                          await notifDoc.reference.update({'hasOpenedRejectedPage': true});
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ShopRejectedPage(
+                                reason: data['body'] ?? '-',
                               ),
-                              content: Text(
-                                data['body'] ?? 'Ajuan Anda ditolak.',
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('OK'),
-                                ),
-                              ],
                             ),
                           );
                         } else if (isPromo) {

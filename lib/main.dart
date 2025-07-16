@@ -10,6 +10,7 @@ import 'seller/providers/seller_registration_provider.dart';
 import 'buyer/features/home/splash_screen.dart';
 import 'buyer/features/auth/login_page.dart';
 import 'buyer/features/home/home_page_buyer.dart';
+import 'seller/features/registration/registration_welcome_page.dart';
 // import 'package:abc_e_mart/admin/features/home/home_page_admin.dart';
 // import page lain jika ingin tambahkan ke routes
 
@@ -43,6 +44,7 @@ class MyApp extends StatelessWidget {
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const HomePage(),
+          '/registration_welcome': (context) => const RegistrationWelcomePage(),
           // Tambahkan route lain jika perlu
         },
       ),
