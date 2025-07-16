@@ -9,15 +9,15 @@ import '../../data/services/user_service.dart';
 import '../../data/models/user.dart';
 import 'package:abc_e_mart/seller/features/registration/registration_welcome_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
-// Tambahkan import ini!
 import 'package:abc_e_mart/buyer/features/profile/appearance_setting_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/profile_edit_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// Import halaman tujuan:
 import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 import 'package:abc_e_mart/seller/widgets/shop_verification_status_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 import 'package:abc_e_mart/seller/widgets/shop_rejected_page.dart';
+// Tambah ini!
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -30,6 +30,9 @@ class _ProfilePageState extends State<ProfilePage> {
   final UserService _userService = UserService();
   UserModel? _userModel;
   bool _isLoading = true;
+
+  // Untuk flag akses penolakan (hanya sekali)
+  static const String shopRejectedFlag = 'has_seen_shop_rejected';
 
   @override
   void initState() {
@@ -47,6 +50,24 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
     }
+  }
+
+  // RESET FLAG saat logout!
+  Future<void> resetShopRejectedFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(shopRejectedFlag);
+  }
+
+  // SET FLAG saat page ShopRejectedPage diakses
+  Future<void> setShopRejectedFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(shopRejectedFlag, true);
+  }
+
+  // GET FLAG
+  Future<bool> getShopRejectedFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(shopRejectedFlag) ?? false;
   }
 
   @override
@@ -82,7 +103,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       child: Row(
                         children: [
-                          // Avatar Profile
                           (_userModel?.photoUrl != null &&
                                   _userModel!.photoUrl!.isNotEmpty)
                               ? CircleAvatar(
@@ -126,7 +146,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               ],
                             ),
                           ),
-                          // Tombol Edit (pakai InkWell agar bisa ditekan)
                           InkWell(
                             borderRadius: BorderRadius.circular(30),
                             onTap: () async {
@@ -137,7 +156,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               );
                               if (result == true) {
-                                // Jika berhasil update, refresh data user
                                 _fetchUserData();
                               }
                             },
@@ -171,7 +189,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         },
                       ),
                       _buildDivider(),
-                      // UBAH bagian ini:
                       _buildListTile(
                         'tampilan.svg',
                         "Tampilan",
@@ -203,17 +220,15 @@ class _ProfilePageState extends State<ProfilePage> {
                           );
 
                           try {
-                            // CARI DOKUMEN shopApplications dgn owner.uid == user.uid (limit 1)
                             final query = await FirebaseFirestore.instance
                                 .collection('shopApplications')
                                 .where('owner.uid', isEqualTo: user.uid)
                                 .limit(1)
                                 .get();
 
-                            Navigator.of(context).pop(); // Tutup loading
+                            Navigator.of(context).pop();
 
                             if (query.docs.isEmpty) {
-                              // Belum pernah daftar, ke form registrasi
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -226,9 +241,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
                             final shopData = query.docs.first.data();
                             final status = shopData['status'] ?? '';
+                            final rejectionReason =
+                                shopData['rejectionReason'] ?? '-';
 
+                            // --- CEK STATUS DAN FLAG LOCAL
                             if (status == 'approved') {
-                              // Sudah disetujui, langsung ke home seller
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -236,7 +253,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               );
                             } else if (status == 'pending') {
-                              // Sudah daftar, tapi belum disetujui
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -245,18 +261,29 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               );
                             } else if (status == 'rejected') {
-                              // --> Update di sini!
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ShopRejectedPage(
-                                    rejectionReason:
-                                        shopData['rejectionReason'] ?? '-',
+                              final seenRejected =
+                                  await getShopRejectedFlag();
+                              if (!seenRejected) {
+                                // Muncul hanya sekali
+                                await setShopRejectedFlag();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ShopRejectedPage(reason: rejectionReason),
                                   ),
-                                ),
-                              );
+                                );
+                              } else {
+                                // Sudah pernah lihat, langsung ke regis ulang
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const RegistrationWelcomePage(),
+                                  ),
+                                );
+                              }
                             } else {
-                              // Fallback, ke welcome page
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -318,6 +345,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           if (result == true) {
                             try {
                               await FirebaseAuth.instance.signOut();
+                              await resetShopRejectedFlag(); // Reset flag
                               if (context.mounted) {
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(
