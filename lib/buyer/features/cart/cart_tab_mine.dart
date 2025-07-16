@@ -4,17 +4,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:focus_detector/focus_detector.dart';
 import '../../widgets/cart_box.dart';
 import '../../data/repositories/cart_repository.dart';
+import '../../data/services/address_service.dart'; // Tambahkan
+import '../cart/checkout_summary_page.dart'; // Tambahkan
+import '../../data/models/address.dart'; // Tambahkan
 
 class CartTabMine extends StatefulWidget {
   final Map<String, bool> storeChecked;
   final Function(String, bool) onStoreCheckedChanged;
-  final void Function(List<String> storeIds)? onStoreListChanged;
+  final void Function(List<String> storeIds)? onStoreListChanged; // Menambahkan parameter ini
 
   const CartTabMine({
     Key? key,
     required this.storeChecked,
     required this.onStoreCheckedChanged,
-    this.onStoreListChanged,
+    this.onStoreListChanged, // Menambahkan parameter ini
   }) : super(key: key);
 
   @override
@@ -34,13 +37,11 @@ class _CartTabMineState extends State<CartTabMine> {
     fetchCart();
   }
 
-  /// Fungsi ini public agar bisa di-trigger dari parent bila dibutuhkan.
   Future<void> fetchCart() async {
     if (currentUser == null) {
       setState(() {
         isLoading = false;
       });
-      widget.onStoreListChanged?.call([]);
       return;
     }
     setState(() => isLoading = true);
@@ -49,8 +50,6 @@ class _CartTabMineState extends State<CartTabMine> {
       storeCarts = carts;
       isLoading = false;
     });
-    // Sync ke parent list storeId
-    widget.onStoreListChanged?.call(storeCarts.map((e) => e.storeId).toList());
   }
 
   Future<void> _onQtyChanged(StoreCart store, int idx, int qty) async {
@@ -102,13 +101,23 @@ class _CartTabMineState extends State<CartTabMine> {
 
   @override
   Widget build(BuildContext context) {
-    final selected = widget.storeChecked.values.any((v) => v);
+    // Ambil hanya storeId yang dicentang
+    final selectedStoreIds = widget.storeChecked.entries
+        .where((e) => e.value == true)
+        .map((e) => e.key)
+        .toList();
+
+    // Dapatkan StoreCart yang dicentang
+    final selectedStores = storeCarts
+        .where((store) => selectedStoreIds.contains(store.storeId))
+        .toList();
+
+    // Karena desainmu satu checkout = satu toko, ambil hanya satu
+    final selectedStore = selectedStores.isNotEmpty ? selectedStores.first : null;
+    final isCheckoutEnabled = selectedStore != null;
 
     return FocusDetector(
-      onFocusGained: () {
-        // Auto-refresh setiap kali tab/halaman ini difokuskan
-        fetchCart();
-      },
+      onFocusGained: () => fetchCart(),
       child: Stack(
         children: [
           if (isLoading)
@@ -146,7 +155,7 @@ class _CartTabMineState extends State<CartTabMine> {
             )
           else
             Padding(
-              padding: EdgeInsets.only(bottom: selected ? 72 : 0),
+              padding: EdgeInsets.only(bottom: isCheckoutEnabled ? 72 : 0),
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: storeCarts.length,
@@ -164,13 +173,33 @@ class _CartTabMineState extends State<CartTabMine> {
                 },
               ),
             ),
-          if (selected)
+          if (isCheckoutEnabled)
             Positioned(
               left: 24,
               right: 24,
               bottom: 16,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () async {
+                  if (currentUser == null) return;
+                  // Ambil alamat utama user
+                  final address = await AddressService().getPrimaryAddressOnce(currentUser!.uid);
+                  if (address == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Alamat utama belum tersedia.")),
+                    );
+                    return;
+                  }
+                  // Navigasi ke halaman checkout, pass data yg sesuai
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CheckoutSummaryPage(
+                        address: address,
+                        cartItems: selectedStore!.items,
+                      ),
+                    ),
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
