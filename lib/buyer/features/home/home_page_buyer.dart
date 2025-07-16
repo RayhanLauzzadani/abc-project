@@ -15,6 +15,11 @@ import 'package:abc_e_mart/buyer/features/cart/cart_page.dart';
 import 'package:abc_e_mart/buyer/features/catalog/catalog_page.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/chat/chat_list_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
+import 'package:abc_e_mart/buyer/data/services/address_service.dart';
+import 'package:abc_e_mart/buyer/data/models/address.dart';
 
 class HomePage extends StatefulWidget {
   final int initialIndex;
@@ -82,12 +87,21 @@ class _HomeMainContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        // Sticky: Header + SearchBar (1 background putih, 10px bawah)
+        // Sticky: Header + SearchBar (1 background putih, shadow 0.06)
         SliverPersistentHeader(
           pinned: true,
           delegate: _StickyHeaderWithSearchBarDelegate(
             child: Container(
-              color: Colors.white,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 14,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
               padding: const EdgeInsets.only(
                 left: 20,
                 right: 20,
@@ -97,7 +111,7 @@ class _HomeMainContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(context),
+                  _HomeAddressHeader(),
                   const SizedBox(height: 20),
                   const SizedBox(
                     height: searchBarHeight,
@@ -248,39 +262,95 @@ class _HomeMainContent extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildHeader(BuildContext context) {
+/// HEADER Alamat — updated: realtime, hanya tampilkan label alamat utama
+class _HomeAddressHeader extends StatelessWidget {
+  const _HomeAddressHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Alamat Anda",
-                style: GoogleFonts.dmSans(
-                  color: const Color(0xFF9B9B9B),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              Row(
-                children: [
-                  Text(
-                    "Jakarta, Indonesia",
-                    style: GoogleFonts.dmSans(
-                      color: const Color(0xFF212121),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 19,
+          child: user == null
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Alamat Anda",
+                      style: GoogleFonts.dmSans(
+                        color: const Color(0xFF9B9B9B),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 3),
-                  const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF212121)),
-                ],
-              ),
-            ],
-          ),
+                    Row(
+                      children: [
+                        Text(
+                          "Belum login",
+                          style: GoogleFonts.dmSans(
+                            color: const Color(0xFF212121),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 19,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : StreamBuilder<AddressModel?>(
+                  stream: AddressService().getPrimaryAddress(user.uid),
+                  builder: (context, snapshot) {
+                    final address = snapshot.data;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Alamat Anda",
+                          style: GoogleFonts.dmSans(
+                            color: const Color(0xFF9B9B9B),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddressListPage()),
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  address != null
+                                      ? (address.label.isNotEmpty
+                                          ? address.label
+                                          : "Alamat Utama")
+                                      : "Belum ada alamat",
+                                  style: GoogleFonts.dmSans(
+                                    color: const Color(0xFF212121),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 19,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              const Icon(Icons.keyboard_arrow_down_rounded,
+                                  size: 20, color: Color(0xFF212121)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
         ),
         Container(
           margin: const EdgeInsets.only(right: 12),

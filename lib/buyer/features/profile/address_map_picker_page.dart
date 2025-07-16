@@ -129,6 +129,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
+      if (!mounted) return;
       setState(() {
         _placePredictions = json['predictions'];
       });
