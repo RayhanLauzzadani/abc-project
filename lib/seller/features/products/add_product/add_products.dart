@@ -414,68 +414,73 @@ class _AddProductPageState extends State<AddProductPage> {
                       : null,
                 ),
                 // KATEGORI
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(top: 6, bottom: 13),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFE5E7EB),
-                      width: 1.2,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 11),
+                  child: DropdownButtonFormField<String>(
+                    value: _category,
+                    decoration: InputDecoration(
+                      // Tidak usah pakai label!
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE5E7EB),
+                          width: 1.2,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE5E7EB),
+                          width: 1.2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF2563EB),
+                          width: 1.2,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 13,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(LucideIcons.list, color: Colors.grey[600], size: 21),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: InputDecoration.collapsed(hintText: ""),
-                          isExpanded: true,
-                          items: _categories.map((cat) {
-                            return DropdownMenuItem(
-                              value: cat,
-                              child: Text(
-                                cat,
-                                style: GoogleFonts.dmSans(fontSize: 15),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) => setState(() => _category = val),
-                          validator: (v) =>
-                              v == null || v.isEmpty ? "Pilih kategori" : null,
+                    hint: Row(
+                      children: [
+                        Icon(LucideIcons.list, color: Colors.grey[600], size: 21),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Kategori",
+                          style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 55,
-                  top: 20,
-                  child: Row(
-                    children: [
-                      Text(
-                        "Kategori",
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                          color: Colors.grey[600],
+                        const SizedBox(width: 4),
+                        const Text(
+                          "*",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Text(
-                        "*",
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
+                      ],
+                    ),
+                    isExpanded: true,
+                    items: _categories.map((cat) {
+                      return DropdownMenuItem(
+                        value: cat,
+                        child: Text(
+                          cat,
+                          style: GoogleFonts.dmSans(fontSize: 15),
                         ),
-                      ),
-                    ],
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _category = val),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? "Pilih kategori" : null,
                   ),
                 ),
                 // CARD: VARIASI, STOK, MIN. PEMBELIAN

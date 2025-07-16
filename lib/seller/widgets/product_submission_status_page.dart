@@ -69,15 +69,14 @@ class ProductSubmissionStatusPage extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).pushAndRemoveUntil(
+                    Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
                         builder: (_) => ProductsPage(
                           storeId: storeId,
                           initialTab: 1,
-                          fromSubmission: true, // penting!
+                          fromSubmission: true,
                         ),
                       ),
-                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
