@@ -70,10 +70,11 @@ class _LoginPageState extends State<LoginPage> {
       final user = credential.user;
       if (user != null) {
         // Ambil data user di Firestore berdasarkan UID
-        final userDoc = await FirebaseFirestore.instance
+        final userDocRef = FirebaseFirestore.instance
             .collection('users')
-            .doc(user.uid)
-            .get();
+            .doc(user.uid);
+
+        final userDoc = await userDocRef.get();
 
         if (userDoc.exists) {
           final data = userDoc.data()!;
@@ -81,8 +82,11 @@ class _LoginPageState extends State<LoginPage> {
 
           // Cek role
           final role = _roleToList(data['role']);
-          // Optional: Update lastLogin
-          await userDoc.reference.update({'lastLogin': FieldValue.serverTimestamp()});
+
+          await userDocRef.set({
+            'isOnline': true,
+          }, SetOptions(merge: true));
+
 
           if (!isActive) {
             setState(() {
@@ -148,8 +152,9 @@ class _LoginPageState extends State<LoginPage> {
               'role': ['buyer'], // ROLE ALWAYS LIST
               'createdAt': FieldValue.serverTimestamp(),
               'isActive': true,
+              'isOnline': true,
               'lastLogin': FieldValue.serverTimestamp(),
-            });
+            }, SetOptions(merge: true));
           } else {
             // Update lastLogin setiap login Google
             await userDoc.update({'lastLogin': FieldValue.serverTimestamp()});

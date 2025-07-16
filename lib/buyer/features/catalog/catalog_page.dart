@@ -7,6 +7,7 @@ import 'package:abc_e_mart/data/models/category_type.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 const colorPlaceholder = Color(0xFF757575);
 
@@ -42,6 +43,9 @@ class _CatalogPageState extends State<CatalogPage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userUid = user?.uid ?? '';
+
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,6 +97,15 @@ class _CatalogPageState extends State<CatalogPage> {
 
                 // --- Filter Data dari Firestore ---
                 List<DocumentSnapshot> docs = snapshot.data!.docs;
+
+                // --- Filter produk bukan milik user (ownerId != user.uid) ---
+                if (userUid.isNotEmpty) {
+                  docs = docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['ownerId'] != userUid;
+                  }).toList();
+                }
+
                 // Filter kategori
                 if (selectedCategory > 0) {
                   final catStr = categoryLabels[categoryList[selectedCategory - 1]]!;

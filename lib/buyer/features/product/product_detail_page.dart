@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../data/models/cart/cart_item.dart';
 import '../../data/repositories/cart_repository.dart';
 import '../../widgets/success_add_cart_popup.dart';
+import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -17,7 +18,6 @@ class ProductDetailPage extends StatefulWidget {
 class _ProductDetailPageState extends State<ProductDetailPage> {
   static const colorPrimary = Color(0xFF1C55C0);
   static const colorInput = Color(0xFF404040);
-  static const colorPlaceholder = Color(0xFF757575);
   static const colorDivider = Color(0xFFE5E5E5);
 
   bool _isDescExpanded = false;
@@ -85,6 +85,64 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       isFavoritedProduct = !isFavoritedProduct;
       favLoading = false;
     });
+  }
+
+  Future<void> _goToChatDetail(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Anda belum login!")),
+      );
+      return;
+    }
+
+    // Cegah chat ke toko sendiri
+    if (user.uid == (widget.product['ownerId'] ?? '')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Tidak bisa chat ke toko sendiri!")),
+      );
+      return;
+    }
+
+    // shopId pada product sama dengan id toko tujuan
+    final String shopId = widget.product['shopId'];
+    final String shopName = widget.product['storeName'] ?? ''; // fallback jika kosong
+
+    // Cari chat yang sudah ada
+    final chatQuery = await FirebaseFirestore.instance
+        .collection('chats')
+        .where('buyerId', isEqualTo: user.uid)
+        .where('shopId', isEqualTo: shopId)
+        .limit(1)
+        .get();
+
+    String chatId;
+    if (chatQuery.docs.isNotEmpty) {
+      // Sudah ada chat
+      chatId = chatQuery.docs.first.id;
+    } else {
+      // Belum ada chat, buat baru
+      final newChat = await FirebaseFirestore.instance.collection('chats').add({
+        'buyerId': user.uid,
+        'buyerName': user.displayName ?? '',
+        'shopId': shopId,
+        'shopName': shopName,
+        'shopAvatar': widget.product['shopAvatar'] ?? '', // opsional
+        'lastMessage': '',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+      });
+      chatId = newChat.id;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatDetailPage(
+          chatId: chatId,
+          shopId: shopId,
+          shopName: shopName,
+        ),
+      ),
+    );
   }
 
   Future<void> _addToCart() async {
@@ -196,7 +254,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         ),
                         Row(
                           children: [
-                            _circleIcon(icon: Icons.chat_bubble_outline, onTap: () {}),
+                            _circleIcon(
+                              icon: Icons.chat_bubble_outline,
+                              onTap: () => _goToChatDetail(context),
+                            ),
                             const SizedBox(width: 8),
                             _circleIcon(
                               icon: isFavoritedProduct ? Icons.favorite : Icons.favorite_border,
