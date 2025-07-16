@@ -74,7 +74,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
     try {
       final productData = data.rawData;
 
-      // Update product application status
+      // 1. Update status pada productsApplication
       await FirebaseFirestore.instance
           .collection('productsApplication')
           .doc(data.docId)
@@ -83,13 +83,13 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
         'approvedAt': FieldValue.serverTimestamp(),
       });
 
-      // Publish product ke collection utama
+      // 2. Publish produk ke collection utama (products)
       final productId = data.docId;
       await FirebaseFirestore.instance
           .collection('products')
           .doc(productId)
           .set({
-        'shopId': productData['shopId'] ?? '',
+        'shopId': productData['shopId'] ?? productData['storeId'] ?? '',
         'ownerId': productData['ownerId'] ?? '',
         'name': productData['name'] ?? '',
         'imageUrl': productData['imageUrl'] ?? '',
@@ -104,7 +104,13 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
         'storeName': productData['storeName'] ?? '-',
       });
 
-      // ONLY to seller (ownerId)
+      // 3. Hapus data dari productsApplication
+      await FirebaseFirestore.instance
+          .collection('productsApplication')
+          .doc(productId)
+          .delete();
+
+      // 4. Push notif ke seller (ownerId)
       final ownerId = productData['ownerId'] ?? '';
       if (ownerId != '') {
         await FirebaseFirestore.instance
@@ -122,6 +128,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
         });
       }
 
+      // 5. Show dialog sukses
       showDialog(
         context: context,
         barrierDismissible: false,
