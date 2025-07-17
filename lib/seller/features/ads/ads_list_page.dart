@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/seller/features/ads/ad_cart.dart';
-// import page ajukan iklan
-import 'package:abc_e_mart/seller/features/ads/add_ads.dart';
+import 'package:abc_e_mart/seller/features/ads/ads_detail_page.dart';
 
 class AdsListPage extends StatefulWidget {
   final String sellerId;
@@ -18,25 +17,46 @@ class _AdsListPageState extends State<AdsListPage> {
 
   final statusList = ['Semua', 'Menunggu', 'Sukses', 'Ditolak'];
 
-  // Dummy data untuk tampilan awal
+  // Dummy data
   final List<Map<String, dynamic>> dummyAds = [
     {
       'title': 'Ayam Geprek',
       'status': 'menunggu',
       'periode': '3 Hari • 21 Juli - 23 Juli 2025',
       'createdAt': DateTime(2024, 6, 30, 16, 15),
+      'namaToko': 'Nippon Mart',
+      'produkIklan': 'Ayam Geprek',
+      'bannerImage': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fit=crop&w=390&q=80',
+      'buktiPembayaranFile': 'bukti_ayam_geprek.jpg',
+      'buktiPembayaranSize': 105.2,
+      'tanggalPengajuan': '30 April 2025, 16:21 PM',
+      'tanggalDurasi': '21 Juli - 23 Juli 2025 (3 hari)',
     },
     {
       'title': 'Beng - Beng',
       'status': 'sukses',
       'periode': '3 Hari • 21 Juli - 23 Juli 2025',
       'createdAt': DateTime(2024, 6, 30, 16, 15),
+      'namaToko': 'Toko Jaya',
+      'produkIklan': 'Beng - Beng',
+      'bannerImage': 'https://images.unsplash.com/photo-1519864600265-abb23847ef2c?fit=crop&w=390&q=80',
+      'buktiPembayaranFile': 'bukti_bengbeng.jpg',
+      'buktiPembayaranSize': 99.5,
+      'tanggalPengajuan': '30 April 2025, 16:21 PM',
+      'tanggalDurasi': '21 Juli - 23 Juli 2025 (3 hari)',
     },
     {
       'title': 'Pulpen Sarasa',
       'status': 'ditolak',
       'periode': '3 Hari • 21 Juli - 23 Juli 2025',
       'createdAt': DateTime(2024, 6, 30, 16, 15),
+      'namaToko': 'Alat Tulis Murah',
+      'produkIklan': 'Pulpen Sarasa',
+      'bannerImage': 'https://images.unsplash.com/photo-1464983953574-0892a716854b?fit=crop&w=390&q=80',
+      'buktiPembayaranFile': 'bukti_sarasa.jpg',
+      'buktiPembayaranSize': 78.3,
+      'tanggalPengajuan': '30 April 2025, 16:21 PM',
+      'tanggalDurasi': '21 Juli - 23 Juli 2025 (3 hari)',
     },
   ];
 
@@ -45,8 +65,7 @@ class _AdsListPageState extends State<AdsListPage> {
     // Filter dummy sesuai status & search query
     List<Map<String, dynamic>> filteredAds = dummyAds.where((ad) {
       bool matchesStatus = selectedStatus == 0 ||
-          ad['status'].toString().toLowerCase() ==
-              statusList[selectedStatus].toLowerCase();
+          ad['status'].toString().toLowerCase() == statusList[selectedStatus].toLowerCase();
       bool matchesQuery = searchQuery.isEmpty ||
           (ad['title'] ?? '').toLowerCase().contains(searchQuery.toLowerCase());
       return matchesStatus && matchesQuery;
@@ -60,11 +79,9 @@ class _AdsListPageState extends State<AdsListPage> {
           children: [
             // AppBar Custom
             Padding(
-              padding: const EdgeInsets.only(
-                  top: 22, left: 20, right: 20, bottom: 4),
+              padding: const EdgeInsets.only(top: 22, left: 20, right: 20, bottom: 4),
               child: Row(
                 children: [
-                  // Back
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
@@ -79,7 +96,6 @@ class _AdsListPageState extends State<AdsListPage> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // Title
                   Expanded(
                     child: Text(
                       'Iklan',
@@ -95,8 +111,7 @@ class _AdsListPageState extends State<AdsListPage> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2056D3),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 15, vertical: 0),
+                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 0),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -104,11 +119,7 @@ class _AdsListPageState extends State<AdsListPage> {
                         minimumSize: const Size(0, 32),
                       ),
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const AddAdsPage(), // <--- PANGGIL PAGE AJUKAN IKLAN DI SINI
-                          ),
-                        );
+                        // TODO: Panggil page Ajukan Iklan
                       },
                       child: Text(
                         '+ Ajukan Iklan',
@@ -123,11 +134,8 @@ class _AdsListPageState extends State<AdsListPage> {
                 ],
               ),
             ),
-
-            // Jarak 26px ke search bar
-            const SizedBox(height: 15), // 22+4+6 = 32, adjust for 26 spacing
-
-            // Search bar custom
+            const SizedBox(height: 15),
+            // Search bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -160,8 +168,7 @@ class _AdsListPageState extends State<AdsListPage> {
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
-                        onChanged: (val) =>
-                            setState(() => searchQuery = val),
+                        onChanged: (val) => setState(() => searchQuery = val),
                       ),
                     ),
                     const SizedBox(width: 18),
@@ -169,11 +176,8 @@ class _AdsListPageState extends State<AdsListPage> {
                 ),
               ),
             ),
-
-            // Jarak 21 px ke status chips
             const SizedBox(height: 21),
-
-            // Chips status
+            // Status Chips
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SizedBox(
@@ -199,10 +203,8 @@ class _AdsListPageState extends State<AdsListPage> {
                       default:
                         color = const Color(0xFF2056D3);
                     }
-
                     double width = 77;
                     if (label == 'Menunggu') width = 100;
-
                     return GestureDetector(
                       onTap: () => setState(() => selectedStatus = idx),
                       child: SizedBox(
@@ -241,7 +243,7 @@ class _AdsListPageState extends State<AdsListPage> {
             ),
             const SizedBox(height: 12),
 
-            // List Iklan
+            // === List Iklan ===
             Expanded(
               child: filteredAds.isEmpty
                   ? Center(
@@ -255,8 +257,7 @@ class _AdsListPageState extends State<AdsListPage> {
                       ),
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                       itemCount: filteredAds.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 20),
                       itemBuilder: (context, idx) {
@@ -264,7 +265,23 @@ class _AdsListPageState extends State<AdsListPage> {
                         return AdCard(
                           ad: ad,
                           onDetailTap: () {
-                            // TODO: Go to detail
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AdsDetailPage(
+                                  status: ad['status']?.toString() ?? '',
+                                  namaToko: ad['namaToko']?.toString() ?? 'Nippon Mart',
+                                  judulIklan: ad['title']?.toString() ?? '-',
+                                  produkIklan: ad['produkIklan']?.toString() ?? 'Ayam Geprek',
+                                  tanggalPengajuan: ad['tanggalPengajuan']?.toString() ?? '30 April 2025, 4:21 PM',
+                                  tanggalDurasi: ad['tanggalDurasi']?.toString() ?? '21 Juli - 23 Juli 2025 (3 hari)',
+                                  bannerImage: ad['bannerImage']?.toString() ?? '',
+                                  buktiPembayaranFile: ad['buktiPembayaranFile']?.toString() ?? '-',
+                                  buktiPembayaranSize: (ad['buktiPembayaranSize'] != null)
+                                      ? double.tryParse(ad['buktiPembayaranSize'].toString()) ?? 0
+                                      : 0,
+                                ),
+                              ),
+                            );
                           },
                         );
                       },
