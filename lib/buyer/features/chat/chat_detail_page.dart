@@ -3,6 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/widgets/chat_bubble.dart';
+import 'package:abc_e_mart/widgets/edit_chat_dialog.dart';
+import 'package:abc_e_mart/widgets/delete_chat_dialog.dart';
+import 'package:abc_e_mart/data/services/notification_service.dart';
+import 'package:abc_e_mart/widgets/unread_chat.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
@@ -20,22 +24,57 @@ class ChatDetailPage extends StatefulWidget {
   State<ChatDetailPage> createState() => _ChatDetailPageState();
 }
 
-class _ChatDetailPageState extends State<ChatDetailPage> {
+class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObserver {
   Map<String, dynamic>? shopData;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   bool _sending = false;
   String _inputText = "";
+  String? sellerUserId;
+
+  bool _scrolledToUnread = false;
 
   @override
   void initState() {
     super.initState();
     _fetchShopData();
     _controller.addListener(_onTextChanged);
-    _markAllMessagesAsRead(); // <--- Tambahkan ini
+    WidgetsBinding.instance.addObserver(this); // Tambahan: observer
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      markChatNotificationAsRead(user.uid, widget.chatId);
+    }
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Tambahan: remove observer
+    _controller.removeListener(_onTextChanged);
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // Tambahan: scroll otomatis saat keyboard muncul
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
+    if (bottomInset > 0.0) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+  }
+
+  // --- sisanya TIDAK ADA YANG BERUBAH ---
   void _onTextChanged() {
     setState(() {
       _inputText = _controller.text;
@@ -69,12 +108,131 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _controller.removeListener(_onTextChanged);
-    _controller.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  void _onLongPressMessage({
+    required BuildContext context,
+    required String messageId,
+    required String currentText,
+    required DateTime sentAt,
+  }) {
+    final canEdit = DateTime.now().difference(sentAt) < const Duration(minutes: 15);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (canEdit)
+                ListTile(
+                  leading: const Icon(Icons.edit, color: Color(0xFF2056D3)),
+                  title: const Text("Edit Pesan"),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final edited = await showEditChatDialog(
+                      context: context,
+                      currentText: currentText,
+                    );
+                    if (edited != null && edited != currentText && edited.isNotEmpty) {
+                      final msgRef = FirebaseFirestore.instance
+                          .collection('chats')
+                          .doc(widget.chatId)
+                          .collection('messages')
+                          .doc(messageId);
+
+                      await msgRef.update({
+                        'text': edited,
+                        'editedAt': FieldValue.serverTimestamp(),
+                      });
+
+                      final messagesSnap = await FirebaseFirestore.instance
+                          .collection('chats')
+                          .doc(widget.chatId)
+                          .collection('messages')
+                          .orderBy('sentAt', descending: true)
+                          .limit(1)
+                          .get();
+
+                      if (messagesSnap.docs.isNotEmpty &&
+                          messagesSnap.docs.first.id == messageId) {
+                        final lastMsgData = messagesSnap.docs.first.data();
+                        await FirebaseFirestore.instance
+                            .collection('chats')
+                            .doc(widget.chatId)
+                            .update({
+                          'lastMessage': edited,
+                          'lastTimestamp': lastMsgData['sentAt'],
+                        });
+                      }
+                    }
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text("Hapus Pesan"),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final confirm = await showDeleteChatDialog(
+                    context: context,
+                    messageText: currentText,
+                  );
+                  if (confirm == true) {
+                    final messagesSnap = await FirebaseFirestore.instance
+                        .collection('chats')
+                        .doc(widget.chatId)
+                        .collection('messages')
+                        .orderBy('sentAt', descending: true)
+                        .limit(2)
+                        .get();
+
+                    final isLast = messagesSnap.docs.isNotEmpty &&
+                        messagesSnap.docs.first.id == messageId;
+
+                    await FirebaseFirestore.instance
+                        .collection('chats')
+                        .doc(widget.chatId)
+                        .collection('messages')
+                        .doc(messageId)
+                        .delete();
+
+                    if (isLast) {
+                      if (messagesSnap.docs.length > 1) {
+                        final prevMsg = messagesSnap.docs[1].data();
+                        await FirebaseFirestore.instance
+                            .collection('chats')
+                            .doc(widget.chatId)
+                            .update({
+                          'lastMessage': prevMsg['text'] ?? '',
+                          'lastTimestamp': prevMsg['sentAt'],
+                        });
+                      } else {
+                        await FirebaseFirestore.instance
+                            .collection('chats')
+                            .doc(widget.chatId)
+                            .update({
+                          'lastMessage': '',
+                          'lastTimestamp': null,
+                        });
+                      }
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void jumpToFirstUnread(int index) {
+    if (_scrollController.hasClients) {
+      final itemHeight = 72.0;
+      _scrollController.jumpTo(itemHeight * index);
+    }
   }
 
   Future<void> _fetchShopData() async {
@@ -82,25 +240,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     if (doc.exists) {
       setState(() {
         shopData = doc.data();
+        sellerUserId = shopData?['ownerId'];
       });
     }
-  }
-
-  Future<void> _markAllMessagesAsRead() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    try {
-      final query = await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId)
-          .collection('messages')
-          .where('isRead', isEqualTo: false)
-          .where('senderId', isNotEqualTo: user.uid)
-          .get();
-      for (final doc in query.docs) {
-        await doc.reference.update({'isRead': true});
-      }
-    } catch (e) {}
   }
 
   Future<void> _sendMessage() async {
@@ -114,6 +256,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       return;
     }
     if (_sending) return;
+
+    if (sellerUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Gagal menemukan user toko. Coba ulangi nanti.")),
+      );
+      return;
+    }
 
     setState(() {
       _sending = true;
@@ -135,7 +284,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         'type': 'text',
       });
 
-      // --- Tambahkan update buyerName dan buyerAvatar ke doc chat utama
       final buyerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       String buyerName = buyerDoc.data()?['name'] ?? '';
       String buyerAvatar = buyerDoc.data()?['avatar'] ?? '';
@@ -146,6 +294,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         'buyerName': buyerName,
         'buyerAvatar': buyerAvatar,
       });
+
+      await sendOrUpdateChatNotification(
+        receiverId: sellerUserId!,
+        chatId: widget.chatId,
+        senderName: buyerName,
+        lastMessage: text,
+        senderRole: "buyer",
+      );
 
       _controller.clear();
 
@@ -166,6 +322,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       setState(() {
         _sending = false;
       });
+    }
+  }
+
+  Future<void> markChatNotificationAsRead(String userId, String chatId) async {
+    final notifDocs = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('notifications')
+      .where('chatId', isEqualTo: chatId)
+      .where('type', isEqualTo: 'chat_message')
+      .where('isRead', isEqualTo: false)
+      .get();
+    
+    for (final doc in notifDocs.docs) {
+      await doc.reference.update({'isRead': true});
     }
   }
 
@@ -196,7 +367,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Back Button < bulat biru
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
                   child: Container(
@@ -214,7 +384,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Avatar toko dengan dot status
                 Stack(
                   children: [
                     ClipRRect(
@@ -252,7 +421,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   ],
                 ),
                 const SizedBox(width: 12),
-                // Nama toko & status
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +453,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       ),
       body: Column(
         children: [
-          // --- List pesan bubble chat
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -295,50 +462,104 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   .orderBy('sentAt', descending: false)
                   .snapshots(),
               builder: (context, snapshot) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+                int? unreadIndex;
+
+                if (snapshot.hasData) {
+                  final messages = snapshot.data!.docs;
+                  final user = FirebaseAuth.instance.currentUser;
+
+                  // Cari pesan pertama yang unread dari toko (bukan user sendiri)
+                  for (int i = 0; i < messages.length; i++) {
+                    final msg = messages[i].data() as Map<String, dynamic>;
+                    if (msg['isRead'] == false && msg['senderId'] != user?.uid) {
+                      unreadIndex = i;
+                      break;
+                    }
                   }
-                });
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final messages = snapshot.data!.docs;
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      "Belum ada percakapan.\nMulai chat sekarang.",
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[600]),
-                    ),
+
+                  // Auto scroll ke unread (hanya sekali)
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!_scrolledToUnread) {
+                      if (unreadIndex != null) {
+                        jumpToFirstUnread(unreadIndex);
+                      } else if (_scrollController.hasClients) {
+                        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+                      }
+                      _scrolledToUnread = true;
+                    }
+                  });
+
+                  // Tandai pesan unread jadi read
+                  Future.microtask(() async {
+                    for (final doc in messages) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      if (data['isRead'] == false && data['senderId'] != user?.uid) {
+                        await doc.reference.update({'isRead': true});
+                      }
+                    }
+                  });
+
+                  if (messages.isEmpty) {
+                    return Center(
+                      child: Text(
+                        "Belum ada percakapan.\nMulai chat sekarang.",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[600]),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(top: 10, bottom: 10),
+                    itemCount: messages.length,
+                    itemBuilder: (context, i) {
+                      final msg = messages[i].data() as Map<String, dynamic>;
+                      final isMe = msg['senderId'] == user?.uid;
+                      final time = msg['sentAt'] is Timestamp ? _formatTime(msg['sentAt']) : '';
+                      final isRead = msg['isRead'] == true;
+                      final isEdited = msg.containsKey('editedAt') && msg['editedAt'] != null;
+
+                      final showUnreadDivider = (unreadIndex != null && i == unreadIndex);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showUnreadDivider) const UnreadChatDivider(),
+                          ChatBubble(
+                            text: msg['text'] ?? '',
+                            time: time,
+                            isMe: isMe,
+                            isRead: isMe ? isRead : false,
+                            isEdited: isEdited,
+                            onLongPress: isMe
+                                ? () => _onLongPressMessage(
+                                      context: context,
+                                      messageId: snapshot.data!.docs[i].id,
+                                      currentText: msg['text'] ?? '',
+                                      sentAt: (msg['sentAt'] as Timestamp).toDate(),
+                                    )
+                                : null,
+                          ),
+                        ],
+                      );
+                    },
                   );
                 }
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(top: 10, bottom: 10),
-                  itemCount: messages.length,
-                  itemBuilder: (context, i) {
-                    final msg = messages[i].data() as Map<String, dynamic>;
-                    final isMe = msg['senderId'] == userId;
-                    final time = msg['sentAt'] is Timestamp ? _formatTime(msg['sentAt']) : '';
-                    final isRead = msg['isRead'] == true;
-                    return ChatBubble(
-                      text: msg['text'] ?? '',
-                      time: time,
-                      isMe: isMe,
-                      isRead: isMe ? isRead : false,
-                    );
-                  },
-                );
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return Center(child: Text("Terjadi kesalahan"));
               },
             ),
           ),
-          // --- Input pesan bawah
           SafeArea(
             top: false,
+            bottom: true,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // vertical kecil
               child: Row(
                 children: [
                   Expanded(
@@ -350,7 +571,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       decoration: InputDecoration(
                         hintText: "Ketik Pesanmu...",
                         hintStyle: GoogleFonts.dmSans(color: Colors.grey[400], fontSize: 15),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14), // kecil
                         filled: true,
                         fillColor: const Color(0xFFF5F6FA),
                         border: OutlineInputBorder(
