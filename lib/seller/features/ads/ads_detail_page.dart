@@ -309,7 +309,7 @@ class AdsDetailPage extends StatelessWidget {
               Text(
                 "Bukti Pembayaran",
                 style: GoogleFonts.dmSans(
-                  fontSize: 22,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF373E3C),
                 ),
