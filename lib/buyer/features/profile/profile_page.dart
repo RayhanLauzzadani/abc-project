@@ -31,6 +31,16 @@ class _ProfilePageState extends State<ProfilePage> {
   UserModel? _userModel;
   bool _isLoading = true;
 
+  Future<void> setUserOfflineWithLastLogin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'isOnline': false,
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
   // Untuk flag akses penolakan (hanya sekali)
   static const String shopRejectedFlag = 'has_seen_shop_rejected';
 
@@ -232,8 +242,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const RegistrationWelcomePage(),
+                                  builder: (_) => const RegistrationWelcomePage(),
                                 ),
                               );
                               return;
@@ -241,11 +250,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
                             final shopData = query.docs.first.data();
                             final status = shopData['status'] ?? '';
-                            final rejectionReason =
-                                shopData['rejectionReason'] ?? '-';
+                            final rejectionReason = shopData['rejectionReason'] ?? '-';
 
                             // --- CEK STATUS DAN FLAG LOCAL
                             if (status == 'approved') {
+                              // << Tambahan update user status offline
+                              await setUserOfflineWithLastLogin();
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -256,21 +266,18 @@ class _ProfilePageState extends State<ProfilePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const ShopVerificationStatusPage(),
+                                  builder: (_) => const ShopVerificationStatusPage(),
                                 ),
                               );
                             } else if (status == 'rejected') {
-                              final seenRejected =
-                                  await getShopRejectedFlag();
+                              final seenRejected = await getShopRejectedFlag();
                               if (!seenRejected) {
                                 // Muncul hanya sekali
                                 await setShopRejectedFlag();
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        ShopRejectedPage(reason: rejectionReason),
+                                    builder: (_) => ShopRejectedPage(reason: rejectionReason),
                                   ),
                                 );
                               } else {
@@ -278,8 +285,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        const RegistrationWelcomePage(),
+                                    builder: (_) => const RegistrationWelcomePage(),
                                   ),
                                 );
                               }
@@ -287,8 +293,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const RegistrationWelcomePage(),
+                                  builder: (_) => const RegistrationWelcomePage(),
                                 ),
                               );
                             }
@@ -344,6 +349,15 @@ class _ProfilePageState extends State<ProfilePage> {
                           );
                           if (result == true) {
                             try {
+                              // Update isActive dan lastLogin di Firestore sebelum signOut
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null) {
+                                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                                  'isOnline': false,
+                                  'lastLogin': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
+                              }
+
                               await FirebaseAuth.instance.signOut();
                               await resetShopRejectedFlag(); // Reset flag
                               if (context.mounted) {
