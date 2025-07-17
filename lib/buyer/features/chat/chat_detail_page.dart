@@ -24,7 +24,7 @@ class ChatDetailPage extends StatefulWidget {
   State<ChatDetailPage> createState() => _ChatDetailPageState();
 }
 
-class _ChatDetailPageState extends State<ChatDetailPage> {
+class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObserver {
   Map<String, dynamic>? shopData;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -40,6 +40,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     super.initState();
     _fetchShopData();
     _controller.addListener(_onTextChanged);
+    WidgetsBinding.instance.addObserver(this); // Tambahan: observer
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -47,6 +48,33 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     }
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Tambahan: remove observer
+    _controller.removeListener(_onTextChanged);
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // Tambahan: scroll otomatis saat keyboard muncul
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
+    if (bottomInset > 0.0) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+  }
+
+  // --- sisanya TIDAK ADA YANG BERUBAH ---
   void _onTextChanged() {
     setState(() {
       _inputText = _controller.text;
@@ -120,7 +148,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         'editedAt': FieldValue.serverTimestamp(),
                       });
 
-                      // Update lastMessage di parent jika ini pesan terakhir
                       final messagesSnap = await FirebaseFirestore.instance
                           .collection('chats')
                           .doc(widget.chatId)
@@ -203,18 +230,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   void jumpToFirstUnread(int index) {
     if (_scrollController.hasClients) {
-      // Estimasi tinggi 1 bubble (perlu penyesuaian jika styling berubah!)
       final itemHeight = 72.0;
       _scrollController.jumpTo(itemHeight * index);
     }
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_onTextChanged);
-    _controller.dispose();
-    _scrollController.dispose();
-    super.dispose();
   }
 
   Future<void> _fetchShopData() async {
@@ -459,7 +477,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     }
                   }
 
-                  // Auto scroll ke unread (hanya sekali, biar UX kayak WhatsApp)
+                  // Auto scroll ke unread (hanya sekali)
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!_scrolledToUnread) {
                       if (unreadIndex != null) {
@@ -538,9 +556,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           ),
           SafeArea(
             top: false,
+            bottom: true,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // vertical kecil
               child: Row(
                 children: [
                   Expanded(
@@ -552,7 +571,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       decoration: InputDecoration(
                         hintText: "Ketik Pesanmu...",
                         hintStyle: GoogleFonts.dmSans(color: Colors.grey[400], fontSize: 15),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14), // kecil
                         filled: true,
                         fillColor: const Color(0xFFF5F6FA),
                         border: OutlineInputBorder(
