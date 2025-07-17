@@ -1,30 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:abc_e_mart/data/models/category_type.dart';  // Import file category_type.dart
+import 'package:flutter_svg/flutter_svg.dart';  // Import untuk SVG icons
 
 class CategorySection extends StatelessWidget {
   const CategorySection({super.key});
 
-  final List<Map<String, dynamic>> categories = const [
-    {
-      "label": "Makanan",
-      "icon": "assets/icons/makanan.png",
-      "color": Color(0xFFFF455B),
-    },
-    {
-      "label": "Minuman",
-      "icon": "assets/icons/minuman.png",
-      "color": Color(0xFF24BCD7),
-    },
-    {
-      "label": "Snacks",
-      "icon": "assets/icons/snacks.png",
-      "color": Color(0xFFFFC928),
-    },
-    {
-      "label": "Lainnya",
-      "icon": "assets/icons/lainnya.png",
-      "color": Color(0xFF656565),
-    },
+  // List kategori sesuai dengan urutan yang ada di CategoryType
+  final List<CategoryType> categories = const [
+    CategoryType.merchandise,
+    CategoryType.alatTulis,
+    CategoryType.alatLab,
+    CategoryType.produkDaurUlang,
+    CategoryType.produkKesehatan,
+    CategoryType.makanan,
+    CategoryType.minuman,
+    CategoryType.snacks,
+    CategoryType.lainnya,
   ];
 
   @override
@@ -68,21 +60,26 @@ class CategorySection extends StatelessWidget {
           child: Row(
             children: List.generate(categories.length, (i) {
               final cat = categories[i];
+              final color = getCategoryColor(cat);
+              final bgColor = getCategoryBgColor(cat);
+              final label = categoryLabels[cat] ?? "Lainnya";
+              final iconPath = 'assets/icons/${cat.name.toLowerCase()}.svg'; // SVG icon path
+
               return Container(
                 margin: EdgeInsets.only(
                   left: i == 0 ? 20 : 0, // margin kiri untuk item pertama
                   right: 12,
                 ),
                 child: CategoryCard(
-                  label: cat['label'],
-                  icon: cat['icon'],
-                  color: cat['color'],
+                  label: label,
+                  icon: iconPath,  // Using SVG path here
+                  color: color,
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) =>
-                            CategoryDetailPage(categoryLabel: cat['label']),
+                            CategoryDetailPage(categoryLabel: label),
                       ),
                     );
                   },
@@ -98,7 +95,7 @@ class CategorySection extends StatelessWidget {
 
 class CategoryCard extends StatelessWidget {
   final String label;
-  final String icon;
+  final String icon;  // This will now hold SVG path
   final Color color;
   final VoidCallback? onTap;
 
@@ -137,12 +134,12 @@ class CategoryCard extends StatelessWidget {
                 ),
               ),
             ),
-            // Icon
+            // Icon (Now using SVG)
             Positioned(
               right: 13,
               bottom: 12,
-              child: Image.asset(
-                icon,
+              child: SvgPicture.asset(
+                icon,  // Load SVG here
                 width: 30,
                 height: 30,
                 fit: BoxFit.contain,

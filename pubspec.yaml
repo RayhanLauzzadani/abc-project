@@ -62,6 +62,7 @@ dependencies:
   dropdown_button2: ^2.3.9
   url_launcher: ^6.1.14
   qr_flutter: ^4.1.0
+  cloud_functions: ^5.6.1
   
 
 dev_dependencies:
