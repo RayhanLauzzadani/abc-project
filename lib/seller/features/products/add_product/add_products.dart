@@ -239,8 +239,8 @@ class _AddProductPageState extends State<AddProductPage> {
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
-                          width: 40,
-                          height: 40,
+                          width: 36,
+                          height: 36,
                           decoration: const BoxDecoration(
                             color: Color(0xFF2056D3),
                             shape: BoxShape.circle,

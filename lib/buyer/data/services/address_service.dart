@@ -102,4 +102,15 @@ class AddressService {
       return null;
     }
   }
+
+  // ==== Tambahan: Fungsi hapus alamat ====
+  Future<void> deleteAddress(String userId, String addressId) async {
+    final ref = _firestore.collection('users').doc(userId).collection('addresses');
+    try {
+      await ref.doc(addressId).delete();
+      print("Alamat berhasil dihapus.");
+    } catch (e) {
+      print("Gagal menghapus alamat: $e");
+    }
+  }
 }

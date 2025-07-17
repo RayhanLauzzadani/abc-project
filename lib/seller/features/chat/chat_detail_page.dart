@@ -4,24 +4,24 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/widgets/chat_bubble.dart';
 
-class ChatDetailPage extends StatefulWidget {
+class SellerChatDetailPage extends StatefulWidget {
   final String chatId;
-  final String shopId;
-  final String shopName;
+  final String buyerId;
+  final String buyerName;
 
-  const ChatDetailPage({
+  const SellerChatDetailPage({
     super.key,
     required this.chatId,
-    required this.shopId,
-    required this.shopName,
+    required this.buyerId,
+    required this.buyerName,
   });
 
   @override
-  State<ChatDetailPage> createState() => _ChatDetailPageState();
+  State<SellerChatDetailPage> createState() => _SellerChatDetailPageState();
 }
 
-class _ChatDetailPageState extends State<ChatDetailPage> {
-  Map<String, dynamic>? shopData;
+class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
+  Map<String, dynamic>? buyerData;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -31,42 +31,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   void initState() {
     super.initState();
-    _fetchShopData();
+    _fetchBuyerData();
     _controller.addListener(_onTextChanged);
-    _markAllMessagesAsRead(); // <--- Tambahkan ini
+    _markAllMessagesAsRead(); // Tambahkan di sini!
   }
 
   void _onTextChanged() {
     setState(() {
       _inputText = _controller.text;
     });
-  }
-
-  String _getStatus() {
-    if (shopData == null) return '';
-    final isOnline = shopData?['isOnline'] ?? false;
-    if (isOnline) {
-      return 'Online';
-    } else {
-      final lastLogin = shopData?['lastLogin'];
-      if (lastLogin is Timestamp) {
-        final now = DateTime.now();
-        final diff = now.difference(lastLogin.toDate());
-
-        if (diff.inMinutes < 1) {
-          return 'Terakhir dilihat baru saja';
-        } else if (diff.inMinutes < 60) {
-          return 'Terakhir dilihat ${diff.inMinutes} menit yang lalu';
-        } else if (diff.inHours < 24) {
-          return 'Terakhir dilihat ${diff.inHours} jam yang lalu';
-        } else {
-          final days = diff.inDays > 7 ? 7 : diff.inDays;
-          return 'Terakhir dilihat $days hari yang lalu';
-        }
-      } else {
-        return 'Offline';
-      }
-    }
   }
 
   @override
@@ -77,11 +50,11 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     super.dispose();
   }
 
-  Future<void> _fetchShopData() async {
-    final doc = await FirebaseFirestore.instance.collection('stores').doc(widget.shopId).get();
+  Future<void> _fetchBuyerData() async {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(widget.buyerId).get();
     if (doc.exists) {
       setState(() {
-        shopData = doc.data();
+        buyerData = doc.data();
       });
     }
   }
@@ -103,6 +76,34 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     } catch (e) {}
   }
 
+
+  String _getBuyerStatus() {
+    if (buyerData == null) return '';
+    final isOnline = buyerData?['isOnline'] ?? false;
+    if (isOnline) {
+      return 'Online';
+    } else {
+      final lastLogin = buyerData?['lastLogin'];
+      if (lastLogin is Timestamp) {
+        final now = DateTime.now();
+        final diff = now.difference(lastLogin.toDate());
+
+        if (diff.inMinutes < 1) {
+          return 'Terakhir dilihat baru saja';
+        } else if (diff.inMinutes < 60) {
+          return 'Terakhir dilihat ${diff.inMinutes} menit yang lalu';
+        } else if (diff.inHours < 24) {
+          return 'Terakhir dilihat ${diff.inHours} jam yang lalu';
+        } else {
+          final days = diff.inDays > 7 ? 7 : diff.inDays;
+          return 'Terakhir dilihat $days hari yang lalu';
+        }
+      } else {
+        return 'Offline';
+      }
+    }
+  }
+
   Future<void> _sendMessage() async {
     final user = FirebaseAuth.instance.currentUser;
     final text = _controller.text.trim();
@@ -121,6 +122,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
     try {
       final now = DateTime.now();
+
       final msgRef = FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatId)
@@ -135,16 +137,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         'type': 'text',
       });
 
-      // --- Tambahkan update buyerName dan buyerAvatar ke doc chat utama
-      final buyerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      String buyerName = buyerDoc.data()?['name'] ?? '';
-      String buyerAvatar = buyerDoc.data()?['avatar'] ?? '';
-
       await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).update({
         'lastMessage': text,
         'lastTimestamp': Timestamp.fromDate(now),
-        'buyerName': buyerName,
-        'buyerAvatar': buyerAvatar,
       });
 
       _controller.clear();
@@ -176,8 +171,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final shopAvatar = shopData?['logoUrl'] ?? '';
-    final shopName = shopData?['name'] ?? widget.shopName;
+    final buyerAvatar = buyerData?['avatar'] ?? '';
+    final buyerName = buyerData?['name'] ?? widget.buyerName;
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
@@ -196,7 +191,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Back Button < bulat biru
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
                   child: Container(
@@ -214,14 +208,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Avatar toko dengan dot status
+                // Avatar buyer dengan dot status online/offline
                 Stack(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: shopAvatar != ''
+                      child: buyerAvatar != ''
                           ? Image.network(
-                              shopAvatar,
+                              buyerAvatar,
                               width: 42,
                               height: 42,
                               fit: BoxFit.cover,
@@ -230,10 +224,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                               width: 42,
                               height: 42,
                               color: Colors.grey[300],
-                              child: const Icon(Icons.store, color: Color(0xFF1C55C0), size: 26),
+                              child: const Icon(Icons.person, color: Color(0xFF1C55C0), size: 26),
                             ),
                     ),
-                    if (shopData != null)
+                    if (buyerData != null)
                       Positioned(
                         bottom: 2,
                         right: 2,
@@ -241,7 +235,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           width: 9,
                           height: 9,
                           decoration: BoxDecoration(
-                            color: (shopData?['isOnline'] == true)
+                            color: (buyerData?['isOnline'] == true)
                                 ? const Color(0xFF00C168)
                                 : Colors.grey[400],
                             shape: BoxShape.circle,
@@ -252,14 +246,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   ],
                 ),
                 const SizedBox(width: 12),
-                // Nama toko & status
+                // Nama pembeli dan status
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        shopName,
+                        buyerName,
                         style: GoogleFonts.dmSans(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -268,11 +262,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        _getStatus(),
+                        _getBuyerStatus(),
                         style: GoogleFonts.dmSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: shopData?['isOnline'] == true ? Color(0xFF00C168) : Colors.grey[600],
+                          color: (buyerData?['isOnline'] == true)
+                              ? const Color(0xFF00C168)
+                              : Colors.grey[600],
                         ),
                       ),
                     ],

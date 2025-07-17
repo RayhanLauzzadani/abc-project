@@ -4,17 +4,17 @@ import 'package:abc_e_mart/buyer/widgets/search_bar.dart' as custom_widgets;
 import 'package:abc_e_mart/widgets/chat_list_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:lucide_icons/lucide_icons.dart'; // pakai icon lucide
+import 'package:lucide_icons/lucide_icons.dart';
 import 'chat_detail_page.dart';
 
-class ChatListPage extends StatefulWidget {
-  const ChatListPage({super.key});
+class SellerChatListPage extends StatefulWidget {
+  const SellerChatListPage({super.key});
 
   @override
-  State<ChatListPage> createState() => _ChatListPageState();
+  State<SellerChatListPage> createState() => _SellerChatListPageState();
 }
 
-class _ChatListPageState extends State<ChatListPage> {
+class _SellerChatListPageState extends State<SellerChatListPage> {
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = "";
   String? _myStoreId;
@@ -58,15 +58,33 @@ class _ChatListPageState extends State<ChatListPage> {
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 18),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2056D3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
                   Text(
-                    'Obrolan',
+                    "Obrolan",
                     style: GoogleFonts.dmSans(
-                      fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C),
+                      fontSize: 22,
+                      color: const Color(0xFF232323),
                     ),
                   ),
                 ],
@@ -78,7 +96,7 @@ class _ChatListPageState extends State<ChatListPage> {
               child: custom_widgets.SearchBar(
                 controller: _searchController,
                 onChanged: (val) => setState(() => searchQuery = val),
-                hintText: "Cari pesan....",
+                hintText: "Cari pembeli....",
               ),
             ),
             const SizedBox(height: 8),
@@ -88,11 +106,13 @@ class _ChatListPageState extends State<ChatListPage> {
               child: _isLoadingStoreId || currentUser == null
                   ? const Center(child: CircularProgressIndicator())
                   : StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                        .collection('chats')
-                        .where('buyerId', isEqualTo: currentUser.uid)
-                        .orderBy('lastTimestamp', descending: true)
-                        .snapshots(),
+                      stream: (_myStoreId == null)
+                          ? null
+                          : FirebaseFirestore.instance
+                              .collection('chats')
+                              .where('shopId', isEqualTo: _myStoreId)
+                              .orderBy('lastTimestamp', descending: true)
+                              .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());
@@ -100,18 +120,15 @@ class _ChatListPageState extends State<ChatListPage> {
                         if (!snapshot.hasData) {
                           return _emptyChat();
                         }
-                        // --- FILTER ---
+                        // --- FILTER untuk seller ---
                         final docs = snapshot.data!.docs.where((doc) {
                           final data = doc.data() as Map<String, dynamic>;
-                          // --- filter chat untuk buyer (pov buyer) ---
-                          final storeName = (data['shopName'] ?? '').toString().toLowerCase();
-                          final storeId = data['shopId'] ?? data['storeId'] ?? '';
-                          // --- hide chat ke toko sendiri (jika user juga seller) ---
-                          if (_myStoreId != null && storeId == _myStoreId) return false;
-                          // --- search: fallback ke id jika shopName kosong ---
+                          final buyerName = (data['buyerName'] ?? '').toString().toLowerCase();
+                          final buyerId = data['buyerId'] ?? '';
+                          // Kalau search, cari by name atau buyer id
                           if (searchQuery.isEmpty) return true;
-                          return storeName.contains(searchQuery.toLowerCase()) ||
-                                storeId.toString().toLowerCase().contains(searchQuery.toLowerCase());
+                          return buyerName.contains(searchQuery.toLowerCase()) ||
+                              buyerId.toString().toLowerCase().contains(searchQuery.toLowerCase());
                         }).toList();
 
                         if (docs.isEmpty) {
@@ -123,23 +140,23 @@ class _ChatListPageState extends State<ChatListPage> {
                           itemBuilder: (context, idx) {
                             final chatData = docs[idx].data() as Map<String, dynamic>;
                             final chatId = docs[idx].id;
-                            final storeName = chatData['shopName'] ?? '';
-                            final storeId = chatData['shopId'] ?? chatData['storeId'] ?? '';
+                            final buyerName = chatData['buyerName'] ?? '';
+                            final buyerId = chatData['buyerId'] ?? '';
                             final lastMessage = chatData['lastMessage'] ?? '';
                             final lastTimestamp = chatData['lastTimestamp'];
-                            final avatarUrl = chatData['shopAvatar'] ?? chatData['logoUrl'] ?? '';
+                            final avatarUrl = chatData['buyerAvatar'] ?? '';
                             final time = (lastTimestamp is Timestamp)
                                 ? _formatTime(lastTimestamp.toDate())
                                 : '';
 
                             return StreamBuilder<QuerySnapshot>(
                               stream: FirebaseFirestore.instance
-                                  .collection('chats')
-                                  .doc(chatId)
-                                  .collection('messages')
-                                  .where('isRead', isEqualTo: false)
-                                  .where('senderId', isNotEqualTo: currentUser.uid) // unread dr toko
-                                  .snapshots(),
+                                .collection('chats')
+                                .doc(chatId)
+                                .collection('messages')
+                                .where('isRead', isEqualTo: false)
+                                .where('senderId', isNotEqualTo: _myStoreId) // unread dari pembeli
+                                .snapshots(),
                               builder: (context, snapshot) {
                                 int unreadCount = 0;
                                 if (snapshot.hasData) {
@@ -147,22 +164,22 @@ class _ChatListPageState extends State<ChatListPage> {
                                 }
                                 return ChatListCard(
                                   avatarUrl: avatarUrl,
-                                  name: storeName.isNotEmpty ? storeName : 'Toko tanpa nama',
+                                  name: buyerName.isNotEmpty ? buyerName : 'Pembeli tanpa nama',
                                   lastMessage: lastMessage,
                                   time: time,
                                   unreadCount: unreadCount,
                                   onTap: () async {
-                                    // Saat buka chat, set semua isRead jadi true (jika pesan dari toko)
+                                    // Saat buka chat, set semua isRead jadi true (jika pesan dari buyer)
                                     final unreadDocs = snapshot.data?.docs ?? [];
                                     for (var doc in unreadDocs) {
                                       await doc.reference.update({'isRead': true});
                                     }
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
-                                        builder: (_) => ChatDetailPage(
+                                        builder: (_) => SellerChatDetailPage(
                                           chatId: chatId,
-                                          shopId: storeId,
-                                          shopName: storeName,
+                                          buyerId: buyerId,
+                                          buyerName: buyerName,
                                         ),
                                       ),
                                     );
@@ -198,7 +215,7 @@ class _ChatListPageState extends State<ChatListPage> {
           ),
           const SizedBox(height: 7),
           Text(
-            "Cari toko dan mulai chat untuk pengalaman belanja yang lebih mudah.",
+            "Belum ada pesan dari pembeli ke toko anda.",
             style: GoogleFonts.dmSans(
               fontSize: 14,
               color: Colors.grey[500],
