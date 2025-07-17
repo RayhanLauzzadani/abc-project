@@ -61,6 +61,7 @@ dependencies:
   shared_preferences: ^2.2.2
   dropdown_button2: ^2.3.9
   url_launcher: ^6.1.14
+  qr_flutter: ^4.1.0
   
 
 dev_dependencies:
