@@ -154,9 +154,9 @@ class _ChatListPageState extends State<ChatListPage> {
                                   onTap: () async {
                                     // Saat buka chat, set semua isRead jadi true (jika pesan dari toko)
                                     final unreadDocs = snapshot.data?.docs ?? [];
-                                    for (var doc in unreadDocs) {
-                                      await doc.reference.update({'isRead': true});
-                                    }
+                                    await Future.wait(
+                                      unreadDocs.map((doc) => doc.reference.update({'isRead': true}))
+                                    );
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => ChatDetailPage(

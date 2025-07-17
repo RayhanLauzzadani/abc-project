@@ -155,7 +155,7 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
                                 .doc(chatId)
                                 .collection('messages')
                                 .where('isRead', isEqualTo: false)
-                                .where('senderId', isNotEqualTo: _myStoreId) // unread dari pembeli
+                                .where('senderId', isNotEqualTo: FirebaseAuth.instance.currentUser!.uid)
                                 .snapshots(),
                               builder: (context, snapshot) {
                                 int unreadCount = 0;
@@ -169,11 +169,18 @@ class _SellerChatListPageState extends State<SellerChatListPage> {
                                   time: time,
                                   unreadCount: unreadCount,
                                   onTap: () async {
-                                    // Saat buka chat, set semua isRead jadi true (jika pesan dari buyer)
+                                    // Ambil semua dokumen pesan yang unread
                                     final unreadDocs = snapshot.data?.docs ?? [];
-                                    for (var doc in unreadDocs) {
+                                    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+
+                                    // Jalankan update secara paralel (lebih cepat!)
+                                    await Future.wait(unreadDocs.map((doc) async {
+                                      final data = doc.data() as Map<String, dynamic>?;
+                                      if (data == null) return;
+                                      if (data['senderId'] == currentUid) return; // skip update jika pesan dari diri sendiri
                                       await doc.reference.update({'isRead': true});
-                                    }
+                                    }));
+
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => SellerChatDetailPage(
