@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/address.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';  // Pastikan ini ada
+import '../models/address.dart';  // Pastikan ini ada
 
 class AddressService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -82,9 +82,35 @@ class AddressService {
         });
   }
 
+  // Menambahkan fungsi baru untuk mengambil alamat utama sekali saja (tidak stream)
+  Future<AddressModel?> getPrimaryAddressOnce(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('addresses')
+          .where('isPrimary', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      final doc = snapshot.docs.first;
+      return AddressModel.fromMap(doc.id, doc.data());
+    } catch (e) {
+      print('Error fetching primary address: $e');
+      return null;
+    }
+  }
+
   // ==== Tambahan: Fungsi hapus alamat ====
   Future<void> deleteAddress(String userId, String addressId) async {
     final ref = _firestore.collection('users').doc(userId).collection('addresses');
-    await ref.doc(addressId).delete();
+    try {
+      await ref.doc(addressId).delete();
+      print("Alamat berhasil dihapus.");
+    } catch (e) {
+      print("Gagal menghapus alamat: $e");
+    }
   }
 }
