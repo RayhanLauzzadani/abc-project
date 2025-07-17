@@ -24,7 +24,7 @@ class SellerChatDetailPage extends StatefulWidget {
   State<SellerChatDetailPage> createState() => _SellerChatDetailPageState();
 }
 
-class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
+class _SellerChatDetailPageState extends State<SellerChatDetailPage> with WidgetsBindingObserver {
   Map<String, dynamic>? buyerData;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -39,6 +39,7 @@ class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
     super.initState();
     _fetchBuyerData();
     _controller.addListener(_onTextChanged);
+    WidgetsBinding.instance.addObserver(this); // <-- TAMBAHKAN INI
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -181,12 +182,30 @@ class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
     }
   }
 
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
+    if (bottomInset > 0.0) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
   }
 
   Future<void> _fetchBuyerData() async {
@@ -441,7 +460,7 @@ class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
                   final messages = snapshot.data!.docs;
                   final user = FirebaseAuth.instance.currentUser;
 
-                  // Cari pesan pertama yang unread dari buyer (bukan user/seller sendiri)
+                  // Cari pesan pertama yang unread dari buyer (bukan seller sendiri)
                   for (int i = 0; i < messages.length; i++) {
                     final msg = messages[i].data() as Map<String, dynamic>;
                     if (msg['isRead'] == false && msg['senderId'] != user?.uid) {
@@ -528,9 +547,10 @@ class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
           ),
           SafeArea(
             top: false,
+            bottom: true,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // vertical kecil
               child: Row(
                 children: [
                   Expanded(
@@ -542,7 +562,7 @@ class _SellerChatDetailPageState extends State<SellerChatDetailPage> {
                       decoration: InputDecoration(
                         hintText: "Ketik Pesanmu...",
                         hintStyle: GoogleFonts.dmSans(color: Colors.grey[400], fontSize: 15),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
                         filled: true,
                         fillColor: const Color(0xFFF5F6FA),
                         border: OutlineInputBorder(
