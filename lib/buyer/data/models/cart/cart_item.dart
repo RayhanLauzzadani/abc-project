@@ -7,7 +7,9 @@ class CartItem {
   final int price;
   final int quantity;
   final String? variant;
-  final DateTime? addedAt; // ini boleh, kalau ingin tracking waktu produk dimasukkan
+  final DateTime? addedAt;
+  final String? storeId; // field toko
+  final String? ownerId; // field owner toko
 
   CartItem({
     required this.id,
@@ -17,6 +19,8 @@ class CartItem {
     required this.quantity,
     this.variant,
     this.addedAt,
+    this.storeId, // new
+    this.ownerId, // new
   });
 
   factory CartItem.fromMap(Map<String, dynamic> data) => CartItem(
@@ -29,6 +33,8 @@ class CartItem {
         addedAt: data['addedAt'] != null
             ? (data['addedAt'] as Timestamp).toDate()
             : null,
+        storeId: data['storeId'],   // ambil dari map (bisa null)
+        ownerId: data['ownerId'],   // ambil dari map (bisa null)
       );
 
   Map<String, dynamic> toMap() => {
@@ -38,7 +44,9 @@ class CartItem {
         'price': price,
         'quantity': quantity,
         'variant': variant,
-        'addedAt': addedAt,
+        'addedAt': addedAt != null ? Timestamp.fromDate(addedAt!) : null,
+        'storeId': storeId,
+        'ownerId': ownerId,
       };
 
   CartItem copyWith({
@@ -49,6 +57,8 @@ class CartItem {
     int? quantity,
     String? variant,
     DateTime? addedAt,
+    String? storeId,
+    String? ownerId,
   }) {
     return CartItem(
       id: id ?? this.id,
@@ -58,6 +68,8 @@ class CartItem {
       quantity: quantity ?? this.quantity,
       variant: variant ?? this.variant,
       addedAt: addedAt ?? this.addedAt,
+      storeId: storeId ?? this.storeId,
+      ownerId: ownerId ?? this.ownerId,
     );
   }
 }

@@ -174,6 +174,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         item: cartItem,
         storeId: storeId,
         storeName: storeName,
+        ownerId: widget.product['ownerId'] ?? '',
       );
 
       if (!mounted) return;
