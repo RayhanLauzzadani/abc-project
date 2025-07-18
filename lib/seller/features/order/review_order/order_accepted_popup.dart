@@ -2,17 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 
-class OrderAcceptedPopup extends StatelessWidget {
+class OrderAcceptedPopup extends StatefulWidget {
   final String message;
   final String lottiePath;
   final double lottieSize;
+  final Duration autoCloseDuration;
 
   const OrderAcceptedPopup({
     super.key,
     this.message = "Pesanan Diterima!",
     this.lottiePath = "assets/lottie/order_success.json",
-    this.lottieSize = 110,
+    this.lottieSize = 160, // Ukuran lebih besar
+    this.autoCloseDuration = const Duration(seconds: 3),
   });
+
+  @override
+  State<OrderAcceptedPopup> createState() => _OrderAcceptedPopupState();
+}
+
+class _OrderAcceptedPopupState extends State<OrderAcceptedPopup> {
+  @override
+  void initState() {
+    super.initState();
+    // Tutup otomatis setelah 3 detik
+    Future.delayed(widget.autoCloseDuration, () {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,15 +54,15 @@ class OrderAcceptedPopup extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Lottie.asset(
-              lottiePath,
-              width: lottieSize,
-              height: lottieSize,
+              widget.lottiePath,
+              width: widget.lottieSize,
+              height: widget.lottieSize,
               repeat: false,
               fit: BoxFit.contain,
             ),
             const SizedBox(height: 20),
             Text(
-              message,
+              widget.message,
               textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
                 fontWeight: FontWeight.bold,
