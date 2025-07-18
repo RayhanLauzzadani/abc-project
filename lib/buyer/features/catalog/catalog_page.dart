@@ -77,13 +77,13 @@ class _CatalogPageState extends State<CatalogPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // Category Selector (untuk kategori yang dipilih)
+          // Category Selector
           CategorySelector(
             categories: categoryList,
             selectedIndex: widget.selectedCategory,
             onSelected: (i) {
               setState(() {
-                widget.selectedCategory = i; // Update selectedCategory
+                widget.selectedCategory = i;
               });
             },
           ),
@@ -112,8 +112,7 @@ class _CatalogPageState extends State<CatalogPage> {
 
                 // Filter kategori berdasarkan kategori yang dipilih
                 if (widget.selectedCategory > 0) {
-                  final selectedCat = categoryList[widget.selectedCategory - 1];
-                  final catStr = categoryLabels[selectedCat]!;
+                  final catStr = categoryLabels[categoryList[widget.selectedCategory - 1]]!;
                   docs = docs.where((doc) {
                     final c = doc['category'] ?? '';
                     return c.toString().toLowerCase().contains(catStr.toLowerCase());

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
 
-class CategorySelector extends StatelessWidget {
+class CategorySelector extends StatefulWidget {
   final List<CategoryType> categories;
   final int selectedIndex;
   final void Function(int) onSelected;
@@ -21,23 +21,84 @@ class CategorySelector extends StatelessWidget {
   });
 
   @override
+  State<CategorySelector> createState() => _CategorySelectorState();
+}
+
+class _CategorySelectorState extends State<CategorySelector> {
+  final ScrollController _scrollController = ScrollController();
+  late List<GlobalKey> _itemKeys;
+
+  @override
+  void initState() {
+    super.initState();
+    _initKeys();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+  }
+
+  @override
+  void didUpdateWidget(covariant CategorySelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.categories.length != widget.categories.length) {
+      _initKeys();
+    }
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+    }
+  }
+
+  void _initKeys() {
+    _itemKeys = List.generate(widget.categories.length + 1, (_) => GlobalKey());
+  }
+
+  void _scrollToSelected() {
+    if (_scrollController.hasClients &&
+        widget.selectedIndex < _itemKeys.length) {
+      final context = _itemKeys[widget.selectedIndex].currentContext;
+      if (context != null) {
+        final RenderBox renderBox = context.findRenderObject() as RenderBox;
+        final size = renderBox.size;
+        final position = renderBox.localToGlobal(Offset.zero, ancestor: null);
+
+        final screenWidth = MediaQuery.of(context).size.width;
+        final scrollOffset = _scrollController.offset;
+        final itemCenter = position.dx + size.width / 2 + scrollOffset;
+        final targetScroll = itemCenter - screenWidth / 2;
+
+        _scrollController.animateTo(
+          targetScroll.clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.ease,
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: height + 10, // extra biar ga kepotong shadow
+      height: widget.height + 10, // extra biar ga kepotong shadow
       child: ListView.builder(
+        controller: _scrollController,
         scrollDirection: Axis.horizontal,
-        padding: padding ?? const EdgeInsets.only(left: 20, right: 20),
-        itemCount: categories.length + 1, // +1 for 'Semua'
+        padding: widget.padding ?? const EdgeInsets.only(left: 20, right: 20),
+        itemCount: widget.categories.length + 1, // +1 for 'Semua'
         itemBuilder: (context, idx) {
-          // "Semua"
+          final isSelected = widget.selectedIndex == idx;
           if (idx == 0) {
-            final isSelected = selectedIndex == 0;
+            // "Semua"
             return Padding(
-              padding: EdgeInsets.only(right: gap),
+              key: _itemKeys[0],
+              padding: EdgeInsets.only(right: widget.gap),
               child: GestureDetector(
-                onTap: () => onSelected(0),
+                onTap: () => widget.onSelected(0),
                 child: Container(
-                  height: height,
+                  height: widget.height,
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   decoration: BoxDecoration(
@@ -61,16 +122,16 @@ class CategorySelector extends StatelessWidget {
           }
 
           final realIdx = idx - 1;
-          final type = categories[realIdx];
-          final isSelected = selectedIndex == (realIdx + 1);
+          final type = widget.categories[realIdx];
           return Padding(
+            key: _itemKeys[idx],
             padding: EdgeInsets.only(
-              right: realIdx == categories.length - 1 ? 0 : gap,
+              right: realIdx == widget.categories.length - 1 ? 0 : widget.gap,
             ),
             child: GestureDetector(
-              onTap: () => onSelected(realIdx + 1),
+              onTap: () => widget.onSelected(realIdx + 1), // <<---- INI YANG +1 BRO!
               child: Container(
-                height: height,
+                height: widget.height,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 decoration: BoxDecoration(
