@@ -10,13 +10,13 @@ import '../../data/models/user.dart';
 import 'package:abc_e_mart/seller/features/registration/registration_welcome_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 import 'package:abc_e_mart/buyer/features/profile/appearance_setting_page.dart';
+import 'package:abc_e_mart/buyer/features/profile/password_change_page.dart'; // <-- INI!
 import 'package:abc_e_mart/buyer/features/profile/profile_edit_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 import 'package:abc_e_mart/seller/widgets/shop_verification_status_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 import 'package:abc_e_mart/seller/widgets/shop_rejected_page.dart';
-// Tambah ini!
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -214,6 +214,20 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       _buildDivider(),
                       _buildListTile(
+                        'lock.svg',
+                        "Ganti Password",
+                        size: 20,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PasswordChangePage(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildDivider(),
+                      _buildListTile(
                         'store.svg',
                         "Toko Saya",
                         size: 21,
@@ -252,9 +266,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             final status = shopData['status'] ?? '';
                             final rejectionReason = shopData['rejectionReason'] ?? '-';
 
-                            // --- CEK STATUS DAN FLAG LOCAL
                             if (status == 'approved') {
-                              // << Tambahan update user status offline
                               await setUserOfflineWithLastLogin();
                               Navigator.push(
                                 context,
@@ -272,7 +284,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             } else if (status == 'rejected') {
                               final seenRejected = await getShopRejectedFlag();
                               if (!seenRejected) {
-                                // Muncul hanya sekali
                                 await setShopRejectedFlag();
                                 Navigator.push(
                                   context,
@@ -281,7 +292,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 );
                               } else {
-                                // Sudah pernah lihat, langsung ke regis ulang
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -349,7 +359,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           );
                           if (result == true) {
                             try {
-                              // Update isActive dan lastLogin di Firestore sebelum signOut
                               final user = FirebaseAuth.instance.currentUser;
                               if (user != null) {
                                 await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
