@@ -1,49 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart';
+import 'package:intl/intl.dart';
 
 class AdminAdApprovalDetailPage extends StatelessWidget {
-  final String storeName;
-  final String date;
-  final String bannerUrl;
-  final String adTitle;
-  final String adProduct;
-  final String adDuration;
-  final String adDurationDays;
-  final String paymentProofName;
-  final String paymentProofSize;
-  final String? paymentProofUrl;
+  final AdApplication ad;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
-  final VoidCallback? onBannerTap;
-  final VoidCallback? onProofTap;
 
   const AdminAdApprovalDetailPage({
     super.key,
-    required this.storeName,
-    required this.date,
-    required this.bannerUrl,
-    required this.adTitle,
-    required this.adProduct,
-    required this.adDuration,
-    required this.adDurationDays,
-    required this.paymentProofName,
-    required this.paymentProofSize,
-    this.paymentProofUrl,
+    required this.ad,
     this.onAccept,
     this.onReject,
-    this.onBannerTap,
-    this.onProofTap,
   });
+
+  String fixText(String? v) => (v == null || v.trim().isEmpty) ? "-" : v;
+  String formatDate(DateTime? dt) =>
+      dt == null ? "-" : DateFormat('dd/MM/yyyy, HH:mm').format(dt);
+  String formatPeriod(DateTime? mulai, DateTime? selesai) {
+    if (mulai == null || selesai == null) return "-";
+    final d1 = DateFormat('d MMMM yyyy', 'id_ID').format(mulai);
+    final d2 = DateFormat('d MMMM yyyy', 'id_ID').format(selesai);
+    final days = selesai.difference(mulai).inDays + 1;
+    return "$days Hari • $d1 – $d2";
+  }
+  String fileNameFromUrl(String? url) {
+    if (url == null || url.isEmpty) return "-";
+    final name = url.split('/').last.split('?').first;
+    return name.length > 28 ? name.substring(0, 25) + '...' : name;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bannerUrl = ad.bannerUrl;
+    final paymentProofUrl = ad.paymentProofUrl;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
-            // ===== STICKY APP BAR =====
+            // ==== CUSTOM APPBAR ====
             Container(
               height: 67,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -79,15 +78,14 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                 ],
               ),
             ),
-            // ======= SCROLLABLE CONTENT =======
+            // ==== SCROLLABLE CONTENT ====
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Gap setelah appbar
-                    const SizedBox(height: 33),
+                    const SizedBox(height: 10),
                     // Tanggal Pengajuan
                     Text(
                       'Tanggal Pengajuan',
@@ -99,7 +97,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      date,
+                      formatDate(ad.createdAt),
                       style: GoogleFonts.dmSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
@@ -107,7 +105,6 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 15),
-                    // Divider
                     Container(
                       width: double.infinity,
                       height: 1,
@@ -135,7 +132,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      storeName,
+                      fixText(ad.storeName),
                       style: GoogleFonts.dmSans(
                         fontWeight: FontWeight.w400,
                         fontSize: 14,
@@ -154,7 +151,22 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      onTap: onBannerTap,
+                      onTap: () {
+                        if (bannerUrl.isNotEmpty) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => Dialog(
+                              backgroundColor: Colors.transparent,
+                              child: InteractiveViewer(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(bannerUrl),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      },
                       child: Container(
                         width: double.infinity,
                         height: 146,
@@ -194,7 +206,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      adTitle,
+                      fixText(ad.judul),
                       style: GoogleFonts.dmSans(
                         fontWeight: FontWeight.w400,
                         fontSize: 14,
@@ -213,7 +225,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      adProduct,
+                      fixText(ad.productName),
                       style: GoogleFonts.dmSans(
                         fontWeight: FontWeight.w400,
                         fontSize: 14,
@@ -234,18 +246,9 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          adDuration,
+                          formatPeriod(ad.durasiMulai, ad.durasiSelesai),
                           style: GoogleFonts.dmSans(
                             fontWeight: FontWeight.w400,
-                            fontSize: 14,
-                            color: const Color(0xFF373E3C),
-                          ),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '($adDurationDays hari)',
-                          style: GoogleFonts.dmSans(
-                            fontWeight: FontWeight.bold,
                             fontSize: 14,
                             color: const Color(0xFF373E3C),
                           ),
@@ -264,7 +267,22 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      onTap: onProofTap,
+                      onTap: () {
+                        if (paymentProofUrl.isNotEmpty) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => Dialog(
+                              backgroundColor: Colors.transparent,
+                              child: InteractiveViewer(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(paymentProofUrl),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      },
                       child: Container(
                         width: 209,
                         height: 50,
@@ -286,9 +304,9 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: (paymentProofUrl != null && paymentProofUrl!.isNotEmpty)
+                                child: (paymentProofUrl.isNotEmpty)
                                     ? Image.network(
-                                        paymentProofUrl!,
+                                        paymentProofUrl,
                                         width: 30,
                                         height: 30,
                                         fit: BoxFit.cover,
@@ -312,7 +330,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    paymentProofName,
+                                    fileNameFromUrl(paymentProofUrl),
                                     style: GoogleFonts.dmSans(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 10,
@@ -322,7 +340,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
-                                    paymentProofSize,
+                                    "-", // Ukuran file bisa diambil dari Firestore kalau disimpan, kalau tidak "-" saja
                                     style: GoogleFonts.dmSans(
                                       fontWeight: FontWeight.w400,
                                       fontSize: 8,
@@ -355,7 +373,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                 width: double.infinity,
                 height: 59,
                 child: ElevatedButton(
-                  onPressed: onAccept ?? () {}, // Pasti active, warnanya biru!
+                  onPressed: onAccept ?? () {},
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1C55C0),
                     elevation: 0,

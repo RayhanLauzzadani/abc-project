@@ -4,6 +4,9 @@ import 'firebase_options.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+// Tambahkan import ini:
+import 'package:intl/date_symbol_data_local.dart';
+
 // Import Provider dan page utama
 import 'seller/providers/seller_registration_provider.dart';
 
@@ -19,6 +22,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // ======== Tambahkan baris berikut =============
+  await initializeDateFormatting('id', null);
+  // ==============================================
   runApp(const MyApp());
 }
 
@@ -40,7 +46,7 @@ class MyApp extends StatelessWidget {
           scaffoldBackgroundColor: Colors.white,
         ),
         home: const SplashScreen(),
-                // home: const HomePageAdmin(),
+        // home: const HomePageAdmin(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const HomePage(),

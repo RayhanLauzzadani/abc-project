@@ -1,62 +1,81 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path/path.dart' as p;
 
-// Hanya image
-bool isImage(String fileName) {
-  final ext = fileName.toLowerCase().split('.').last;
-  return ['jpg', 'jpeg', 'png'].contains(ext);
+/// Cek file adalah gambar dari url/nama
+bool isImage(String fileNameOrUrl) {
+  final ext = p.extension(fileNameOrUrl).replaceFirst('.', '').toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'webp'].contains(ext);
 }
 
 class PaymentProofTile extends StatelessWidget {
-  final String fileName;
-  final String fileSize;
-  final String filePath; // asset path, file path, atau url
+  final String? fileName;
+  final String? fileSize;
+  final String filePath; // url firebase, path lokal, atau asset
   final VoidCallback? onTap;
 
   const PaymentProofTile({
     super.key,
-    required this.fileName,
-    required this.fileSize,
     required this.filePath,
+    this.fileName,
+    this.fileSize,
     this.onTap,
   });
 
+  /// Get file name dari url jika parameter kosong
+  String getDisplayFileName() {
+    if (fileName != null && fileName!.isNotEmpty) return fileName!;
+    // Coba ekstrak dari url/path
+    try {
+      return p.basename(Uri.decodeFull(filePath));
+    } catch (_) {
+      return "Bukti Pembayaran";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Tentukan image provider dari asset/local/network
+    final _isImage = isImage(filePath);
+
     Widget thumb;
-    if (filePath.startsWith('http')) {
-      thumb = ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          filePath,
-          width: 36,
-          height: 36,
-          fit: BoxFit.cover,
-        ),
-      );
-    } else if (filePath.startsWith('/')) {
-      thumb = ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.file(
-          File(filePath),
-          width: 36,
-          height: 36,
-          fit: BoxFit.cover,
-        ),
-      );
+    if (_isImage) {
+      if (filePath.startsWith('http')) {
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            filePath,
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _iconPlaceholder(),
+          ),
+        );
+      } else if (filePath.startsWith('/')) {
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(filePath),
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _iconPlaceholder(),
+          ),
+        );
+      } else {
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            filePath,
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _iconPlaceholder(),
+          ),
+        );
+      }
     } else {
-      // fallback asset
-      thumb = ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.asset(
-          filePath,
-          width: 36,
-          height: 36,
-          fit: BoxFit.cover,
-        ),
-      );
+      thumb = _iconPlaceholder();
     }
 
     return GestureDetector(
@@ -84,16 +103,16 @@ class PaymentProofTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    fileName,
+                    getDisplayFileName(),
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 13,
                       color: const Color(0xFF373E3C),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    fileSize,
+                    fileSize ?? '-',
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w400,
                       fontSize: 11,
@@ -106,6 +125,22 @@ class PaymentProofTile extends StatelessWidget {
             const Icon(Icons.chevron_right, color: Color(0xFF9A9A9A)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _iconPlaceholder() {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Icon(
+        Icons.image_not_supported_outlined,
+        color: Color(0xFFBBBBBB),
+        size: 19,
       ),
     );
   }
