@@ -2,6 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+String formatShortName(String userName) {
+  if (userName.trim().isEmpty) return "Pengguna";
+  final parts = userName.trim().split(RegExp(r"\s+"));
+  if (parts.length == 1) return parts.first;
+  final firstName = parts.first;
+  final lastInitial = parts.last.isNotEmpty ? parts.last[0].toUpperCase() + '.' : '';
+  return "$firstName $lastInitial";
+}
+
 class StoreRatingPage extends StatelessWidget {
   final String storeId;
   final String storeName; // opsional
@@ -347,7 +356,9 @@ class _ReviewItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String formattedDate = "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}";
+    String formattedDate = date != null
+        ? "${date!.day.toString().padLeft(2, '0')}-${date!.month.toString().padLeft(2, '0')}-${date!.year}"
+        : "-";
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,27 +380,33 @@ class _ReviewItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Nama user & bintang
+              // Nama user di atas, bintang dan text di bawah (tidak akan overflow)
+              Text(
+                formatShortName(userName),
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Flexible(
-                    child: Text(
-                      userName,
-                      style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 13.5),
-                      softWrap: true,
-                      overflow: TextOverflow.visible,
+                  Text(
+                    "memberikan",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12.2,
+                      color: const Color(0xFF595959),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ...List.generate(5, (i) {
-                    return Icon(
-                      i < star ? Icons.star : Icons.star_border,
-                      size: 14,
-                      color: i < star ? const Color(0xFFFFC700) : const Color(0xFFE2E2E2),
-                    );
-                  }),
-                  const Spacer(),
+                  const SizedBox(width: 6),
+                  ...List.generate(5, (i) => Icon(
+                    Icons.star,
+                    size: 13,
+                    color: i < star ? const Color(0xFFFFC700) : const Color(0xFFE2E2E2),
+                  )),
                 ],
               ),
               Padding(
