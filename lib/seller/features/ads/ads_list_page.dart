@@ -1,7 +1,26 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart';
+import 'package:abc_e_mart/seller/features/ads/add_ads.dart';
 import 'package:abc_e_mart/seller/features/ads/ad_cart.dart';
 import 'package:abc_e_mart/seller/features/ads/ads_detail_page.dart';
+import 'package:abc_e_mart/seller/data/services/ad_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// Model Store sederhana
+class StoreModel {
+  final String id;
+  final String name;
+  StoreModel({required this.id, required this.name});
+
+  factory StoreModel.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return StoreModel(
+      id: doc.id,
+      name: data['name'] ?? '',
+    );
+  }
+}
 
 class AdsListPage extends StatefulWidget {
   final String sellerId;
@@ -15,59 +34,57 @@ class _AdsListPageState extends State<AdsListPage> {
   int selectedStatus = 0;
   String searchQuery = "";
 
-  final statusList = ['Semua', 'Menunggu', 'Sukses', 'Ditolak'];
+  final statusList = ['Semua', 'Menunggu', 'Disetujui', 'Ditolak'];
 
-  // Dummy data
-  final List<Map<String, dynamic>> dummyAds = [
-    {
-      'title': 'Ayam Geprek',
-      'status': 'menunggu',
-      'periode': '3 Hari • 21 Juli - 23 Juli 2025',
-      'createdAt': DateTime(2024, 6, 30, 16, 15),
-      'namaToko': 'Nippon Mart',
-      'produkIklan': 'Ayam Geprek',
-      'bannerImage': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fit=crop&w=390&q=80',
-      'buktiPembayaranFile': 'bukti_ayam_geprek.jpg',
-      'buktiPembayaranSize': 105.2,
-      'tanggalPengajuan': '30 April 2025, 16:21 PM',
-      'tanggalDurasi': '21 Juli - 23 Juli 2025 (3 hari)',
-    },
-    {
-      'title': 'Beng - Beng',
-      'status': 'sukses',
-      'periode': '3 Hari • 21 Juli - 23 Juli 2025',
-      'createdAt': DateTime(2024, 6, 30, 16, 15),
-      'namaToko': 'Toko Jaya',
-      'produkIklan': 'Beng - Beng',
-      'bannerImage': 'https://images.unsplash.com/photo-1519864600265-abb23847ef2c?fit=crop&w=390&q=80',
-      'buktiPembayaranFile': 'bukti_bengbeng.jpg',
-      'buktiPembayaranSize': 99.5,
-      'tanggalPengajuan': '30 April 2025, 16:21 PM',
-      'tanggalDurasi': '21 Juli - 23 Juli 2025 (3 hari)',
-    },
-    {
-      'title': 'Pulpen Sarasa',
-      'status': 'ditolak',
-      'periode': '3 Hari • 21 Juli - 23 Juli 2025',
-      'createdAt': DateTime(2024, 6, 30, 16, 15),
-      'namaToko': 'Alat Tulis Murah',
-      'produkIklan': 'Pulpen Sarasa',
-      'bannerImage': 'https://images.unsplash.com/photo-1464983953574-0892a716854b?fit=crop&w=390&q=80',
-      'buktiPembayaranFile': 'bukti_sarasa.jpg',
-      'buktiPembayaranSize': 78.3,
-      'tanggalPengajuan': '30 April 2025, 16:21 PM',
-      'tanggalDurasi': '21 Juli - 23 Juli 2025 (3 hari)',
-    },
-  ];
+  // Data backend
+  List<AdApplication> _ads = [];
+  bool _isLoading = true;
+
+  // Data store
+  StoreModel? _store;
+  bool _loadingStore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStore();
+    _fetchAds();
+  }
+
+  Future<void> _fetchStore() async {
+    setState(() => _loadingStore = true);
+    final snapshot = await FirebaseFirestore.instance
+        .collection('stores')
+        .where('ownerId', isEqualTo: widget.sellerId)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isNotEmpty) {
+      setState(() {
+        _store = StoreModel.fromDoc(snapshot.docs.first);
+        _loadingStore = false;
+      });
+    } else {
+      setState(() => _loadingStore = false);
+    }
+  }
+
+  Future<void> _fetchAds() async {
+    setState(() => _isLoading = true);
+    final result = await AdService.getApplicationsBySeller(widget.sellerId);
+    setState(() {
+      _ads = result;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Filter dummy sesuai status & search query
-    List<Map<String, dynamic>> filteredAds = dummyAds.where((ad) {
+    // Filter ads sesuai status & search query
+    List<AdApplication> filteredAds = _ads.where((ad) {
       bool matchesStatus = selectedStatus == 0 ||
-          ad['status'].toString().toLowerCase() == statusList[selectedStatus].toLowerCase();
+          ad.status.toLowerCase() == statusList[selectedStatus].toLowerCase();
       bool matchesQuery = searchQuery.isEmpty ||
-          (ad['title'] ?? '').toLowerCase().contains(searchQuery.toLowerCase());
+          ad.judul.toLowerCase().contains(searchQuery.toLowerCase());
       return matchesStatus && matchesQuery;
     }).toList();
 
@@ -118,9 +135,20 @@ class _AdsListPageState extends State<AdsListPage> {
                         elevation: 0,
                         minimumSize: const Size(0, 32),
                       ),
-                      onPressed: () {
-                        // TODO: Panggil page Ajukan Iklan
-                      },
+                      onPressed: (_loadingStore || _store == null)
+                          ? null
+                          : () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => AddAdsPage(
+                                    sellerId: widget.sellerId,
+                                    storeId: _store!.id,
+                                    storeName: _store!.name,
+                                  ),
+                                ),
+                              );
+                              _fetchAds();
+                            },
                       child: Text(
                         '+ Ajukan Iklan',
                         style: GoogleFonts.dmSans(
@@ -194,7 +222,7 @@ class _AdsListPageState extends State<AdsListPage> {
                       case 'Menunggu':
                         color = const Color(0xFFFFD600);
                         break;
-                      case 'Sukses':
+                      case 'Disetujui':
                         color = const Color(0xFF12C765);
                         break;
                       case 'Ditolak':
@@ -245,47 +273,39 @@ class _AdsListPageState extends State<AdsListPage> {
 
             // === List Iklan ===
             Expanded(
-              child: filteredAds.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Tidak ada iklan ditemukan.',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF777777),
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                      itemCount: filteredAds.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 20),
-                      itemBuilder: (context, idx) {
-                        final ad = filteredAds[idx];
-                        return AdCard(
-                          ad: ad,
-                          onDetailTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AdsDetailPage(
-                                  status: ad['status']?.toString() ?? '',
-                                  namaToko: ad['namaToko']?.toString() ?? 'Nippon Mart',
-                                  judulIklan: ad['title']?.toString() ?? '-',
-                                  produkIklan: ad['produkIklan']?.toString() ?? 'Ayam Geprek',
-                                  tanggalPengajuan: ad['tanggalPengajuan']?.toString() ?? '30 April 2025, 4:21 PM',
-                                  tanggalDurasi: ad['tanggalDurasi']?.toString() ?? '21 Juli - 23 Juli 2025 (3 hari)',
-                                  bannerImage: ad['bannerImage']?.toString() ?? '',
-                                  buktiPembayaranFile: ad['buktiPembayaranFile']?.toString() ?? '-',
-                                  buktiPembayaranSize: (ad['buktiPembayaranSize'] != null)
-                                      ? double.tryParse(ad['buktiPembayaranSize'].toString()) ?? 0
-                                      : 0,
-                                ),
-                              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : filteredAds.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Tidak ada iklan ditemukan.',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF777777),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                          itemCount: filteredAds.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 20),
+                          itemBuilder: (context, idx) {
+                            final ad = filteredAds[idx];
+                            return AdCard(
+                              ad: ad,
+                              onDetailTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AdsDetailPage(
+                                      ad: ad, // <--- langsung pass objek AdApplication
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                    ),
+                        ),
             ),
           ],
         ),
