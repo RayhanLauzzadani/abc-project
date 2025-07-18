@@ -27,6 +27,12 @@ final List<CategoryType> categoryList = [
   CategoryType.lainnya,
 ];
 
+String formatRating(num rating) {
+  double rounded = (rating * 10).round() / 10.0;
+  return rounded.toStringAsFixed(1);
+}
+
+
 class StoreDetailPage extends StatefulWidget {
   final Map<String, dynamic> store;
   const StoreDetailPage({super.key, required this.store});
@@ -196,7 +202,9 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                             const Icon(Icons.star, color: Colors.amber, size: 17),
                             const SizedBox(width: 2),
                             Text(
-                              "${store['rating'] ?? '-'} ",
+                              (store['rating'] != null)
+                                  ? "${formatRating((store['rating'] as num))} "
+                                  : "- ",
                               style: GoogleFonts.dmSans(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.orange[700],
@@ -273,7 +281,10 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
                     onCategorySelected: (i) => setState(() => selectedCategory = i),
                     searchQuery: searchQuery,
                   ),
-                  const StoreRatingReview(),
+                  StoreRatingReview(
+                    storeId: store['id'] ?? '',
+                    storeName: store['name'] ?? '',
+                  ),
                 ],
               ),
             ),
