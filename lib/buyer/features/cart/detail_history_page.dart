@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:abc_e_mart/buyer/features/cart/give_store_rating_page.dart';
 
 enum OrderStatus { selesai, dibatalkan, dikirim, menunggu }
 
@@ -68,7 +69,16 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   onPressed: () {
-                    // TODO: navigasi ke halaman penilaian
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => GiveStoreRatingPage(
+                          storeId: "9TSaJMDOPOsjIKR8nKFH",
+                          storeName: "Roblox Store",
+                          storeAddress: "Jl. Keputih Tegal Timur, Keputih, Kec. Sukolilo, Surabaya, Jawa Timur, Indonesia",
+                          storeImageUrl: "https://firebasestorage.googleapis.com/v0/b/abc-e-mart-b0e05.firebasestorage.app/o/seller_logos%2FnActf7Y88LNUR5CsWBgPEoCmCMc2%2F1752687499986.jpg?alt=media&token=a399d560-f8e4-44bd-8a01-29c47c49a6a8",
+                        ),
+                      ),
+                    );
                   },
                   child: const Text("Beri Penilaian"),
                 ),
