@@ -172,11 +172,14 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 case 3:
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const StoreRatingPage(),
+                                      builder: (_) => StoreRatingPage(
+                                        storeId: storeId,         
+                                        storeName: shopName,      
+                                      ),
                                     ),
                                   );
                                   break;
-                                        case 5: // <--- INI UNTUK IKLAN
+                                        case 5:
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => AdsListPage(
