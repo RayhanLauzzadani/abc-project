@@ -21,7 +21,7 @@ class SearchBar extends StatelessWidget {
       width: double.infinity,
       child: TextField(
         controller: controller,
-        onChanged: onChanged,
+        onChanged: onChanged, // Trigger search query change
         style: GoogleFonts.dmSans(
           fontSize: 16,
           color: const Color(0xFF404040),

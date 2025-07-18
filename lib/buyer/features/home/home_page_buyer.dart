@@ -16,7 +16,6 @@ import 'package:abc_e_mart/buyer/features/catalog/catalog_page.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/chat/chat_list_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/data/models/address.dart';
@@ -30,15 +29,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late int _selectedIndex;
-
-  final List<Widget> _pages = [
-    const _HomeMainContent(),
-    const CatalogPage(),
-    const CartPage(),
-    const ChatListPage(),
-    const ProfilePage(),
-  ];
+  int _selectedIndex = 0;
+  int selectedCategory = 0;
 
   @override
   void initState() {
@@ -64,6 +56,21 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  List<Widget> get _pages => [
+    _HomeMainContent(
+      onCategorySelected: (int categoryIdx) {
+        setState(() {
+          selectedCategory = categoryIdx; // Update kategori yang dipilih
+          _selectedIndex = 1; // Pindah ke CatalogPage
+        });
+      },
+    ),
+    CatalogPage(selectedCategory: selectedCategory), // Pass selectedCategory
+    const CartPage(),
+    const ChatListPage(),
+    const ProfilePage(),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -77,10 +84,7 @@ class _HomePageState extends State<HomePage> {
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
-          child: IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
+          child: IndexedStack(index: _selectedIndex, children: _pages),
         ),
         bottomNavigationBar: BottomNavbar(
           currentIndex: _selectedIndex,
@@ -94,12 +98,15 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _HomeMainContent extends StatelessWidget {
-  const _HomeMainContent();
+  final Function(int selectedCategory) onCategorySelected;
+  const _HomeMainContent({Key? key, required this.onCategorySelected})
+    : super(key: key);
 
   static const double headerHeight = 110;
   static const double spaceBawah = 0;
   static const double searchBarHeight = 48;
-  static const double totalStickyHeight = headerHeight + spaceBawah + searchBarHeight;
+  static const double totalStickyHeight =
+      headerHeight + spaceBawah + searchBarHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +115,7 @@ class _HomeMainContent extends StatelessWidget {
 
     return CustomScrollView(
       slivers: [
-        // Sticky: Header + SearchBar (1 background putih, shadow 0.06)
+        // Sticky: Header + SearchBar
         SliverPersistentHeader(
           pinned: true,
           delegate: _StickyHeaderWithSearchBarDelegate(
@@ -144,7 +151,7 @@ class _HomeMainContent extends StatelessWidget {
             height: totalStickyHeight,
           ),
         ),
-        // Banner Promo (ikut scroll)
+        // Banner Promo
         SliverToBoxAdapter(child: const SizedBox(height: 10)),
         SliverToBoxAdapter(
           child: Padding(
@@ -153,7 +160,10 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 24)),
-        SliverToBoxAdapter(child: const CategorySection()),
+        // Kategori Section: pass callback
+        SliverToBoxAdapter(
+          child: CategorySection(onCategorySelected: onCategorySelected),
+        ),
         SliverToBoxAdapter(child: const SizedBox(height: 32)),
         // Toko
         SliverToBoxAdapter(
@@ -170,12 +180,14 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        // List toko dari Firestore
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance.collection('stores').get(),
+              future: FirebaseFirestore.instance
+                  .collection('stores')
+                  .limit(5)
+                  .get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -191,7 +203,6 @@ class _HomeMainContent extends StatelessWidget {
                     child: Center(child: Text('Belum ada toko tersedia.')),
                   );
                 }
-                // --- FILTER TOKO BUKAN MILIK SENDIRI ---
                 final stores = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['ownerId'] != userUid;
@@ -213,10 +224,8 @@ class _HomeMainContent extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => StoreDetailPage(store: {
-                              ...data,
-                              'id': doc.id,
-                            }),
+                            builder: (_) =>
+                                StoreDetailPage(store: {...data, 'id': doc.id}),
                           ),
                         );
                       },
@@ -243,12 +252,14 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        // List produk dari Firestore
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance.collection('products').get(),
+              future: FirebaseFirestore.instance
+                  .collection('products')
+                  .limit(5)
+                  .get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -264,7 +275,6 @@ class _HomeMainContent extends StatelessWidget {
                     child: Center(child: Text('Belum ada produk tersedia.')),
                   );
                 }
-                // --- FILTER PRODUK BUKAN MILIK SENDIRI ---
                 final products = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['ownerId'] != userUid;
@@ -285,10 +295,9 @@ class _HomeMainContent extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => ProductDetailPage(product: {
-                              ...data,
-                              'id': doc.id,
-                            }),
+                            builder: (_) => ProductDetailPage(
+                              product: {...data, 'id': doc.id},
+                            ),
                           ),
                         );
                       },
@@ -305,7 +314,6 @@ class _HomeMainContent extends StatelessWidget {
   }
 }
 
-/// HEADER Alamat — updated: realtime, hanya tampilkan label alamat utama
 class _HomeAddressHeader extends StatelessWidget {
   const _HomeAddressHeader();
 
@@ -361,7 +369,9 @@ class _HomeAddressHeader extends StatelessWidget {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const AddressListPage()),
+                              MaterialPageRoute(
+                                builder: (_) => const AddressListPage(),
+                              ),
                             );
                           },
                           child: Row(
@@ -370,8 +380,8 @@ class _HomeAddressHeader extends StatelessWidget {
                                 child: Text(
                                   address != null
                                       ? (address.label.isNotEmpty
-                                          ? address.label
-                                          : "Alamat Utama")
+                                            ? address.label
+                                            : "Alamat Utama")
                                       : "Belum ada alamat",
                                   style: GoogleFonts.dmSans(
                                     color: const Color(0xFF212121),
@@ -383,8 +393,11 @@ class _HomeAddressHeader extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 3),
-                              const Icon(Icons.keyboard_arrow_down_rounded,
-                                  size: 20, color: Color(0xFF212121)),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 20,
+                                color: Color(0xFF212121),
+                              ),
                             ],
                           ),
                         ),
@@ -397,14 +410,17 @@ class _HomeAddressHeader extends StatelessWidget {
           margin: const EdgeInsets.only(right: 12),
           width: 40,
           height: 40,
-          decoration: const BoxDecoration(color: Color(0xFFFF455B), shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFF455B),
+            shape: BoxShape.circle,
+          ),
           child: IconButton(
             icon: const Icon(Icons.favorite, color: Colors.white),
             iconSize: 22,
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const FavoritePage()),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const FavoritePage()));
             },
             splashRadius: 24,
           ),
@@ -412,7 +428,10 @@ class _HomeAddressHeader extends StatelessWidget {
         Container(
           width: 40,
           height: 40,
-          decoration: const BoxDecoration(color: Color(0xFF2056D3), shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Color(0xFF2056D3),
+            shape: BoxShape.circle,
+          ),
           child: IconButton(
             icon: const Icon(Icons.notifications, color: Colors.white),
             iconSize: 22,
@@ -429,11 +448,14 @@ class _HomeAddressHeader extends StatelessWidget {
   }
 }
 
-// Sticky Header + SearchBar (single background)
-class _StickyHeaderWithSearchBarDelegate extends SliverPersistentHeaderDelegate {
+class _StickyHeaderWithSearchBarDelegate
+    extends SliverPersistentHeaderDelegate {
   final Widget child;
   final double height;
-  _StickyHeaderWithSearchBarDelegate({required this.child, required this.height});
+  _StickyHeaderWithSearchBarDelegate({
+    required this.child,
+    required this.height,
+  });
 
   @override
   double get minExtent => height;
@@ -441,7 +463,11 @@ class _StickyHeaderWithSearchBarDelegate extends SliverPersistentHeaderDelegate 
   double get maxExtent => height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return child;
   }
 
