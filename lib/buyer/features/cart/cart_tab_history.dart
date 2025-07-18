@@ -45,7 +45,7 @@ class CartTabHistory extends StatelessWidget {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       itemCount: orders.length,
       itemBuilder: (context, i) {
         final order = orders[i];
