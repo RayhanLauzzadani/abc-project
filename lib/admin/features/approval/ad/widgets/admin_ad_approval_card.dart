@@ -1,30 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart'; // Pastikan import model AdApplication
+import 'package:intl/intl.dart';
 
 class AdminAdApprovalCard extends StatelessWidget {
-  final String title;
-  final String storeName;
-  final String period;
-  final String date;
+  final AdApplication ad;
   final VoidCallback? onDetail;
 
   const AdminAdApprovalCard({
     super.key,
-    required this.title,
-    required this.storeName,
-    required this.period,
-    required this.date,
+    required this.ad,
     this.onDetail,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Format tanggal pengajuan
+    String formattedDate = DateFormat('dd/MM/yyyy, HH:mm').format(ad.createdAt);
+
+    // Periode iklan (contoh: 3 Hari • 21 Juli – 23 Juli 2025)
+    int days = ad.durasiSelesai.difference(ad.durasiMulai).inDays + 1;
+    String tglMulai = DateFormat('d MMMM yyyy', 'id_ID').format(ad.durasiMulai);
+    String tglSelesai = DateFormat('d MMMM yyyy', 'id_ID').format(ad.durasiSelesai);
+    String period = "$days Hari • $tglMulai – $tglSelesai";
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10), // <= 10px sesuai permintaan
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
       ),
       child: Padding(
@@ -32,9 +37,9 @@ class AdminAdApprovalCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Judul
+            // Judul Iklan (dari ad.judul)
             Text(
-              title,
+              ad.judul,
               style: GoogleFonts.dmSans(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -43,18 +48,18 @@ class AdminAdApprovalCard extends StatelessWidget {
             ),
             const SizedBox(height: 5),
 
-            // Nama Toko (dengan icon svg)
+            // Nama Toko
             Row(
               children: [
                 SvgPicture.asset(
                   'assets/icons/store.svg',
-                  width: 16, // ukuran svg biar pas (12-16px)
+                  width: 16,
                   height: 16,
                   color: const Color(0xFF373E3C),
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  storeName,
+                  ad.storeName,
                   style: GoogleFonts.dmSans(
                     fontWeight: FontWeight.w400,
                     fontSize: 12,
@@ -65,7 +70,7 @@ class AdminAdApprovalCard extends StatelessWidget {
             ),
             const SizedBox(height: 5),
 
-            // Periode
+            // Periode Iklan
             Text(
               period,
               style: GoogleFonts.dmSans(
@@ -76,11 +81,11 @@ class AdminAdApprovalCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // Footer: tanggal & Detail Iklan
+            // Footer: tanggal & tombol detail
             Row(
               children: [
                 Text(
-                  date,
+                  formattedDate,
                   style: GoogleFonts.dmSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w400,
