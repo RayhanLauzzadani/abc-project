@@ -12,7 +12,8 @@
     <application
         android:label="abc_e_mart"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDBdLKjiFM1Hg41D4NtN295IKeR3m7S8X8" />

@@ -16,7 +16,6 @@ import 'package:abc_e_mart/buyer/features/catalog/catalog_page.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/chat/chat_list_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/data/models/address.dart';
@@ -31,10 +30,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late int _selectedIndex;
+  int selectedCategory = 0; // Menyimpan kategori yang dipilih
 
   final List<Widget> _pages = [
     const _HomeMainContent(),
-    const CatalogPage(),
+    CatalogPage(selectedCategory: 0),  // Default 0, atau sesuaikan sesuai kategori yang dipilih
     const CartPage(),
     const ChatListPage(),
     const ProfilePage(),
@@ -153,7 +153,15 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 24)),
-        SliverToBoxAdapter(child: const CategorySection()),
+        SliverToBoxAdapter(child: CategorySection(onCategorySelected: (int selectedCategory) {
+          // Navigasi ke CatalogPage dengan kategori yang dipilih
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CatalogPage(selectedCategory: selectedCategory),
+            ),
+          );
+        })),
         SliverToBoxAdapter(child: const SizedBox(height: 32)),
         // Toko
         SliverToBoxAdapter(
@@ -170,12 +178,12 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        // List toko dari Firestore
+        // List toko dari Firestore (dibatasi maksimal 5)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance.collection('stores').get(),
+              future: FirebaseFirestore.instance.collection('stores').limit(5).get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -191,7 +199,6 @@ class _HomeMainContent extends StatelessWidget {
                     child: Center(child: Text('Belum ada toko tersedia.')),
                   );
                 }
-                // --- FILTER TOKO BUKAN MILIK SENDIRI ---
                 final stores = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['ownerId'] != userUid;
@@ -243,12 +250,12 @@ class _HomeMainContent extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        // List produk dari Firestore
+        // List produk dari Firestore (dibatasi maksimal 5)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance.collection('products').get(),
+              future: FirebaseFirestore.instance.collection('products').limit(5).get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -264,7 +271,6 @@ class _HomeMainContent extends StatelessWidget {
                     child: Center(child: Text('Belum ada produk tersedia.')),
                   );
                 }
-                // --- FILTER PRODUK BUKAN MILIK SENDIRI ---
                 final products = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['ownerId'] != userUid;
@@ -305,7 +311,6 @@ class _HomeMainContent extends StatelessWidget {
   }
 }
 
-/// HEADER Alamat — updated: realtime, hanya tampilkan label alamat utama
 class _HomeAddressHeader extends StatelessWidget {
   const _HomeAddressHeader();
 
@@ -342,7 +347,7 @@ class _HomeAddressHeader extends StatelessWidget {
                     ),
                   ],
                 )
-              : StreamBuilder<AddressModel?>(
+              : StreamBuilder<AddressModel?>( 
                   stream: AddressService().getPrimaryAddress(user.uid),
                   builder: (context, snapshot) {
                     final address = snapshot.data;
@@ -429,7 +434,6 @@ class _HomeAddressHeader extends StatelessWidget {
   }
 }
 
-// Sticky Header + SearchBar (single background)
 class _StickyHeaderWithSearchBarDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   final double height;

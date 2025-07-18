@@ -24,14 +24,15 @@ final List<CategoryType> categoryList = [
 ];
 
 class CatalogPage extends StatefulWidget {
-  const CatalogPage({Key? key}) : super(key: key);
+  int selectedCategory; // Menyimpan kategori yang dipilih
+
+  CatalogPage({Key? key, required this.selectedCategory}) : super(key: key);
 
   @override
   State<CatalogPage> createState() => _CatalogPageState();
 }
 
 class _CatalogPageState extends State<CatalogPage> {
-  int selectedCategory = 0;
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -76,11 +77,15 @@ class _CatalogPageState extends State<CatalogPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // Chips kategori (pakai widget global)
+          // Category Selector (untuk kategori yang dipilih)
           CategorySelector(
             categories: categoryList,
-            selectedIndex: selectedCategory,
-            onSelected: (i) => setState(() => selectedCategory = i),
+            selectedIndex: widget.selectedCategory,
+            onSelected: (i) {
+              setState(() {
+                widget.selectedCategory = i; // Update selectedCategory
+              });
+            },
           ),
           const SizedBox(height: 6),
           // Product List Realtime dari Firestore
@@ -95,10 +100,9 @@ class _CatalogPageState extends State<CatalogPage> {
                   return _emptyCatalog();
                 }
 
-                // --- Filter Data dari Firestore ---
                 List<DocumentSnapshot> docs = snapshot.data!.docs;
 
-                // --- Filter produk bukan milik user (ownerId != user.uid) ---
+                // Filter produk bukan milik user (ownerId != user.uid)
                 if (userUid.isNotEmpty) {
                   docs = docs.where((doc) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -106,15 +110,17 @@ class _CatalogPageState extends State<CatalogPage> {
                   }).toList();
                 }
 
-                // Filter kategori
-                if (selectedCategory > 0) {
-                  final catStr = categoryLabels[categoryList[selectedCategory - 1]]!;
+                // Filter kategori berdasarkan kategori yang dipilih
+                if (widget.selectedCategory > 0) {
+                  final selectedCat = categoryList[widget.selectedCategory - 1];
+                  final catStr = categoryLabels[selectedCat]!;
                   docs = docs.where((doc) {
                     final c = doc['category'] ?? '';
                     return c.toString().toLowerCase().contains(catStr.toLowerCase());
                   }).toList();
                 }
-                // Filter search
+
+                // Filter berdasarkan query pencarian
                 if (searchQuery.isNotEmpty) {
                   docs = docs.where((doc) =>
                       doc['name'].toString().toLowerCase().contains(searchQuery.toLowerCase())
@@ -173,7 +179,7 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 }
 
-// --- Product Card langsung dari Firestore, tidak perlu FutureBuilder
+// Product Card
 class _ProductCardWithStorageImage extends StatelessWidget {
   final Map<String, dynamic> product;
   const _ProductCardWithStorageImage({required this.product});
