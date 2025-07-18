@@ -4,12 +4,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/data/models/address.dart';
 import 'package:abc_e_mart/buyer/data/models/cart/cart_item.dart';
 import 'package:abc_e_mart/buyer/features/cart/widgets/payment_method_page.dart';
-// Import page QRIS!
 import 'package:abc_e_mart/buyer/features/payment/qris_waiting_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class CheckoutSummaryPage extends StatefulWidget {
   final AddressModel address;
   final List<CartItem> cartItems;
+  final String storeName;
   final int shippingFee;
   final int taxFee;
 
@@ -17,6 +20,7 @@ class CheckoutSummaryPage extends StatefulWidget {
     Key? key,
     required this.address,
     required this.cartItems,
+    required this.storeName,
     this.shippingFee = 1500,
     this.taxFee = 650,
   }) : super(key: key);
@@ -27,30 +31,126 @@ class CheckoutSummaryPage extends StatefulWidget {
 
 class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
   String? selectedPaymentMethod;
+  bool isLoading = false;
 
-  int get subtotal =>
-      widget.cartItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
+  int get subtotal => widget.cartItems.fold(
+        0,
+        (sum, item) => sum + (item.price * item.quantity),
+      );
   int get total => subtotal + widget.shippingFee + widget.taxFee;
 
-  void _handleCheckout() async {
-    if (selectedPaymentMethod == 'QRIS') {
-      // Dummy: nanti replace dari backend atau order Firestore/Midtrans
-      final String orderId = "ORDER12345";
-      final String qrData = "https://qris-dummy.com/qr/ORDER12345";
+  // GANTI URL INI SESUAI punyamu!
+  static const String cloudFunctionUrl =
+      'https://createqristransaction-glfq7sg2la-uc.a.run.app';
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => QrisWaitingPage(
-            total: total,
-            orderId: orderId,
-            qrData: qrData,
+  Future<Map<String, dynamic>> createQrisTransactionHttp({
+    required int amount,
+    required String orderId,
+    required String customerName,
+    required String customerEmail,
+  }) async {
+    final response = await http.post(
+      Uri.parse(cloudFunctionUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'amount': amount,
+        'orderId': orderId,
+        'customerName': customerName,
+        'customerEmail': customerEmail,
+      }),
+    );
+
+    // Sukses Midtrans: status 201, kadang 200 juga.
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      try {
+        final err = jsonDecode(response.body);
+        throw Exception(
+          "QRIS Error: ${err['status_message'] ?? err['message'] ?? response.body}",
+        );
+      } catch (_) {
+        throw Exception("QRIS Error: ${response.body}");
+      }
+    }
+  }
+
+  Future<void> _handleCheckout() async {
+    if (selectedPaymentMethod == 'QRIS') {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Anda belum login!')));
+        return;
+      }
+
+      setState(() => isLoading = true);
+
+      final String orderId = "ORDER${DateTime.now().millisecondsSinceEpoch}";
+      try {
+        final qrisResult = await createQrisTransactionHttp(
+          amount: total,
+          orderId: orderId,
+          customerName: user.displayName ?? "Nama Pengguna",
+          customerEmail: user.email ?? "user@email.com",
+        );
+
+        // --- Parsing Midtrans QRIS
+        String? qrString;
+        if (qrisResult['actions'] != null &&
+            qrisResult['actions'] is List &&
+            (qrisResult['actions'] as List).isNotEmpty) {
+          try {
+            final qrAction = (qrisResult['actions'] as List).firstWhere(
+              (a) => a['name'] == 'generate-qr-code',
+              orElse: () => null,
+            );
+            if (qrAction != null && qrAction['url'] != null) {
+              qrString = qrAction['url'] as String?;
+            }
+          } catch (_) {}
+        }
+        // Fallback ke qr_string jika ada
+        qrString ??= qrisResult['qr_string'];
+
+        if (qrString == null || qrString.isEmpty) {
+          print("== Full QRIS response ==");
+          print(jsonEncode(qrisResult));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gagal mendapatkan QRIS: ${qrisResult['status_message'] ?? ''}',
+              ),
+            ),
+          );
+          setState(() => isLoading = false);
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => QrisWaitingPage(
+              total: total,
+              orderId: orderId,
+              qrData: qrString!,
+              jumlahPesanan: widget.cartItems.length,
+              namaToko: widget.storeName,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuat transaksi QRIS: $e')),
+        );
+      }
+      setState(() => isLoading = false);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih metode pembayaran terlebih dahulu')),
+        const SnackBar(
+          content: Text('Pilih metode pembayaran terlebih dahulu'),
+        ),
       );
     }
   }
@@ -62,7 +162,6 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Sticky Header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
               child: Row(
@@ -98,235 +197,257 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                 ],
               ),
             ),
-            // Scrollable content below
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 120),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // SECTION: ALAMAT
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Alamat Pengiriman',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          color: const Color(0xFF373E3C),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 13),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _AddressCard(address: widget.address),
-                    ),
-                    const SizedBox(height: 13),
-                    // PRODUK
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Produk di Keranjang',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          color: const Color(0xFF373E3C),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 13),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8F8F8),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 18,
-                          horizontal: 18,
-                        ),
-                        child: Column(
-                          children: List.generate(
-                            widget.cartItems.length,
-                            (i) => Padding(
-                              padding: EdgeInsets.only(
-                                bottom: i < widget.cartItems.length - 1 ? 14 : 0,
-                              ),
-                              child: _ProductCheckoutItem(item: widget.cartItems[i]),
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Text(
+                            'Alamat Pengiriman',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 13),
-                    // DETAIL TAGIHAN
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Detail Tagihan',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          color: const Color(0xFF373E3C),
+                        const SizedBox(height: 13),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: _AddressCard(address: widget.address),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 13),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8F8F8),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 18,
-                        ),
-                        child: Column(
-                          children: [
-                            _SummaryRow(label: 'Subtotal', value: subtotal),
-                            const SizedBox(height: 8),
-                            _SummaryRow(
-                              label: 'Biaya Pengiriman',
-                              value: widget.shippingFee,
+                        const SizedBox(height: 13),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Text(
+                            'Produk di Keranjang',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
                             ),
-                            const SizedBox(height: 8),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Divider(
-                                thickness: 1,
-                                color: Color(0xFFE5E5E5),
-                                height: 1,
-                              ),
-                            ),
-                            _SummaryRow(
-                              label: 'Total',
-                              value: total,
-                              isTotal: true,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    // METODE PEMBAYARAN
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Metode Pembayaran',
-                        style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          color: const Color(0xFF373E3C),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => PaymentMethodPage(
-                                initialMethod: selectedPaymentMethod,
-                              ),
-                            ),
-                          );
-                          if (result != null) {
-                            setState(() {
-                              selectedPaymentMethod = result as String?;
-                            });
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8F8F8),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE5E5E5)),
-                          ),
-                          child: Row(
-                            children: [
-                              selectedPaymentMethod == 'QRIS'
-                                  ? Image.asset(
-                                      'assets/images/qris.png',
-                                      width: 24,
-                                      height: 24,
-                                    )
-                                  : const Icon(
-                                      Icons.credit_card_rounded,
-                                      size: 21,
-                                      color: Color(0xFF353A3F),
-                                    ),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Text(
-                                  selectedPaymentMethod == null
-                                      ? 'Pilih Metode Pembayaran'
-                                      : selectedPaymentMethod!,
-                                  style: GoogleFonts.dmSans(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 16,
-                                    color: const Color(0xFF3B3B3B),
+                        ),
+                        const SizedBox(height: 13),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F8F8),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 18,
+                              horizontal: 18,
+                            ),
+                            child: Column(
+                              children: List.generate(
+                                widget.cartItems.length,
+                                (i) => Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: i < widget.cartItems.length - 1
+                                        ? 14
+                                        : 0,
+                                  ),
+                                  child: _ProductCheckoutItem(
+                                    item: widget.cartItems[i],
                                   ),
                                 ),
                               ),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: Color(0xFFBDBDBD),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 13),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Text(
+                            'Detail Tagihan',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 13),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F8F8),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 18,
+                            ),
+                            child: Column(
+                              children: [
+                                _SummaryRow(label: 'Subtotal', value: subtotal),
+                                const SizedBox(height: 8),
+                                _SummaryRow(
+                                  label: 'Biaya Pengiriman',
+                                  value: widget.shippingFee,
+                                ),
+                                const SizedBox(height: 8),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: Divider(
+                                    thickness: 1,
+                                    color: Color(0xFFE5E5E5),
+                                    height: 1,
+                                  ),
+                                ),
+                                _SummaryRow(
+                                  label: 'Total',
+                                  value: total,
+                                  isTotal: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Text(
+                            'Metode Pembayaran',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PaymentMethodPage(
+                                    initialMethod: selectedPaymentMethod,
+                                  ),
+                                ),
+                              );
+                              if (result != null) {
+                                setState(() {
+                                  selectedPaymentMethod = result as String?;
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8F8F8),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E5E5),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  selectedPaymentMethod == 'QRIS'
+                                      ? Image.asset(
+                                          'assets/images/qris.png',
+                                          width: 24,
+                                          height: 24,
+                                        )
+                                      : const Icon(
+                                          Icons.credit_card_rounded,
+                                          size: 21,
+                                          color: Color(0xFF353A3F),
+                                        ),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Text(
+                                      selectedPaymentMethod == null
+                                          ? 'Pilih Metode Pembayaran'
+                                          : selectedPaymentMethod!,
+                                      style: GoogleFonts.dmSans(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 16,
+                                        color: const Color(0xFF3B3B3B),
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFFBDBDBD),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  if (isLoading)
+                    Container(
+                      color: Colors.black26,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                ],
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x0A000000),
-              blurRadius: 14,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SizedBox(
-          width: double.infinity,
-          height: 58,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1C55C0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(100),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 14,
+                offset: Offset(0, -2),
               ),
-              elevation: 0,
-            ),
-            onPressed: _handleCheckout,
-            child: Text(
-              'Pesan Sekarang',
-              style: GoogleFonts.dmSans(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFFFAFAFA),
+            ],
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 58,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1C55C0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                elevation: 0,
               ),
+              onPressed: isLoading ? null : _handleCheckout,
+              child: isLoading
+                  ? const SizedBox(
+                      height: 23,
+                      width: 23,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      'Pesan Sekarang',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFFAFAFA),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -335,7 +456,7 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
   }
 }
 
-// --- Widget pendukung ---
+// --- Widget pendukung, TIDAK ADA YANG DIUBAH kecuali bagian qty product ---
 class _AddressCard extends StatelessWidget {
   final AddressModel address;
   const _AddressCard({required this.address});
@@ -404,7 +525,7 @@ class _ProductCheckoutItem extends StatelessWidget {
         color: const Color(0xFFF8F8F8),
         borderRadius: BorderRadius.circular(18),
       ),
-      padding: const EdgeInsets.fromLTRB(5, 0, 5, 4),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -457,7 +578,7 @@ class _ProductCheckoutItem extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 8),
-                // Harga & Qty sejajar
+                // Harga & Qty sejajar (tanpa tombol plus/minus)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -469,22 +590,13 @@ class _ProductCheckoutItem extends StatelessWidget {
                         color: const Color(0xFF373E3C),
                       ),
                     ),
-                    Row(
-                      children: [
-                        _QtyCircleButton(icon: Icons.remove, onPressed: () {}),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Text(
-                            item.quantity.toString(),
-                            style: GoogleFonts.dmSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF373E3C),
-                            ),
-                          ),
-                        ),
-                        _QtyCircleButton(icon: Icons.add, onPressed: () {}),
-                      ],
+                    Text(
+                      "x${item.quantity}",
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
                     ),
                   ],
                 ),
@@ -497,29 +609,7 @@ class _ProductCheckoutItem extends StatelessWidget {
   }
 }
 
-class _QtyCircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  const _QtyCircleButton({required this.icon, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      shape: const CircleBorder(),
-      color: const Color(0xFF2056D3),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onPressed,
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Center(child: Icon(icon, color: Colors.white, size: 16)),
-        ),
-      ),
-    );
-  }
-}
+// _QtyCircleButton dihapus, tidak dipakai lagi
 
 class _SummaryRow extends StatelessWidget {
   final String label;
