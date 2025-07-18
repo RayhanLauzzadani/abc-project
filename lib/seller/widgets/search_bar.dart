@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-class SearchBar extends StatelessWidget {
+class SearchBar extends StatefulWidget {
   final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
   final String hintText;
@@ -15,19 +15,40 @@ class SearchBar extends StatelessWidget {
   });
 
   @override
+  _SearchBarState createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<SearchBar> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = widget.controller ?? TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    if (widget.controller == null) {
+      _controller.dispose(); // Dispose only if not passed from parent
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 40,
       width: double.infinity,
       child: TextField(
-        controller: controller,
-        onChanged: onChanged,
+        controller: _controller,
+        onChanged: widget.onChanged,
         style: GoogleFonts.dmSans(
           fontSize: 16,
           color: const Color(0xFF404040),
         ),
         decoration: InputDecoration(
-          hintText: hintText,
+          hintText: widget.hintText,
           hintStyle: GoogleFonts.dmSans(
             fontSize: 16,
             color: const Color(0xFF9B9B9B),
@@ -41,6 +62,17 @@ class SearchBar extends StatelessWidget {
               color: const Color(0xFF9B9B9B),
             ),
           ),
+          suffixIcon: _controller.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Color(0xFF9B9B9B)),
+                  onPressed: () {
+                    _controller.clear();
+                    if (widget.onChanged != null) {
+                      widget.onChanged!('');
+                    }
+                  },
+                )
+              : null,
           prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           filled: true,
           fillColor: const Color(0xFFF2F2F3),
