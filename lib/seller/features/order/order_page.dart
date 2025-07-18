@@ -156,7 +156,7 @@ class _AnimatedSellerOrderTabBar extends StatelessWidget {
         } else if (selectedIndex == 1) {
           underlineLeft = tabLefts[1] - 4.5;
         } else {
-          underlineLeft = tabLefts[2] - 8;
+          underlineLeft = tabLefts[2] - 9.5;
         }
         final underlineWidth = textPainters[selectedIndex].width;
 
