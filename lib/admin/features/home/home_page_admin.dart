@@ -1,3 +1,4 @@
+import 'package:abc_e_mart/buyer/widgets/logout_confirmation_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,10 +11,13 @@ import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_pa
 import 'package:abc_e_mart/admin/features/approval/product/admin_product_approval_page.dart';
 import 'package:abc_e_mart/admin/widgets/admin_ad_submission_section.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_page.dart';
+import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
 import 'package:abc_e_mart/admin/features/notification/notification_page_admin.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart';
+import 'package:intl/intl.dart';
 
 class HomePageAdmin extends StatefulWidget {
   const HomePageAdmin({super.key});
@@ -74,12 +78,20 @@ class _HomePageAdminState extends State<HomePageAdmin> {
   }
 
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (route) => false,
+    // Hanya trigger, dialog akan dipanggil dari AdminHomeHeader via callback
+    final result = await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => const LogoutConfirmationDialog(),
     );
+    if (result == true) {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    }
   }
 
   String _formatDate(DateTime dt) {
@@ -101,9 +113,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
     } else {
       mainBody = Column(
         children: [
-          // HEADER: TANPA GAP ATAS, SHADOW MODERN, PADDING TOP SESUAI STATUS BAR
+          // HEADER
           Container(
-            padding: EdgeInsets.only(
+            padding: const EdgeInsets.only(
               left: 20,
               right: 20,
               top: 20,
@@ -115,7 +127,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                 BoxShadow(
                   color: Colors.black.withOpacity(0.07),
                   blurRadius: 16,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -131,8 +143,6 @@ class _HomePageAdminState extends State<HomePageAdmin> {
               onLogoutTap: _logout,
             ),
           ),
-          // JANGAN PAKAI SizedBox(height: xx) DISINI!
-          // Content langsung di bawah header tanpa gap!
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 0),
@@ -152,10 +162,10 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                         if (shopSnapshot.hasData) {
                           final docs = shopSnapshot.data!.docs;
                           tokoBaru = docs.where((doc) =>
-                            (doc['status'] ?? '').toString().toLowerCase() == 'pending'
+                              (doc['status'] ?? '').toString().toLowerCase() == 'pending'
                           ).length;
                           tokoTerdaftar = docs.where((doc) =>
-                            (doc['status'] ?? '').toString().toLowerCase() == 'approved'
+                              (doc['status'] ?? '').toString().toLowerCase() == 'approved'
                           ).length;
                         }
                         return StreamBuilder<QuerySnapshot>(
@@ -176,15 +186,32 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                 return status == 'sukses' || status == 'approved';
                               }).length;
                             }
-                            int iklanBaru = 0;
-                            int iklanAktif = 0;
-                            return AdminSummaryCard(
-                              tokoBaru: tokoBaru,
-                              tokoTerdaftar: tokoTerdaftar,
-                              produkBaru: produkBaru,
-                              produkDisetujui: produkDisetujui,
-                              iklanBaru: iklanBaru,
-                              iklanAktif: iklanAktif,
+                            // --- QUERY IKLAN BARU & DISETUJUI (Real) ---
+                            return StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('adsApplication')
+                                  .snapshots(),
+                              builder: (context, adSnap) {
+                                int iklanBaru = 0;
+                                int iklanDisetujui = 0;
+                                if (adSnap.hasData) {
+                                  final ads = adSnap.data!.docs;
+                                  iklanBaru = ads.where((doc) =>
+                                    (doc['status'] ?? '').toString().toLowerCase() == 'menunggu'
+                                  ).length;
+                                  iklanDisetujui = ads.where((doc) =>
+                                    (doc['status'] ?? '').toString().toLowerCase() == 'disetujui'
+                                  ).length;
+                                }
+                                return AdminSummaryCard(
+                                  tokoBaru: tokoBaru,
+                                  tokoTerdaftar: tokoTerdaftar,
+                                  produkBaru: produkBaru,
+                                  produkDisetujui: produkDisetujui,
+                                  iklanBaru: iklanBaru,
+                                  iklanAktif: iklanDisetujui,
+                                );
+                              },
                             );
                           },
                         );
@@ -310,30 +337,79 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
                   const SizedBox(height: 20),
 
-                  // ====== IKLAN SECTION (dummy/hardcoded) ======
+                  // ====== IKLAN SECTION: REALTIME dari Firestore (Menunggu) ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AdminAdSubmissionSection(
-                      submissions: [
-                        AdminAdSubmissionData(
-                          title: 'Iklan : Ayam Geprek',
-                          detailPeriod: '3 Hari • 21 Juli – 23 Juli 2025',
-                          date: '30/06/2024, 4:15 PM',
-                        ),
-                        AdminAdSubmissionData(
-                          title: 'Iklan : Ayam Geprek',
-                          detailPeriod: '3 Hari • 21 Juli – 23 Juli 2025',
-                          date: '30/06/2024, 4:15 PM',
-                        ),
-                      ],
-                      onSeeAll: () {
-                        setState(() {
-                          _currentIndex = 3;
-                        });
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('adsApplication')
+                          .where('status', isEqualTo: 'Menunggu')
+                          .orderBy('createdAt', descending: true)
+                          .limit(2)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text('Terjadi kesalahan: ${snapshot.error}'),
+                          );
+                        }
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 30),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        final docs = snapshot.data?.docs ?? [];
+                        final adSubmissions = docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final judul = data['judul'] ?? '-';
+                          final durasiMulai = (data['durasiMulai'] is Timestamp)
+                              ? (data['durasiMulai'] as Timestamp).toDate()
+                              : DateTime.now();
+                          final durasiSelesai = (data['durasiSelesai'] is Timestamp)
+                              ? (data['durasiSelesai'] as Timestamp).toDate()
+                              : DateTime.now();
+                          final period = _formatPeriod(durasiMulai, durasiSelesai);
+                          final createdAt = (data['createdAt'] is Timestamp)
+                              ? (data['createdAt'] as Timestamp).toDate()
+                              : DateTime.now();
+                          final tglAjukan = DateFormat('dd/MM/yyyy, HH:mm').format(createdAt);
+
+                          // Map ke AdApplication
+                          final ad = AdApplication.fromFirestore(doc);
+
+                          return AdminAdSubmissionData(
+                            title: 'Iklan : $judul',
+                            detailPeriod: period,
+                            date: tglAjukan,
+                            docId: doc.id,
+                            ad: ad, // <--- PENTING
+                          );
+                        }).toList();
+
+                        return AdminAdSubmissionSection(
+                          submissions: adSubmissions,
+                          onSeeAll: () {
+                            setState(() {
+                              _currentIndex = 3;
+                            });
+                          },
+                          onDetail: (submission) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AdminAdApprovalDetailPage(ad: submission.ad),
+                              ),
+                            );
+                          },
+                        );
                       },
-                      onDetail: (submission) {},
                     ),
                   ),
+
                   const SizedBox(height: 30),
                 ],
               ),
@@ -345,7 +421,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: mainBody, // SafeArea cukup di header aja
+      body: mainBody,
       bottomNavigationBar: AdminBottomNavbar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -355,5 +431,14 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         },
       ),
     );
+  }
+
+  // --- Helper period formatter ---
+  String _formatPeriod(DateTime mulai, DateTime selesai) {
+    final durasi = selesai.difference(mulai).inDays + 1;
+    final locale = 'id_ID';
+    final tglMulai = DateFormat('d MMMM', locale).format(mulai);
+    final tglSelesai = DateFormat('d MMMM yyyy', locale).format(selesai);
+    return "$durasi Hari • $tglMulai – $tglSelesai";
   }
 }
