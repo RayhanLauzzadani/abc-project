@@ -4,8 +4,9 @@ import 'package:flutter/gestures.dart';
 import 'login_page.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../data/services/auth_service.dart';
-import '../../data/services/google_auth_service.dart'; 
-import '../home/home_page_buyer.dart'; 
+import '../../data/services/google_auth_service.dart';
+import '../home/home_page_buyer.dart';
+import 'package:abc_e_mart/buyer/widgets/success_dialog.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -250,24 +251,17 @@ class _SignupPageState extends State<SignupPage> {
 
                             if (result == null) {
                               if (mounted) {
-                                showDialog(
+                                await showDialog(
                                   context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text("Registrasi Berhasil"),
-                                    content: const Text(
-                                        "Akun berhasil dibuat! Silakan login."),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context)
-                                            ..pop()
-                                            ..pushReplacement(_createRouteToLogin());
-                                        },
-                                        child: const Text("OK"),
-                                      ),
-                                    ],
+                                  barrierDismissible: false,
+                                  builder: (_) => const SuccessDialog(
+                                    message: "Akun berhasil dibuat!\nSilakan login.",
                                   ),
                                 );
+                                if (mounted) {
+                                  Navigator.of(context)
+                                      .pushReplacement(_createRouteToLogin());
+                                }
                               }
                             } else {
                               if (mounted) {
@@ -349,21 +343,27 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     onPressed: () async {
                       try {
-                        final userCredential = await GoogleAuthService.signInWithGoogle();
+                        final userCredential =
+                            await GoogleAuthService.signInWithGoogle();
                         if (userCredential != null) {
                           if (mounted) {
                             Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const HomePage()),
+                              MaterialPageRoute(
+                                  builder: (_) => const HomePage()),
                             );
                           }
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Login dengan Google dibatalkan.")),
+                            const SnackBar(
+                                content:
+                                    Text("Login dengan Google dibatalkan.")),
                           );
                         }
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Gagal login dengan Google: $e")),
+                          SnackBar(
+                              content:
+                                  Text("Gagal login dengan Google: $e")),
                         );
                       }
                     },
