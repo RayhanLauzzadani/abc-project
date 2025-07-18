@@ -18,6 +18,9 @@ class CartAndOrderListCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onActionTap;
   final String? statusText;
+  final bool showStatusBadge;
+  final String? actionTextOverride;
+  final IconData? actionIconOverride;
 
   const CartAndOrderListCard({
     Key? key,
@@ -31,6 +34,9 @@ class CartAndOrderListCard extends StatelessWidget {
     this.statusText,
     this.onTap,
     this.onActionTap,
+    this.showStatusBadge = true,
+    this.actionTextOverride,
+    this.actionIconOverride,
   }) : super(key: key);
 
   @override
@@ -60,8 +66,9 @@ class CartAndOrderListCard extends StatelessWidget {
         break;
     }
 
-    String actionText = status == OrderStatus.inProgress ? "Lacak Pesanan" : "Detail Pesanan";
-    IconData actionIcon = Icons.chevron_right_rounded;
+  String actionText = actionTextOverride ??
+    (status == OrderStatus.inProgress ? "Lacak Pesanan" : "Detail Pesanan");
+  IconData actionIcon = actionIconOverride ?? Icons.chevron_right_rounded;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -140,10 +147,11 @@ class CartAndOrderListCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      // Badge di kanan atas info, tapi di-TURUNKAN dikit biar pas
+                      // Badge
+                      if (showStatusBadge)
                       Positioned(
                         right: 0,
-                        top: 4, // Naik-turun badge, ubah sesuai kebutuhan (4 = cukup ideal)
+                        top: 4,
                         child: Container(
                           constraints: const BoxConstraints(
                             minWidth: 88, maxWidth: 116, minHeight: 18, maxHeight: 20,
