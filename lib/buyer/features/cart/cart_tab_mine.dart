@@ -196,7 +196,7 @@ class _CartTabMineState extends State<CartTabMine> {
                       builder: (_) => CheckoutSummaryPage(
                         address: address,
                         cartItems: selectedStore!.items,
-                        storeName: selectedStore.storeName, // <<--- DITAMBAH DI SINI!
+                        storeName: selectedStore.storeName,
                       ),
                     ),
                   );
