@@ -4,20 +4,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:focus_detector/focus_detector.dart';
 import '../../widgets/cart_box.dart';
 import '../../data/repositories/cart_repository.dart';
-import '../../data/services/address_service.dart'; // Tambahkan
-import '../cart/checkout_summary_page.dart'; // Tambahkan
-import '../../data/models/address.dart'; // Tambahkan
+import '../../data/services/address_service.dart';
+import '../cart/checkout_summary_page.dart';
+import '../../data/models/address.dart';
 
 class CartTabMine extends StatefulWidget {
   final Map<String, bool> storeChecked;
   final Function(String, bool) onStoreCheckedChanged;
-  final void Function(List<String> storeIds)? onStoreListChanged; // Menambahkan parameter ini
+  final void Function(List<String> storeIds)? onStoreListChanged;
 
   const CartTabMine({
     Key? key,
     required this.storeChecked,
     required this.onStoreCheckedChanged,
-    this.onStoreListChanged, // Menambahkan parameter ini
+    this.onStoreListChanged,
   }) : super(key: key);
 
   @override
@@ -189,13 +189,14 @@ class _CartTabMineState extends State<CartTabMine> {
                     );
                     return;
                   }
-                  // Navigasi ke halaman checkout, pass data yg sesuai
+                  // Navigasi ke halaman checkout, pass data yg sesuai + NAMA TOKO
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => CheckoutSummaryPage(
                         address: address,
                         cartItems: selectedStore!.items,
+                        storeName: selectedStore.storeName, // <<--- DITAMBAH DI SINI!
                       ),
                     ),
                   );

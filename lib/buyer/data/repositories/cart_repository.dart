@@ -4,7 +4,7 @@ import '../models/cart/cart_item.dart';
 class CartRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Ambil keranjang berdasarkan userId
+  /// Ambil keranjang berdasarkan userId.
   Future<List<StoreCart>> getCart(String userId) async {
     final doc = await _firestore
         .collection('users')
@@ -12,61 +12,73 @@ class CartRepository {
         .collection('carts')
         .doc('main')
         .get();
+
     if (!doc.exists || doc.data() == null) return [];
     final data = doc.data()!;
     final storeCarts = data['storeCarts'] as List<dynamic>? ?? [];
+
     storeCarts.sort((a, b) {
       Timestamp aTime = a['addedAt'] ?? Timestamp.now();
       Timestamp bTime = b['addedAt'] ?? Timestamp.now();
       return aTime.compareTo(bTime);
     });
-    return storeCarts.map((storeData) => StoreCart.fromMap(storeData)).toList();
+
+    return storeCarts
+        .map((storeData) => StoreCart.fromMap(Map<String, dynamic>.from(storeData)))
+        .toList();
   }
 
-  // Tambahkan/memperbarui produk dalam keranjang
+  /// Tambahkan/memperbarui produk dalam keranjang.
   Future<void> addOrUpdateCartItem({
     required String userId,
     required CartItem item,
     required String storeId,
     required String storeName,
+    required String ownerId,
   }) async {
     final userDoc = _firestore
         .collection('users')
         .doc(userId)
         .collection('carts')
         .doc('main');
-    final docSnap = await userDoc.get();
 
+    final docSnap = await userDoc.get();
     Map<String, dynamic> cartData = docSnap.data() ?? {};
     List<dynamic> storeCarts = List.from(cartData['storeCarts'] ?? []);
 
     int storeIdx = storeCarts.indexWhere((s) => s['storeId'] == storeId);
 
+    final itemMap = item.toMap()..remove('addedAt');
+
     if (storeIdx == -1) {
-      // Keranjang baru untuk toko baru
+      // Jika belum ada cart untuk toko ini, buat baru
       storeCarts.add({
         'storeId': storeId,
         'storeName': storeName,
+        'ownerId': ownerId,
         'addedAt': Timestamp.now(),
-        'items': [item.toMap()..remove('addedAt')],
+        'items': [itemMap],
       });
     } else {
+      // Jika sudah ada, update/replace item jika ada, atau tambah kalau belum ada
       List<dynamic> items = List.from(storeCarts[storeIdx]['items'] ?? []);
       int itemIdx = items.indexWhere((it) => it['id'] == item.id);
 
-      final itemMap = item.toMap()..remove('addedAt');
       if (itemIdx == -1) {
         items.add(itemMap);
       } else {
         items[itemIdx] = itemMap;
       }
       storeCarts[storeIdx]['items'] = items;
+      // Pastikan data toko & ownerId juga selalu terupdate jika berubah
+      storeCarts[storeIdx]['storeName'] = storeName;
+      storeCarts[storeIdx]['ownerId'] = ownerId;
     }
 
     await userDoc.set({'storeCarts': storeCarts}, SetOptions(merge: true));
   }
 
-  // Hapus produk dari keranjang (jika tidak ada item, hapus keranjang toko juga)
+  /// Hapus produk dari keranjang (jika tidak ada item, hapus keranjang toko juga)
   Future<void> removeCartItem({
     required String userId,
     required String storeId,
@@ -97,7 +109,7 @@ class CartRepository {
     await userDoc.set({'storeCarts': storeCarts}, SetOptions(merge: true));
   }
 
-  // Update quantity
+  /// Update quantity item produk di cart
   Future<void> updateCartItemQuantity({
     required String userId,
     required String storeId,
@@ -130,12 +142,14 @@ class CartRepository {
 class StoreCart {
   final String storeId;
   final String storeName;
+  final String ownerId;
   final List<CartItem> items;
   final DateTime addedAt;
 
   StoreCart({
     required this.storeId,
     required this.storeName,
+    required this.ownerId,
     required this.items,
     required this.addedAt,
   });
@@ -144,8 +158,9 @@ class StoreCart {
     return StoreCart(
       storeId: data['storeId'] ?? '',
       storeName: data['storeName'] ?? '',
+      ownerId: data['ownerId'] ?? '',
       items: (data['items'] as List<dynamic>? ?? [])
-          .map((e) => CartItem.fromMap(e as Map<String, dynamic>))
+          .map((e) => CartItem.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
       addedAt: (data['addedAt'] is Timestamp)
           ? (data['addedAt'] as Timestamp).toDate()
@@ -156,6 +171,7 @@ class StoreCart {
   Map<String, dynamic> toMap() => {
         'storeId': storeId,
         'storeName': storeName,
+        'ownerId': ownerId,
         'addedAt': Timestamp.fromDate(addedAt),
         'items': items.map((e) => e.toMap()).toList(),
       };
