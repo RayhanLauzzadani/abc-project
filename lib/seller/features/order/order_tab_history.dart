@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../widgets/cart_and_order_list_card.dart';
 import '../../../widgets/dummy/dummy_orders.dart';
 
-class CartTabHistory extends StatelessWidget {
-  const CartTabHistory({super.key});
+class SellerOrderTabHistory extends StatelessWidget {
+  const SellerOrderTabHistory({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Dummy: riwayat order (success/canceled)
     final orders = dummyOrdersHistory;
 
     if (orders.isEmpty) {
@@ -16,11 +17,7 @@ class CartTabHistory extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              LucideIcons.history,
-              size: 85,
-              color: Colors.grey[350],
-            ),
+            Icon(LucideIcons.history, size: 85, color: Colors.grey[350]),
             const SizedBox(height: 30),
             Text(
               "Riwayat pesanan masih kosong",
@@ -32,7 +29,7 @@ class CartTabHistory extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Belum ada riwayat transaksi sebelumnya.",
+              "Belum ada riwayat pesanan sebelumnya.",
               style: GoogleFonts.dmSans(
                 fontSize: 14.5,
                 color: Colors.grey[500],
@@ -50,7 +47,7 @@ class CartTabHistory extends StatelessWidget {
       itemBuilder: (context, i) {
         final order = orders[i];
         return CartAndOrderListCard(
-          storeName: order.storeName,
+          storeName: order.storeName, // ganti ke order.buyerName jika sudah ada
           orderId: order.orderId,
           productImage: order.productImage,
           itemCount: order.itemCount,
@@ -58,11 +55,16 @@ class CartTabHistory extends StatelessWidget {
           orderDateTime: order.orderDateTime,
           status: order.status,
           onTap: () {
-            // TODO: nanti navigasi ke halaman detail pesanan
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Menuju Detail Pesanan...")),
+              const SnackBar(content: Text("Tinjau Pesanan...")),
             );
           },
+          onActionTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Tinjau Pesanan...")),
+            );
+          },
+          // statusText: null, // pakai label default
         );
       },
     );

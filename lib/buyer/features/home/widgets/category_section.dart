@@ -1,24 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+// Enum kategori urut sesuai permintaan
+enum CategoryType {
+  merchandise,
+  alatTulis,
+  alatLab,
+  produkDaurUlang,
+  produkKesehatan,
+  makanan,
+  minuman,
+  snacks,
+  lainnya,
+}
+
+// Mapping label kategori (bisa dipakai global)
+const Map<CategoryType, String> categoryLabels = {
+  CategoryType.merchandise: 'Merchandise',
+  CategoryType.alatTulis: 'Alat Tulis',
+  CategoryType.alatLab: 'Alat Lab',
+  CategoryType.produkDaurUlang: 'Produk Daur Ulang',
+  CategoryType.produkKesehatan: 'Produk Kesehatan',
+  CategoryType.makanan: 'Makanan',
+  CategoryType.minuman: 'Minuman',
+  CategoryType.snacks: 'Snacks',
+  CategoryType.lainnya: 'Lainnya',
+};
 
 class CategorySection extends StatelessWidget {
-  const CategorySection({super.key});
+  final Function(int) onCategorySelected;
+
+  const CategorySection({super.key, required this.onCategorySelected});
 
   final List<Map<String, dynamic>> categories = const [
     {
+      "label": "Merchandise",
+      "icon": "assets/icons/home/merchandise.png",
+      "color": Color(0xFFB95FD0),
+    },
+    {
+      "label": "Alat Tulis",
+      "icon": "assets/icons/home/alat_tulis.png",
+      "color": Color(0xFF1C55C0),
+    },
+    {
+      "label": "Alat Lab",
+      "icon": "assets/icons/home/alat_lab.png",
+      "color": Color(0xFFFF6725),
+    },
+    {
+      "label": "Produk Daur Ulang",
+      "icon": "assets/icons/home/produk_daur_ulang.png",
+      "color": Color(0xFF17A2B8),
+    },
+    {
+      "label": "Produk Kesehatan",
+      "icon": "assets/icons/home/produk_kesehatan.png",
+      "color": Color(0xFF28A745),
+    },
+    {
       "label": "Makanan",
-      "icon": "assets/icons/makanan.png",
-      "color": Color(0xFFFF455B),
+      "icon": "assets/icons/home/makanan.png",
+      "color": Color(0xFFDC3545),
     },
     {
       "label": "Minuman",
-      "icon": "assets/icons/minuman.png",
-      "color": Color(0xFF24BCD7),
+      "icon": "assets/icons/home/minuman.png",
+      "color": Color(0xFF8B4513),
     },
     {
       "label": "Snacks",
-      "icon": "assets/icons/snacks.png",
-      "color": Color(0xFFFFC928),
+      "icon": "assets/icons/home/snacks.png",
+      "color": Color(0xFFFFC90D),
     },
     {
       "label": "Lainnya",
@@ -61,7 +115,6 @@ class CategorySection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-
         // List kategori horizontal tanpa padding kiri
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -78,13 +131,7 @@ class CategorySection extends StatelessWidget {
                   icon: cat['icon'],
                   color: cat['color'],
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            CategoryDetailPage(categoryLabel: cat['label']),
-                      ),
-                    );
+                    onCategorySelected(i + 1); // Menggunakan 1-based index
                   },
                 ),
               );
@@ -96,6 +143,7 @@ class CategorySection extends StatelessWidget {
   }
 }
 
+// Kartu kategori
 class CategoryCard extends StatelessWidget {
   final String label;
   final String icon;
@@ -141,12 +189,19 @@ class CategoryCard extends StatelessWidget {
             Positioned(
               right: 13,
               bottom: 12,
-              child: Image.asset(
-                icon,
-                width: 30,
-                height: 30,
-                fit: BoxFit.contain,
-              ),
+              child: icon.endsWith('.svg')
+                  ? SvgPicture.asset(
+                      icon,
+                      width: 30,
+                      height: 30,
+                      fit: BoxFit.contain,
+                    )
+                  : Image.asset(
+                      icon,
+                      width: 30,
+                      height: 30,
+                      fit: BoxFit.contain,
+                    ),
             ),
             // Label
             Padding(
@@ -185,23 +240,4 @@ class _HalfCircleClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(_HalfCircleClipper oldClipper) => false;
-}
-
-class CategoryDetailPage extends StatelessWidget {
-  final String categoryLabel;
-
-  const CategoryDetailPage({super.key, required this.categoryLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(categoryLabel)),
-      body: Center(
-        child: Text(
-          'Ini halaman detail kategori: $categoryLabel',
-          style: GoogleFonts.dmSans(fontSize: 20),
-        ),
-      ),
-    );
-  }
 }

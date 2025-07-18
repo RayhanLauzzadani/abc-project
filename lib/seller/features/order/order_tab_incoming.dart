@@ -1,29 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../widgets/cart_and_order_list_card.dart';
 import '../../../widgets/dummy/dummy_orders.dart';
+import 'package:abc_e_mart/seller/features/order/review_order/review_order_page.dart';
 
-class CartTabHistory extends StatelessWidget {
-  const CartTabHistory({super.key});
+class SellerOrderTabIncoming extends StatelessWidget {
+  const SellerOrderTabIncoming({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final orders = dummyOrdersHistory;
+    // Dummy: order baru masuk (belum diproses)
+    final orders = dummyOrdersInProgress; // Ganti source sesuai kebutuhan
 
     if (orders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              LucideIcons.history,
-              size: 85,
-              color: Colors.grey[350],
-            ),
+            Icon(LucideIcons.inbox, size: 85, color: Colors.grey[350]),
             const SizedBox(height: 30),
             Text(
-              "Riwayat pesanan masih kosong",
+              "Belum ada pesanan masuk",
               style: GoogleFonts.dmSans(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
@@ -32,7 +30,7 @@ class CartTabHistory extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Belum ada riwayat transaksi sebelumnya.",
+              "Pesanan baru dari pembeli akan muncul di sini.",
               style: GoogleFonts.dmSans(
                 fontSize: 14.5,
                 color: Colors.grey[500],
@@ -57,12 +55,26 @@ class CartTabHistory extends StatelessWidget {
           totalPrice: order.totalPrice,
           orderDateTime: order.orderDateTime,
           status: order.status,
+          showStatusBadge: false,
+          actionTextOverride: "Tinjau Pesanan",
+          actionIconOverride: Icons.chevron_right_rounded,
           onTap: () {
-            // TODO: nanti navigasi ke halaman detail pesanan
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Menuju Detail Pesanan...")),
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ReviewOrderPage(),
+              ),
             );
           },
+          onActionTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ReviewOrderPage(),
+              ),
+            );
+          },
+          statusText: null, // ga perlu status text
         );
       },
     );
