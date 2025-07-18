@@ -3,6 +3,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../widgets/cart_and_order_list_card.dart';
 import '../../../widgets/dummy/dummy_orders.dart';
+// Tambahkan import berikut
+import 'detail_history_page.dart';
 
 class CartTabHistory extends StatelessWidget {
   const CartTabHistory({super.key});
@@ -58,10 +60,13 @@ class CartTabHistory extends StatelessWidget {
           orderDateTime: order.orderDateTime,
           status: order.status,
           onTap: () {
-            // TODO: nanti navigasi ke halaman detail pesanan
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Menuju Detail Pesanan...")),
-            );
+            // Navigasi ke halaman detail pesanan buyer
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => DetailHistoryPage(
+                // Bisa pass id/order, atau pass objek order (kalau DetailHistoryPage sudah bisa menerima param)
+                // Contoh: DetailHistoryPage(order: order),
+              ),
+            ));
           },
         );
       },

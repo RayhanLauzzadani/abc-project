@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'order_accepted_popup.dart';
+import 'order_accepted_popup.dart'; // Pastikan sudah ada file ini (dengan Lottie)
 
 enum ReviewOrderState { review, accepted }
 
@@ -31,7 +31,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
       "note": "",
       "qty": 1,
       "price": 7500,
-      "image": null, // contoh tanpa gambar
+      "image": null,
     },
   ];
   final int subtotal = 22500;
@@ -46,11 +46,14 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     );
   }
 
+  // Fungsi menerima pesanan
   void _onAcceptOrder() async {
     await _showOrderAcceptedPopup();
+    // TODO: Update status pesanan di Firestore ke 'accepted'
     setState(() => _state = ReviewOrderState.accepted);
   }
 
+  // Fungsi menolak pesanan
   void _onRejectOrder() {
     showDialog(
       context: context,
@@ -121,6 +124,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
+                    // TODO: Update status pesanan di Firestore ke 'rejected'
                     Navigator.pop(context);
                     Navigator.pop(context);
                   },
@@ -147,10 +151,18 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     );
   }
 
-  void _onShipOrder() {
+  // Fungsi kirim pesanan
+  void _onShipOrder() async {
+    // TODO: Update status pesanan di Firestore ke 'shipped'
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Pesanan akan dikirim...")),
     );
+    // Navigasi ke halaman lacak pesanan jika sudah ada
+    // Navigator.pushReplacementNamed(context, '/lacak_pesanan');
+    // Untuk sekarang, cukup pop kembali ke list pesanan
+    Future.delayed(const Duration(milliseconds: 700), () {
+      Navigator.pop(context); // Tutup halaman review_order_page
+    });
   }
 
   @override
@@ -442,10 +454,21 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Metode Pembayaran",
-                        style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF828282)),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Metode Pembayaran",
+                            style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF828282)),
+                          ),
+                          const Spacer(),
+                          Image.asset(
+                            'assets/images/qris.png',
+                            height: 14,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -511,7 +534,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 ),
               ),
             ),
-            // Spacer bawah
             const SliverToBoxAdapter(child: SizedBox(height: 30)),
           ],
         ),

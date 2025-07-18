@@ -3,13 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../widgets/cart_and_order_list_card.dart';
 import '../../../widgets/dummy/dummy_orders.dart';
+import 'detail_order/detail_order_page.dart';
 
 class SellerOrderTabHistory extends StatelessWidget {
   const SellerOrderTabHistory({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Dummy: riwayat order (success/canceled)
     final orders = dummyOrdersHistory;
 
     if (orders.isEmpty) {
@@ -47,7 +47,7 @@ class SellerOrderTabHistory extends StatelessWidget {
       itemBuilder: (context, i) {
         final order = orders[i];
         return CartAndOrderListCard(
-          storeName: order.storeName, // ganti ke order.buyerName jika sudah ada
+          storeName: order.storeName,
           orderId: order.orderId,
           productImage: order.productImage,
           itemCount: order.itemCount,
@@ -55,16 +55,21 @@ class SellerOrderTabHistory extends StatelessWidget {
           orderDateTime: order.orderDateTime,
           status: order.status,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Tinjau Pesanan...")),
-            );
+            // Navigasi ke halaman detail seller
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => DetailOrderPage(
+                // Bisa pass id/order, atau pass objek order (kalau DetailOrderPage sudah bisa menerima param)
+                // Contoh: DetailOrderPage(order: order),
+              ),
+            ));
           },
           onActionTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Tinjau Pesanan...")),
-            );
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => DetailOrderPage(
+                // sama seperti onTap
+              ),
+            ));
           },
-          // statusText: null, // pakai label default
         );
       },
     );
