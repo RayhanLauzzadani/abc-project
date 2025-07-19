@@ -59,15 +59,19 @@ class _AdminAdApprovalDetailPageState extends State<AdminAdApprovalDetailPage> {
       });
 
       // Buat notifikasi ke seller
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'toUser': widget.ad.sellerId,
-        'type': 'ad_approved',
-        'adId': widget.ad.id,
-        'title': 'Iklan Disetujui',
-        'body': 'Iklan "${widget.ad.judul}" sudah disetujui dan akan tampil otomatis sesuai jadwal.',
-        'createdAt': FieldValue.serverTimestamp(),
-        'read': false,
-      });
+      await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.ad.sellerId)
+        .collection('notifications')
+        .add({
+          'title': 'Iklan Disetujui',
+          'body': 'Iklan "${widget.ad.judul}" sudah disetujui dan akan tampil otomatis sesuai jadwal.',
+          'adId': widget.ad.id,
+          'type': 'ad_approved',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
