@@ -19,6 +19,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/data/models/address.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class HomePage extends StatefulWidget {
   final int initialIndex;
@@ -97,10 +98,12 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _HomeMainContent extends StatelessWidget {
+///
+/// HOME MAIN CONTENT STATEFUL + SEARCH LOGIC
+///
+class _HomeMainContent extends StatefulWidget {
   final Function(int selectedCategory) onCategorySelected;
-  const _HomeMainContent({Key? key, required this.onCategorySelected})
-    : super(key: key);
+  const _HomeMainContent({Key? key, required this.onCategorySelected}) : super(key: key);
 
   static const double headerHeight = 110;
   static const double spaceBawah = 0;
@@ -109,9 +112,24 @@ class _HomeMainContent extends StatelessWidget {
       headerHeight + spaceBawah + searchBarHeight;
 
   @override
+  State<_HomeMainContent> createState() => _HomeMainContentState();
+}
+
+class _HomeMainContentState extends State<_HomeMainContent> {
+  String searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final userUid = user?.uid ?? '';
+    final isSearching = searchQuery.trim().isNotEmpty;
 
     return CustomScrollView(
       slivers: [
@@ -134,114 +152,301 @@ class _HomeMainContent extends StatelessWidget {
                 left: 20,
                 right: 20,
                 top: 31,
-                bottom: spaceBawah,
+                bottom: _HomeMainContent.spaceBawah,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _HomeAddressHeader(),
                   const SizedBox(height: 20),
-                  const SizedBox(
-                    height: searchBarHeight,
-                    child: custom.SearchBar(),
+                  SizedBox(
+                    height: _HomeMainContent.searchBarHeight,
+                    child: custom.SearchBar(
+                      controller: _searchController,
+                      onChanged: (val) {
+                        setState(() {
+                          searchQuery = val;
+                        });
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
-            height: totalStickyHeight,
+            height: _HomeMainContent.totalStickyHeight,
           ),
         ),
-        // Banner Promo
         SliverToBoxAdapter(child: const SizedBox(height: 10)),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: PromoBannerCarousel(
-              onBannerTap: (bannerData) async {
-                if ((bannerData['isAsset'] ?? true) == false &&
-                    bannerData['productId'] != null &&
-                    bannerData['productId'].toString().isNotEmpty) {
-                  // --- Ambil detail produk real-time dari Firestore agar tidak error ---
-                  final doc = await FirebaseFirestore.instance
-                      .collection('products')
-                      .doc(bannerData['productId'])
-                      .get();
-                  if (doc.exists) {
-                    final productData = doc.data() ?? {};
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ProductDetailPage(
-                          product: {...productData, 'id': doc.id},
+        if (!isSearching)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: PromoBannerCarousel(
+                onBannerTap: (bannerData) async {
+                  if ((bannerData['isAsset'] ?? true) == false &&
+                      bannerData['productId'] != null &&
+                      bannerData['productId'].toString().isNotEmpty) {
+                    final doc = await FirebaseFirestore.instance
+                        .collection('products')
+                        .doc(bannerData['productId'])
+                        .get();
+                    if (doc.exists) {
+                      final productData = doc.data() ?? {};
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetailPage(
+                            product: {...productData, 'id': doc.id},
+                          ),
                         ),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Produk tidak ditemukan atau sudah dihapus.'),
-                      ),
-                    );
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Produk tidak ditemukan atau sudah dihapus.'),
+                        ),
+                      );
+                    }
                   }
-                }
-              },
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(child: const SizedBox(height: 24)),
-        // Kategori Section: pass callback
-        SliverToBoxAdapter(
-          child: CategorySection(onCategorySelected: onCategorySelected),
-        ),
-        SliverToBoxAdapter(child: const SizedBox(height: 32)),
-        // Toko
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              "Toko yang Tersedia",
-              style: GoogleFonts.dmSans(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF212121),
+                },
               ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('stores')
-                  .limit(5)
-                  .get(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 30),
-                      child: CircularProgressIndicator(),
-                    ),
+        if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 24)),
+        if (!isSearching)
+          SliverToBoxAdapter(
+            child: CategorySection(onCategorySelected: widget.onCategorySelected),
+          ),
+        if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 32)),
+        // --- HASIL PENCARIAN ---
+        if (isSearching)
+          SliverToBoxAdapter(
+            child: _SearchResultSection(
+              query: searchQuery,
+              userUid: userUid,
+            ),
+          ),
+        // --- TAMPILAN NORMAL (tidak search) ---
+        if (!isSearching) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                "Toko yang Tersedia",
+                style: GoogleFonts.dmSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF212121),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(child: const SizedBox(height: 12)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: FutureBuilder<QuerySnapshot>(
+                future: FirebaseFirestore.instance
+                    .collection('stores')
+                    .limit(5)
+                    .get(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 30),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Belum ada toko tersedia.')),
+                    );
+                  }
+                  final stores = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['ownerId'] != userUid;
+                  }).toList();
+                  if (stores.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Belum ada toko tersedia.')),
+                    );
+                  }
+                  return Column(
+                    children: stores.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return StoreCard(
+                        imageUrl: data['logoUrl'] ?? '',
+                        storeName: data['name'] ?? '',
+                        rating: (data['rating'] ?? 0).toDouble(),
+                        ratingCount: (data['ratingCount'] ?? 0).toInt(),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  StoreDetailPage(store: {...data, 'id': doc.id}),
+                            ),
+                          );
+                        },
+                      );
+                    }).toList(),
                   );
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Belum ada toko tersedia.')),
+                },
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(child: const SizedBox(height: 32)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                "Produk untuk Anda",
+                style: GoogleFonts.dmSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF212121),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(child: const SizedBox(height: 12)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: FutureBuilder<QuerySnapshot>(
+                future: FirebaseFirestore.instance
+                    .collection('products')
+                    .limit(5)
+                    .get(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 30),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Belum ada produk tersedia.')),
+                    );
+                  }
+                  final products = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['ownerId'] != userUid;
+                  }).toList();
+                  if (products.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Belum ada produk tersedia.')),
+                    );
+                  }
+                  return Column(
+                    children: products.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return ProductCard(
+                        imageUrl: data['imageUrl'] ?? '',
+                        name: data['name'] ?? '',
+                        price: (data['price'] ?? 0),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ProductDetailPage(
+                                product: {...data, 'id': doc.id},
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }).toList(),
                   );
-                }
-                final stores = snapshot.data!.docs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return data['ownerId'] != userUid;
-                }).toList();
-                if (stores.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Belum ada toko tersedia.')),
-                  );
-                }
-                return Column(
+                },
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(child: const SizedBox(height: 24)),
+        ],
+      ],
+    );
+  }
+}
+
+///
+/// WIDGET SEARCH RESULT UNTUK HOMEPAGE
+///
+class _SearchResultSection extends StatelessWidget {
+  final String query;
+  final String userUid;
+  const _SearchResultSection({required this.query, required this.userUid});
+
+  @override
+  Widget build(BuildContext context) {
+    final q = query.trim().toLowerCase();
+
+    return FutureBuilder(
+      future: Future.wait([
+        FirebaseFirestore.instance.collection('stores').get(),
+        FirebaseFirestore.instance.collection('products').get(),
+      ]),
+      builder: (context, AsyncSnapshot<List<QuerySnapshot>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 50),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data == null) {
+          return _emptySearch();
+        }
+
+        // Filter store
+        final stores = snapshot.data![0].docs
+            .where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              if (userUid.isNotEmpty && data['ownerId'] == userUid) return false;
+              final name = (data['name'] ?? '').toString().toLowerCase();
+              return name.contains(q);
+            })
+            .toList();
+
+        // Filter produk
+        final products = snapshot.data![1].docs
+            .where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              if (userUid.isNotEmpty && data['ownerId'] == userUid) return false;
+              final name = (data['name'] ?? '').toString().toLowerCase();
+              return name.contains(q);
+            })
+            .toList();
+
+        if (stores.isEmpty && products.isEmpty) {
+          return _emptySearch();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (stores.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                child: Text(
+                  "Toko yang Tersedia",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF212121),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Column(
                   children: stores.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     return StoreCard(
@@ -252,68 +457,30 @@ class _HomeMainContent extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) =>
-                                StoreDetailPage(store: {...data, 'id': doc.id}),
+                            builder: (_) => StoreDetailPage(store: {...data, 'id': doc.id}),
                           ),
                         );
                       },
                     );
                   }).toList(),
-                );
-              },
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(child: const SizedBox(height: 32)),
-        // Produk
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              "Produk untuk Anda",
-              style: GoogleFonts.dmSans(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF212121),
+                ),
               ),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('products')
-                  .limit(5)
-                  .get(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 30),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Belum ada produk tersedia.')),
-                  );
-                }
-                final products = snapshot.data!.docs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return data['ownerId'] != userUid;
-                }).toList();
-                if (products.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('Belum ada produk tersedia.')),
-                  );
-                }
-                return Column(
+            ],
+            if (products.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                child: Text(
+                  "Produk yang Tersedia",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF212121),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Column(
                   children: products.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     return ProductCard(
@@ -323,21 +490,49 @@ class _HomeMainContent extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => ProductDetailPage(
-                              product: {...data, 'id': doc.id},
-                            ),
+                            builder: (_) => ProductDetailPage(product: {...data, 'id': doc.id}),
                           ),
                         );
                       },
                     );
                   }).toList(),
-                );
-              },
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _emptySearch() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 70),
+        child: Column(
+          children: [
+            Icon(LucideIcons.searchX, size: 95, color: Colors.grey[350]),
+            const SizedBox(height: 26),
+            Text(
+              "Tidak ada hasil yang ditemukan",
+              style: GoogleFonts.dmSans(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
             ),
-          ),
+            const SizedBox(height: 7),
+            Text(
+              "Coba cari dengan kata kunci lain.",
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        SliverToBoxAdapter(child: const SizedBox(height: 24)),
-      ],
+      ),
     );
   }
 }
