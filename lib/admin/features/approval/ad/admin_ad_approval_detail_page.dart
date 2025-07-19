@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:abc_e_mart/seller/data/models/ad.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
-class AdminAdApprovalDetailPage extends StatelessWidget {
+class AdminAdApprovalDetailPage extends StatefulWidget {
   final AdApplication ad;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
@@ -15,6 +16,13 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
     this.onAccept,
     this.onReject,
   });
+
+  @override
+  State<AdminAdApprovalDetailPage> createState() => _AdminAdApprovalDetailPageState();
+}
+
+class _AdminAdApprovalDetailPageState extends State<AdminAdApprovalDetailPage> {
+  bool isLoading = false;
 
   String fixText(String? v) => (v == null || v.trim().isEmpty) ? "-" : v;
   String formatDate(DateTime? dt) =>
@@ -32,8 +40,57 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
     return name.length > 28 ? name.substring(0, 25) + '...' : name;
   }
 
+  // === ACTION APPROVE LOGIC ===
+  Future<void> _approveAd(BuildContext context) async {
+    if (isLoading) return;
+    setState(() => isLoading = true);
+
+    try {
+      // Update status dan waktu di Firestore
+      final docRef = FirebaseFirestore.instance.collection('adsApplication').doc(widget.ad.id);
+
+      await docRef.update({
+        'status': 'disetujui',
+        'approvedAt': FieldValue.serverTimestamp(),
+        // Pastikan field ini sudah sesuai dengan data valid:
+        'durasiMulai': widget.ad.durasiMulai,
+        'durasiSelesai': widget.ad.durasiSelesai,
+        // Bisa tambahkan field lain kalau perlu...
+      });
+
+      // Buat notifikasi ke seller
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'toUser': widget.ad.sellerId,
+        'type': 'ad_approved',
+        'adId': widget.ad.id,
+        'title': 'Iklan Disetujui',
+        'body': 'Iklan "${widget.ad.judul}" sudah disetujui dan akan tampil otomatis sesuai jadwal.',
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Iklan telah disetujui dan penjadwalan otomatis sudah aktif.')),
+      );
+
+      // Callback jika ada
+      widget.onAccept?.call();
+      Navigator.pop(context, true); // balik dan reload list jika perlu
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyetujui iklan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ad = widget.ad;
     final bannerUrl = ad.bannerUrl;
     final paymentProofUrl = ad.paymentProofUrl;
 
@@ -373,7 +430,7 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                 width: double.infinity,
                 height: 59,
                 child: ElevatedButton(
-                  onPressed: onAccept ?? () {},
+                  onPressed: isLoading ? null : () => _approveAd(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1C55C0),
                     elevation: 0,
@@ -381,14 +438,18 @@ class AdminAdApprovalDetailPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(100),
                     ),
                   ),
-                  child: Text(
-                    "Setujui",
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: const Color(0xFFFAFAFA),
-                    ),
-                  ),
+                  child: isLoading
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
+                      : Text(
+                          "Setujui",
+                          style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: const Color(0xFFFAFAFA),
+                          ),
+                        ),
                 ),
               ),
             ),
