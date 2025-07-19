@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intl/intl.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_detail_page.dart';
+
+import 'package:abc_e_mart/seller/data/models/ad.dart';
+import 'package:abc_e_mart/seller/data/services/ad_service.dart';
 
 class AdminAdApprovalCard extends StatelessWidget {
   final String title;
@@ -125,61 +129,12 @@ class AdminAdApprovalPage extends StatefulWidget {
   State<AdminAdApprovalPage> createState() => _AdminAdApprovalPageState();
 }
 
-class _AdApprovalData {
-  final String title;
-  final String storeName;
-  final String period;
-  final String date;
-
-  _AdApprovalData({
-    required this.title,
-    required this.storeName,
-    required this.period,
-    required this.date,
-  });
-}
-
 class _AdminAdApprovalPageState extends State<AdminAdApprovalPage> {
-  final List<_AdApprovalData> ads = [
-    _AdApprovalData(
-      title: "Iklan : Ayam Geprek",
-      storeName: "Nippon Mart",
-      period: "3 Hari • 21 Juli – 23 Juli 2025",
-      date: "30/06/2024, 4:15 PM",
-    ),
-    _AdApprovalData(
-      title: "Iklan : Ayam Geprek",
-      storeName: "Nippon Mart",
-      period: "3 Hari • 21 Juli – 23 Juli 2025",
-      date: "30/06/2024, 4:15 PM",
-    ),
-    _AdApprovalData(
-      title: "Iklan : Ayam Geprek",
-      storeName: "Nippon Mart",
-      period: "3 Hari • 21 Juli – 23 Juli 2025",
-      date: "30/06/2024, 4:15 PM",
-    ),
-    _AdApprovalData(
-      title: "Iklan : Ayam Geprek",
-      storeName: "Nippon Mart",
-      period: "3 Hari • 21 Juli – 23 Juli 2025",
-      date: "30/06/2024, 4:15 PM",
-    ),
-  ];
-
   String _searchText = "";
   final TextEditingController _searchController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    // Filter ads by search text (title/storeName)
-    final filteredAds = ads.where((ad) {
-      final search = _searchText.trim().toLowerCase();
-      return search.isEmpty ||
-          ad.title.toLowerCase().contains(search) ||
-          ad.storeName.toLowerCase().contains(search);
-    }).toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -207,37 +162,78 @@ class _AdminAdApprovalPageState extends State<AdminAdApprovalPage> {
         const SizedBox(height: 18),
         // === Card List ===
         Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            itemCount: filteredAds.length,
-            itemBuilder: (context, idx) {
-              final ad = filteredAds[idx];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: AdminAdApprovalCard(
-                  title: ad.title,
-                  storeName: ad.storeName,
-                  period: ad.period,
-                  date: ad.date,
-                  onDetail: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AdminAdApprovalDetailPage(
-                          storeName: ad.storeName,
-                          date: ad.date,
-                          bannerUrl: '', // Isi asset/url gambar banner jika ada
-                          adTitle: ad.title,
-                          adProduct: "Ayam Geprek", // Data produk terkait
-                          adDuration: "21 Juli – 23 Juli 2025",
-                          adDurationDays: "3",
-                          paymentProofName: "Bukti Bayar.jpg",
-                          paymentProofSize: "100.96 KB",
-                        ),
-                      ),
-                    );
-                  },
-                ),
+          child: StreamBuilder<List<AdApplication>>(
+            stream: AdService.listenAllApplications(status: "Menunggu"), // Hanya yg pending
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Center(
+                  child: Text(
+                    "Tidak ada pengajuan iklan.",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                );
+              }
+              final ads = snapshot.data!;
+              // Filter by search
+              final filteredAds = ads.where((ad) {
+                final search = _searchText.trim().toLowerCase();
+                return search.isEmpty ||
+                    (ad.judul.toLowerCase().contains(search)) ||
+                    (ad.storeName.toLowerCase().contains(search));
+              }).toList();
+
+              if (filteredAds.isEmpty) {
+                return Center(
+                  child: Text(
+                    "Tidak ada pengajuan ditemukan.",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: filteredAds.length,
+                itemBuilder: (context, idx) {
+                  final ad = filteredAds[idx];
+                  // Format period string: "3 Hari • 21 Juli – 23 Juli 2025"
+                  final durasi = ad.durasiSelesai.difference(ad.durasiMulai).inDays + 1;
+                  final period = "$durasi Hari • "
+                      "${DateFormat('d MMMM', 'id_ID').format(ad.durasiMulai)}"
+                      " – "
+                      "${DateFormat('d MMMM yyyy', 'id_ID').format(ad.durasiSelesai)}";
+                  // Format date string
+                  final tanggalAjukan = DateFormat('dd/MM/yyyy, HH:mm').format(ad.createdAt);
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: AdminAdApprovalCard(
+                      title: ad.judul,
+                      storeName: ad.storeName,
+                      period: period,
+                      date: tanggalAjukan,
+                      onDetail: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AdminAdApprovalDetailPage(
+                              ad: ad,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
               );
             },
           ),

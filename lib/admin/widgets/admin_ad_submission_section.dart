@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+// Pastikan import model AdApplication:
+import 'package:abc_e_mart/seller/data/models/ad.dart';
 
 class AdminAdSubmissionSection extends StatelessWidget {
   final List<AdminAdSubmissionData> submissions;
@@ -66,7 +68,7 @@ class AdminAdSubmissionSection extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              "Lihat transaksi baru saja terjadi di tokomu di sini!",
+              "Pantau pengajuan iklan terbaru di sini!",
               style: GoogleFonts.dmSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
@@ -74,8 +76,18 @@ class AdminAdSubmissionSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            // List Card
-            ...submissions.map(
+            if (submissions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  "Belum ada ajuan iklan baru.",
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              )
+            else ...submissions.map(
               (submission) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: _AdminAdSubmissionCard(
@@ -173,10 +185,14 @@ class AdminAdSubmissionData {
   final String title;
   final String detailPeriod;
   final String date;
+  final String docId;
+  final AdApplication ad;
 
   const AdminAdSubmissionData({
     required this.title,
     required this.detailPeriod,
     required this.date,
+    required this.docId,
+    required this.ad,
   });
 }

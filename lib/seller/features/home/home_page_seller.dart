@@ -13,6 +13,7 @@ import 'package:abc_e_mart/seller/features/profile/edit_profile_page.dart';
 import 'package:abc_e_mart/seller/features/rating/store_rating_page.dart';
 import 'package:abc_e_mart/seller/features/notification/notification_page_seller.dart';
 import 'package:abc_e_mart/seller/features/chat/chat_list_page.dart';
+import 'package:abc_e_mart/seller/features/order/order_page.dart';
 
 class HomePageSeller extends StatefulWidget {
   const HomePageSeller({super.key});
@@ -154,6 +155,13 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                     ),
                                   );
                                   break;
+                                case 1: // Pesanan
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SellerOrderPage(),
+                                    ),
+                                  );
+                                  break;  
                                 case 2: // Obrolan/Chat
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
@@ -164,11 +172,14 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 case 3:
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const StoreRatingPage(),
+                                      builder: (_) => StoreRatingPage(
+                                        storeId: storeId,         
+                                        storeName: shopName,      
+                                      ),
                                     ),
                                   );
                                   break;
-                                        case 5: // <--- INI UNTUK IKLAN
+                                        case 5:
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => AdsListPage(
