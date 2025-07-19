@@ -40,7 +40,6 @@ class MyApp extends StatelessWidget {
           scaffoldBackgroundColor: Colors.white,
         ),
         home: const SplashScreen(),
-                // home: const HomePageAdmin(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const HomePage(),
