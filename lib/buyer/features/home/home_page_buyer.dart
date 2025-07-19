@@ -60,12 +60,12 @@ class _HomePageState extends State<HomePage> {
     _HomeMainContent(
       onCategorySelected: (int categoryIdx) {
         setState(() {
-          selectedCategory = categoryIdx; // Update kategori yang dipilih
-          _selectedIndex = 1; // Pindah ke CatalogPage
+          selectedCategory = categoryIdx;
+          _selectedIndex = 1;
         });
       },
     ),
-    CatalogPage(selectedCategory: selectedCategory), // Pass selectedCategory
+    CatalogPage(selectedCategory: selectedCategory),
     const CartPage(),
     const ChatListPage(),
     const ProfilePage(),
@@ -156,7 +156,35 @@ class _HomeMainContent extends StatelessWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: const PromoBannerCarousel(),
+            child: PromoBannerCarousel(
+              onBannerTap: (bannerData) async {
+                if ((bannerData['isAsset'] ?? true) == false &&
+                    bannerData['productId'] != null &&
+                    bannerData['productId'].toString().isNotEmpty) {
+                  // --- Ambil detail produk real-time dari Firestore agar tidak error ---
+                  final doc = await FirebaseFirestore.instance
+                      .collection('products')
+                      .doc(bannerData['productId'])
+                      .get();
+                  if (doc.exists) {
+                    final productData = doc.data() ?? {};
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailPage(
+                          product: {...productData, 'id': doc.id},
+                        ),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Produk tidak ditemukan atau sudah dihapus.'),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 24)),
