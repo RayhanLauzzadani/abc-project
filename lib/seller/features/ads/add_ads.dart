@@ -8,9 +8,21 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart';
+import 'package:abc_e_mart/seller/data/services/ad_service.dart';
+import 'package:abc_e_mart/seller/data/models/product_model.dart';
+import 'package:abc_e_mart/seller/data/services/product_service.dart';
 
 class AddAdsPage extends StatefulWidget {
-  const AddAdsPage({super.key});
+  final String sellerId;
+  final String storeId;
+  final String storeName;
+  const AddAdsPage({
+    super.key,
+    required this.sellerId,
+    required this.storeId,
+    required this.storeName,
+  });
 
   @override
   State<AddAdsPage> createState() => _AddAdsPageState();
@@ -24,13 +36,29 @@ class _AddAdsPageState extends State<AddAdsPage> {
   final _judulController = TextEditingController();
   final _deskripsiController = TextEditingController();
 
-  String? _produkIklan;
+  ProductModel? _produkIklan;
+  List<ProductModel> _produkList = [];
+  bool _loadingProduk = true; // <-- ADD
+
   DateTime? _tanggalMulai;
   DateTime? _tanggalSelesai;
+  List<DateTime> _pilihanTanggalSelesai = [];
   int _hargaIklan = 10000;
 
-  final List<String> _produkList = ['Produk A', 'Produk B', 'Produk C'];
-  List<DateTime> _pilihanTanggalSelesai = [];
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  Future<void> _fetchProducts() async {
+    setState(() => _loadingProduk = true);
+    final list = await ProductService.getProductsByStore(widget.storeId);
+    setState(() {
+      _produkList = list;
+      _loadingProduk = false;
+    });
+  }
 
   void _updateHarga() {
     if (_tanggalMulai != null && _tanggalSelesai != null) {
@@ -114,7 +142,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
       setState(() {
         _tanggalMulai = picked;
         _generateTanggalSelesaiPilihan();
-        _tanggalSelesai = null; // reset
+        _tanggalSelesai = null;
         _updateHarga();
       });
     }
@@ -130,21 +158,63 @@ class _AddAdsPageState extends State<AddAdsPage> {
     return selesai.difference(mulai).inDays + 1;
   }
 
-  void _submitForm() {
-    if (_formKey.currentState?.validate() ?? false) {
-      if (_tanggalMulai == null || _tanggalSelesai == null) {
-        _showAlert('Tanggal belum lengkap', 'Silakan pilih tanggal mulai dan selesai.');
-        return;
-      }
-      int durasi = _tanggalSelesai!.difference(_tanggalMulai!).inDays + 1;
-      if (durasi < 2 || durasi % 2 != 0) {
-        _showAlert('Durasi Tidak Valid',
-            'Durasi iklan hanya boleh kelipatan 2 hari (2, 4, 6, dst).');
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Berhasil mengajukan iklan!')),
+  Future<void> _submitForm() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    if (_bannerImage == null || _buktiPembayaranImage == null) {
+      _showAlert('Upload Gambar', 'Banner & bukti pembayaran wajib di-upload.');
+      return;
+    }
+    if (_tanggalMulai == null || _tanggalSelesai == null) {
+      _showAlert('Tanggal belum lengkap', 'Silakan pilih tanggal mulai dan selesai.');
+      return;
+    }
+    int durasi = _tanggalSelesai!.difference(_tanggalMulai!).inDays + 1;
+    if (durasi < 2 || durasi % 2 != 0) {
+      _showAlert('Durasi Tidak Valid', 'Durasi iklan hanya boleh kelipatan 2 hari (2, 4, 6, dst).');
+      return;
+    }
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
       );
+
+      final bannerUrl = await AdService.uploadImageToStorage(_bannerImage!, 'ads/banner');
+      final paymentProofUrl = await AdService.uploadImageToStorage(_buktiPembayaranImage!, 'ads/payment_proof');
+
+      final adApp = AdApplication(
+        id: '',
+        storeId: widget.storeId,
+        storeName: widget.storeName,
+        sellerId: widget.sellerId,
+        bannerUrl: bannerUrl,
+        judul: _judulController.text,
+        deskripsi: _deskripsiController.text,
+        productId: _produkIklan?.id ?? '',
+        productName: _produkIklan?.name ?? '',
+        durasiMulai: _tanggalMulai!,
+        durasiSelesai: _tanggalSelesai!,
+        paymentProofUrl: paymentProofUrl,
+        status: 'Menunggu',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await AdService.submitAdApplication(adApp);
+
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Berhasil mengajukan iklan!')),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      _showAlert('Gagal Submit', 'Terjadi error: $e');
     }
   }
 
@@ -166,7 +236,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Color palette
     const colorBorder = Color(0xFFE0E0E0);
     const colorBorderBtn = Color(0xFFD5D7DA);
     const colorGreyText = Color(0xFF9A9A9A);
@@ -181,7 +250,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
           children: [
             LayoutBuilder(
               builder: (context, constraints) => Padding(
-                padding: const EdgeInsets.only(top: 72, bottom: 72), // Ubah jadi 72 agar lebih rapat
+                padding: const EdgeInsets.only(top: 72, bottom: 72),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                   child: Form(
@@ -189,10 +258,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // --- Jarak lebih rapat dari AppBar ke konten
                         const SizedBox(height: 12),
-
-                        // Info + tombol akses template
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
@@ -211,14 +277,13 @@ class _AddAdsPageState extends State<AddAdsPage> {
                               width: 115,
                               height: 30,
                               child: OutlinedButton(
-                              onPressed: () async {
-                                final url = Uri.parse('https://www.canva.com/design/DAGs3I1z1RE/HE4nlWhUoVfEsCBNWV5kNw/edit');
-                                await launchUrl(url, mode: LaunchMode.externalApplication);
-                              },
+                                onPressed: () async {
+                                  final url = Uri.parse('https://www.canva.com/design/DAGs3I1z1RE/HE4nlWhUoVfEsCBNWV5kNw/edit');
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                },
                                 style: OutlinedButton.styleFrom(
                                   backgroundColor: colorBgBtn,
-                                  side: const BorderSide(
-                                      color: colorBorderBtn, width: 1.2),
+                                  side: const BorderSide(color: colorBorderBtn, width: 1.2),
                                   padding: EdgeInsets.zero,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(5),
@@ -238,8 +303,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                           ],
                         ),
                         const SizedBox(height: 20),
-
-                        // Banner Iklan Card
                         Center(
                           child: Container(
                             width: 392,
@@ -258,7 +321,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Title
                                 Row(
                                   children: [
                                     Text(
@@ -280,7 +342,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 15),
-                                // Dotted area
                                 Center(
                                   child: DottedBorder(
                                     color: colorGreyText,
@@ -363,10 +424,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 22),
-
-                        // Judul Iklan
                         _CustomInputField(
                           label: "Judul Iklan",
                           required: true,
@@ -375,8 +433,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                           hint: "Masukkan Judul Iklan",
                         ),
                         const SizedBox(height: 22),
-
-                        // Deskripsi Iklan
                         _CustomInputField(
                           label: "Deskripsi Iklan",
                           required: true,
@@ -385,8 +441,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
                           hint: "Masukkan Deskripsi Iklan",
                         ),
                         const SizedBox(height: 22),
-
-                        // Produk Iklan Dropdown
+                        // === BAGIAN PRODUK (PERBAIKAN) ===
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 22),
@@ -423,81 +478,98 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              DropdownButtonFormField2<String>(
-                                value: _produkIklan,
-                                isExpanded: true,
-                                decoration: InputDecoration(
-                                  fillColor: Colors.white,
-                                  filled: true,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(
-                                      color: colorBorder,
-                                      width: 1.2,
+                              if (_loadingProduk)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                )
+                              else if (_produkList.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: Text(
+                                      "Tidak ada produk untuk dipilih.",
+                                      style: GoogleFonts.dmSans(fontSize: 13.5, color: Colors.red),
                                     ),
                                   ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(
-                                      color: colorBorder,
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(
-                                      color: colorBlue,
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                ),
-                                hint: Text(
-                                  "Pilih Produk Anda",
-                                  style: GoogleFonts.dmSans(
-                                    color: colorGreyText,
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                                dropdownStyleData: DropdownStyleData(
-                                  elevation: 3,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.08),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 4),
+                                )
+                              else
+                                DropdownButtonFormField2<ProductModel>(
+                                  value: _produkIklan,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    fillColor: Colors.white,
+                                    filled: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: colorBorder,
+                                        width: 1.2,
                                       ),
-                                    ],
-                                    border: Border.all(color: colorBorder, width: 1.2),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: colorBorder,
+                                        width: 1.2,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: colorBlue,
+                                        width: 1.2,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                items: _produkList.map((prod) {
-                                  return DropdownMenuItem(
-                                    value: prod,
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.shopping_bag_outlined, color: const Color.fromARGB(255, 153, 153, 153), size: 19),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          prod,
-                                          style: GoogleFonts.dmSans(fontSize: 15, color: colorBlack),
+                                  hint: Text(
+                                    "Pilih Produk Anda",
+                                    style: GoogleFonts.dmSans(
+                                      color: colorGreyText,
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                  dropdownStyleData: DropdownStyleData(
+                                    elevation: 3,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 4),
                                         ),
                                       ],
+                                      border: Border.all(color: colorBorder, width: 1.2),
                                     ),
-                                  );
-                                }).toList(),
-                                onChanged: (val) => setState(() => _produkIklan = val),
-                                validator: (v) => v == null ? "Produk wajib dipilih" : null,
-                              ),
+                                  ),
+                                  items: _produkList.map((prod) {
+                                    return DropdownMenuItem<ProductModel>(
+                                      value: prod,
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.shopping_bag_outlined, color: const Color.fromARGB(255, 153, 153, 153), size: 19),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            prod.name,
+                                            style: GoogleFonts.dmSans(fontSize: 15, color: colorBlack),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) => setState(() => _produkIklan = val),
+                                  validator: (v) => v == null ? "Produk wajib dipilih" : null,
+                                ),
                             ],
                           ),
                         ),
-
-                        // Durasi Iklan (Mulai & Selesai)
+                        // === END PRODUK ===
+                        // Bagian lain tetap seperti semula ...
+                        // (Seluruh kode di bawah tidak berubah)
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 22),
@@ -538,7 +610,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Tanggal Mulai
                                     Expanded(
                                       child: GestureDetector(
                                         onTap: () => _selectDateMulai(context),
@@ -583,7 +654,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                     const SizedBox(width: 10),
                                     const VerticalDivider(width: 2, thickness: 0),
                                     const SizedBox(width: 10),
-                                    //tanggal selesai
                                     Expanded(
                                       child: DropdownButtonFormField2<DateTime>(
                                         value: _tanggalSelesai,
@@ -631,7 +701,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                           width: 180,
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(5), // <--- bikin curve menu
+                                            borderRadius: BorderRadius.circular(5),
                                             boxShadow: [
                                               BoxShadow(
                                                 color: Colors.black.withOpacity(0.08),
@@ -717,8 +787,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                             ],
                           ),
                         ),
-
-                        // Harga Iklan Box
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 22),
@@ -741,7 +809,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
                               ),
                               Text(
                                 NumberFormat.currency(
-                                        locale: 'id', symbol: 'Rp ', decimalDigits: 0)
+                                    locale: 'id', symbol: 'Rp ', decimalDigits: 0)
                                     .format(_hargaIklan),
                                 style: GoogleFonts.dmSans(
                                   fontSize: 15,
@@ -752,8 +820,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                             ],
                           ),
                         ),
-
-                        // Bukti Pembayaran
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 22),
@@ -816,33 +882,33 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                     color: Colors.transparent,
                                     child: _buktiPembayaranImage == null
                                         ? Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                LucideIcons.plus,
-                                                size: 14,
-                                                color: colorGreyText,
-                                              ),
-                                              const SizedBox(height: 7),
-                                              Text(
-                                                "Tambah Foto",
-                                                style: GoogleFonts.dmSans(
-                                                  fontSize: 10,
-                                                  color: colorGreyText,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        : ClipRRect(
-                                            borderRadius: BorderRadius.circular(6),
-                                            child: Image.file(
-                                              _buktiPembayaranImage!,
-                                              width: double.infinity,
-                                              height: 110,
-                                              fit: BoxFit.cover,
-                                            ),
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          LucideIcons.plus,
+                                          size: 14,
+                                          color: colorGreyText,
+                                        ),
+                                        const SizedBox(height: 7),
+                                        Text(
+                                          "Tambah Foto",
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 10,
+                                            color: colorGreyText,
+                                            fontWeight: FontWeight.w500,
                                           ),
+                                        ),
+                                      ],
+                                    )
+                                        : ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image.file(
+                                        _buktiPembayaranImage!,
+                                        width: double.infinity,
+                                        height: 110,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -864,7 +930,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                             ],
                           ),
                         ),
-                        // Jarak untuk sticky tombol bawah
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -872,7 +937,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                 ),
               ),
             ),
-            // ===== Sticky AppBar =====
             Positioned(
               top: 0,
               left: 0,
@@ -923,7 +987,6 @@ class _AddAdsPageState extends State<AddAdsPage> {
                 ),
               ),
             ),
-            // ===== Sticky Button Bottom =====
             Positioned(
               left: 0,
               right: 0,
@@ -971,7 +1034,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
   }
 }
 
-// Komponen input dengan counter di kanan, label di atas
+// _CustomInputField TETAP SAMA, tidak diubah
 class _CustomInputField extends StatefulWidget {
   final String label;
   final int? maxLength;

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../widgets/cart_and_order_list_card.dart';
 import '../../../widgets/dummy/dummy_orders.dart';
-// Tambahkan import berikut
-import 'detail_history_page.dart';
+import 'detail_order/detail_order_page.dart';
 
-class CartTabHistory extends StatelessWidget {
-  const CartTabHistory({super.key});
+class SellerOrderTabHistory extends StatelessWidget {
+  const SellerOrderTabHistory({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -18,11 +17,7 @@ class CartTabHistory extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              LucideIcons.history,
-              size: 85,
-              color: Colors.grey[350],
-            ),
+            Icon(LucideIcons.history, size: 85, color: Colors.grey[350]),
             const SizedBox(height: 30),
             Text(
               "Riwayat pesanan masih kosong",
@@ -34,7 +29,7 @@ class CartTabHistory extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Belum ada riwayat transaksi sebelumnya.",
+              "Belum ada riwayat pesanan sebelumnya.",
               style: GoogleFonts.dmSans(
                 fontSize: 14.5,
                 color: Colors.grey[500],
@@ -60,11 +55,18 @@ class CartTabHistory extends StatelessWidget {
           orderDateTime: order.orderDateTime,
           status: order.status,
           onTap: () {
-            // Navigasi ke halaman detail pesanan buyer
+            // Navigasi ke halaman detail seller
             Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => DetailHistoryPage(
-                // Bisa pass id/order, atau pass objek order (kalau DetailHistoryPage sudah bisa menerima param)
-                // Contoh: DetailHistoryPage(order: order),
+              builder: (_) => DetailOrderPage(
+                // Bisa pass id/order, atau pass objek order (kalau DetailOrderPage sudah bisa menerima param)
+                // Contoh: DetailOrderPage(order: order),
+              ),
+            ));
+          },
+          onActionTap: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => DetailOrderPage(
+                // sama seperti onTap
               ),
             ));
           },

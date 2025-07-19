@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart';
 
 class AdCard extends StatelessWidget {
-  final Map<String, dynamic> ad;
+  final AdApplication ad;
   final VoidCallback onDetailTap;
 
   const AdCard({super.key, required this.ad, required this.onDetailTap});
@@ -11,7 +13,7 @@ class AdCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'menunggu':
         return const Color(0xFFEAB600);
-      case 'sukses':
+      case 'disetujui':
         return const Color(0xFF28A745);
       case 'ditolak':
         return const Color(0xFFDC3545);
@@ -24,7 +26,7 @@ class AdCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'menunggu':
         return const Color(0x1AEAB600);
-      case 'sukses':
+      case 'disetujui':
         return const Color(0x1A28A745);
       case 'ditolak':
         return const Color(0x1ADC3545);
@@ -37,8 +39,8 @@ class AdCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'menunggu':
         return "Menunggu";
-      case 'sukses':
-        return "Sukses";
+      case 'disetujui':
+        return "Disetujui";
       case 'ditolak':
         return "Ditolak";
       default:
@@ -46,9 +48,21 @@ class AdCard extends StatelessWidget {
     }
   }
 
+  String get _periode {
+    final mulai = DateFormat('d MMM yyyy', 'id').format(ad.durasiMulai);
+    final selesai = DateFormat('d MMM yyyy', 'id').format(ad.durasiSelesai);
+    final durasi = ad.durasiSelesai.difference(ad.durasiMulai).inDays + 1;
+    return "$durasi Hari • $mulai - $selesai";
+  }
+
+  String get _createdAtText {
+    final tanggal = DateFormat('dd/MM/yyyy, HH:mm').format(ad.createdAt);
+    return "$tanggal WIB";
+  }
+
   @override
   Widget build(BuildContext context) {
-    final status = ad['status'] ?? '';
+    final status = ad.status;
     final statusColor = _statusColor(status);
     final statusBg = _statusBgColor(status);
 
@@ -68,7 +82,7 @@ class AdCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Iklan : ${ad['title'] ?? "-"}',
+                  'Iklan : ${ad.judul}',
                   style: GoogleFonts.dmSans(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -106,26 +120,24 @@ class AdCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          // Periode (ukuran diperbesar 13)
+          // Periode
           Text(
-            ad['periode'] ?? "-",
+            _periode,
             style: GoogleFonts.dmSans(
               fontWeight: FontWeight.w400,
-              fontSize: 12, // <- perbesar dari 12 ke 13
+              fontSize: 12,
               color: const Color(0xFF373E3C),
             ),
             maxLines: 1,
           ),
-          const SizedBox(height: 20), // <-- jarak 11px
+          const SizedBox(height: 20),
           // Row: Tanggal pengajuan (kiri) & Detail (kanan)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                ad['createdAt'] != null
-                    ? "${ad['createdAt'].day.toString().padLeft(2, '0')}/${ad['createdAt'].month.toString().padLeft(2, '0')}/${ad['createdAt'].year}, ${ad['createdAt'].hour.toString().padLeft(2, '0')}:${ad['createdAt'].minute.toString().padLeft(2, '0')} PM"
-                    : '-',
+                _createdAtText,
                 style: GoogleFonts.dmSans(
                   fontWeight: FontWeight.w400,
                   fontSize: 12,
