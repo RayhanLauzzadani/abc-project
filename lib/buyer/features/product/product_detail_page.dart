@@ -210,6 +210,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     final String descShort = isLongDesc
         ? description.substring(0, descLimit) + '...'
         : description;
+    
+    final user = FirebaseAuth.instance.currentUser;
+    final isOwner = user != null && user.uid == (widget.product['ownerId'] ?? '');
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -257,13 +260,16 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           children: [
                             _circleIcon(
                               icon: Icons.chat_bubble_outline,
-                              onTap: () => _goToChatDetail(context),
+                              iconColor: isOwner ? Colors.grey.shade400 : colorPrimary,
+                              onTap: isOwner ? null : () => _goToChatDetail(context),
                             ),
                             const SizedBox(width: 8),
                             _circleIcon(
                               icon: isFavoritedProduct ? Icons.favorite : Icons.favorite_border,
-                              iconColor: isFavoritedProduct ? Colors.red : colorPrimary,
-                              onTap: favLoading ? null : _toggleFavoriteProduct,
+                              iconColor: isOwner
+                                  ? Colors.grey.shade400
+                                  : (isFavoritedProduct ? Colors.red : colorPrimary),
+                              onTap: (favLoading || isOwner) ? null : _toggleFavoriteProduct,
                             ),
                           ],
                         ),
@@ -395,12 +401,33 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: isAddCartLoading ? null : _addToCart,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: colorPrimary, width: 1.3),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22),
+                        onPressed: (!isOwner && !isAddCartLoading) ? _addToCart : null,
+                        style: ButtonStyle(
+                          // Border
+                          side: MaterialStateProperty.resolveWith<BorderSide>((states) {
+                            if (states.contains(MaterialState.disabled)) {
+                              return BorderSide(color: Colors.grey.shade300, width: 1.3);
+                            }
+                            return const BorderSide(color: colorPrimary, width: 1.3);
+                          }),
+                          // Text Color
+                          foregroundColor: MaterialStateProperty.resolveWith<Color>((states) {
+                            if (states.contains(MaterialState.disabled)) {
+                              return Colors.grey.shade400;
+                            }
+                            return colorPrimary;
+                          }),
+                          backgroundColor: MaterialStateProperty.resolveWith<Color>((states) {
+                            if (states.contains(MaterialState.disabled)) {
+                              return Colors.grey.shade100;
+                            }
+                            return Colors.transparent;
+                          }),
+                          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 15)),
+                          shape: MaterialStateProperty.all(
+                            RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
                           ),
                         ),
                         child: isAddCartLoading
@@ -409,10 +436,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2, color: colorPrimary),
                             )
-                          : Text("+ Keranjang",
+                          : Text(
+                              "+ Keranjang",
                               style: GoogleFonts.dmSans(
                                 fontWeight: FontWeight.bold,
-                                color: colorPrimary,
                                 fontSize: 16,
                               ),
                             ),
@@ -421,7 +448,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     const SizedBox(width: 14),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {}, // TODO: Beli langsung
+                        onPressed: !isOwner ? () {/* TODO: Beli langsung */} : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorPrimary,
                           padding: const EdgeInsets.symmetric(vertical: 15),
