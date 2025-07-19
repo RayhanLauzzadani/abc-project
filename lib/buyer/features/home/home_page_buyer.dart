@@ -36,37 +36,35 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'isOnline': true,
-      }, SetOptions(merge: true));
-    }
+    // ... existing code ...
     _selectedIndex = widget.initialIndex;
   }
 
-  @override
-  void dispose() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'isOnline': false,
-        'lastLogin': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-    super.dispose();
+  void _gotoCatalogWithCategory(int categoryIdx) {
+    setState(() {
+      selectedCategory = categoryIdx;
+      _selectedIndex = 1;
+    });
+  }
+
+  void _resetCatalogCategory() {
+    setState(() {
+      selectedCategory = 0;
+    });
   }
 
   List<Widget> get _pages => [
     _HomeMainContent(
-      onCategorySelected: (int categoryIdx) {
+      onCategorySelected: _gotoCatalogWithCategory,
+    ),
+    CatalogPage(
+      selectedCategory: selectedCategory,
+      onCategoryChanged: (cat) {
         setState(() {
-          selectedCategory = categoryIdx;
-          _selectedIndex = 1;
+          selectedCategory = cat;
         });
       },
     ),
-    CatalogPage(selectedCategory: selectedCategory),
     const CartPage(),
     const ChatListPage(),
     const ProfilePage(),
@@ -90,7 +88,13 @@ class _HomePageState extends State<HomePage> {
         bottomNavigationBar: BottomNavbar(
           currentIndex: _selectedIndex,
           onTap: (index) {
-            setState(() => _selectedIndex = index);
+            setState(() {
+              // Jika pindah ke Katalog, reset kategori ke 'Semua'
+              if (index == 1 && _selectedIndex != 1) {
+                _resetCatalogCategory();
+              }
+              _selectedIndex = index;
+            });
           },
         ),
       ),

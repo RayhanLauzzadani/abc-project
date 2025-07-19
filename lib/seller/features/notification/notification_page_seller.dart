@@ -13,6 +13,7 @@ class NotificationPageSeller extends StatelessWidget {
     'product_rejected',
     'store_approved',
     'store_rejected',
+    'ad_approved',
     // 'chat_message', // Dihandle via chatNotifications
   };
 
