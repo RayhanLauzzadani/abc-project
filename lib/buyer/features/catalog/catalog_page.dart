@@ -24,17 +24,39 @@ final List<CategoryType> categoryList = [
 ];
 
 class CatalogPage extends StatefulWidget {
-  int selectedCategory; // Menyimpan kategori yang dipilih
+  final int selectedCategory;
+  final ValueChanged<int>? onCategoryChanged;
 
-  CatalogPage({Key? key, required this.selectedCategory}) : super(key: key);
+  CatalogPage({
+    Key? key,
+    required this.selectedCategory,
+    this.onCategoryChanged,
+  }) : super(key: key);
 
   @override
   State<CatalogPage> createState() => _CatalogPageState();
 }
 
 class _CatalogPageState extends State<CatalogPage> {
+  late int _selectedCategory;
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.selectedCategory;
+  }
+
+  @override
+  void didUpdateWidget(covariant CatalogPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedCategory != oldWidget.selectedCategory) {
+      setState(() {
+        _selectedCategory = widget.selectedCategory;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -80,11 +102,13 @@ class _CatalogPageState extends State<CatalogPage> {
           // Category Selector
           CategorySelector(
             categories: categoryList,
-            selectedIndex: widget.selectedCategory,
+            selectedIndex: _selectedCategory,
             onSelected: (i) {
               setState(() {
-                widget.selectedCategory = i;
+                _selectedCategory = i;
               });
+              // Callback ke parent jika ada
+              widget.onCategoryChanged?.call(i);
             },
           ),
           const SizedBox(height: 6),
@@ -111,8 +135,8 @@ class _CatalogPageState extends State<CatalogPage> {
                 }
 
                 // Filter kategori berdasarkan kategori yang dipilih
-                if (widget.selectedCategory > 0) {
-                  final catStr = categoryLabels[categoryList[widget.selectedCategory - 1]]!;
+                if (_selectedCategory > 0) {
+                  final catStr = categoryLabels[categoryList[_selectedCategory - 1]]!;
                   docs = docs.where((doc) {
                     final c = doc['category'] ?? '';
                     return c.toString().toLowerCase().contains(catStr.toLowerCase());
@@ -122,7 +146,7 @@ class _CatalogPageState extends State<CatalogPage> {
                 // Filter berdasarkan query pencarian
                 if (searchQuery.isNotEmpty) {
                   docs = docs.where((doc) =>
-                      doc['name'].toString().toLowerCase().contains(searchQuery.toLowerCase())
+                    doc['name'].toString().toLowerCase().contains(searchQuery.toLowerCase())
                   ).toList();
                 }
 

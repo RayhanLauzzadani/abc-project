@@ -32,37 +32,75 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
   }
 
   Future<void> _fetchBanners() async {
-    print("=== DEBUG: FETCHING ALL BANNERS (NO FILTER) ===");
+    setState(() {
+      allBanners = [];
+    });
+
     try {
+      final now = DateTime.now();
       final snapshot = await FirebaseFirestore.instance
-          .collection('adsApplication')
-          .get();
-      print('TOTAL DOCS: ${snapshot.docs.length}');
+        .collection('adsApplication')
+        .where('status', isEqualTo: 'disetujui')
+        .get();
+
+      List<Map<String, dynamic>> banners = [];
       for (var doc in snapshot.docs) {
-        print('---');
-        print('id: ${doc.id}');
-        print('status: ${doc['status']}');
-        print('durasiMulai: ${doc['durasiMulai']} (type: ${doc['durasiMulai'].runtimeType})');
-        print('durasiSelesai: ${doc['durasiSelesai']} (type: ${doc['durasiSelesai'].runtimeType})');
-        print('judul: ${doc['judul']}');
+        final data = doc.data();
+        final Timestamp? mulaiTS = data['durasiMulai'];
+        final Timestamp? selesaiTS = data['durasiSelesai'];
+        if (mulaiTS != null && selesaiTS != null) {
+          final mulai = mulaiTS.toDate();
+          final selesai = selesaiTS.toDate();
+
+          // Inclusive range!
+          if (now.compareTo(mulai) >= 0 && now.compareTo(selesai) <= 0) {
+            banners.add({
+              'id': doc.id,
+              'judul': data['judul'] ?? '',
+              'deskripsi': data['deskripsi'] ?? '',
+              'imageUrl': data['bannerUrl'] ?? '',
+              'logoUrl': data['logoUrl'] ?? '', // optional
+              'storeName': data['storeName'] ?? '',
+              'buttonText': 'Kunjungi Toko',
+              'productId': data['productId'] ?? '',
+              'isAsset': false,
+            });
+          }
+        }
       }
+
+      // Fallback jika tidak ada banner aktif
+      if (banners.isEmpty) {
+        banners = [
+          {
+            'imageUrl': 'assets/images/banner1.jpg',
+            'isAsset': true,
+          },
+          {
+            'imageUrl': 'assets/images/banner2.jpg',
+            'isAsset': true,
+          },
+        ];
+      }
+
+      setState(() {
+        allBanners = banners;
+      });
     } catch (e, st) {
       print('Firestore error: $e\n$st');
+      setState(() {
+        allBanners = [
+          {
+            'imageUrl': 'assets/images/banner1.jpg',
+            'isAsset': true,
+          },
+          {
+            'imageUrl': 'assets/images/banner2.jpg',
+            'isAsset': true,
+          },
+        ];
+      });
     }
-
-    // Tetap tampilkan banner default supaya UI tetap enak dilihat.
-    setState(() {
-      allBanners = [
-        {
-          'imageUrl': 'assets/images/banner1.jpg',
-          'isAsset': true,
-        },
-        {
-          'imageUrl': 'assets/images/banner2.jpg',
-          'isAsset': true,
-        },
-      ];
-    });
   }
 
   @override
