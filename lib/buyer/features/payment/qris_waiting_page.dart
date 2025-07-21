@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 // Import OrderDetailPage
-import 'order_detail_sheet.dart';
+import '../order/order_detail_sheet.dart';
 
 class QrisWaitingPage extends StatefulWidget {
   final int total; // in Rupiah
