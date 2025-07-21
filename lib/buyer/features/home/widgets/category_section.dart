@@ -100,14 +100,19 @@ class CategorySection extends StatelessWidget {
                   color: const Color(0xFF232323),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  "Lihat Semua",
-                  style: GoogleFonts.dmSans(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                    color: const Color(0xFF757575),
+              GestureDetector(
+                onTap: () {
+                  onCategorySelected(0);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    "Lihat Semua",
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      color: const Color(0xFF757575),
+                    ),
                   ),
                 ),
               ),

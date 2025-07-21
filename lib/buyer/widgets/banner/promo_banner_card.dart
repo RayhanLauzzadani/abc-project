@@ -8,6 +8,7 @@ class PromoBannerCard extends StatelessWidget {
   final String logoPath;
   final String buttonText;
   final VoidCallback onPressed;
+  final bool isAsset;
 
   const PromoBannerCard({
     super.key,
@@ -17,6 +18,7 @@ class PromoBannerCard extends StatelessWidget {
     required this.logoPath,
     required this.buttonText,
     required this.onPressed,
+    this.isAsset = true,
   });
 
   @override
@@ -64,7 +66,6 @@ class PromoBannerCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      // Responsive Button
                       Flexible(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
@@ -107,10 +108,24 @@ class PromoBannerCard extends StatelessWidget {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: Image.asset(
-                          imagePath,
-                          fit: BoxFit.cover,
-                        ),
+                        child: isAsset
+                            ? Image.asset(
+                                imagePath,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.network(
+                                imagePath,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return const Center(
+                                      child: CircularProgressIndicator(strokeWidth: 1.5));
+                                },
+                                errorBuilder: (c, o, s) => Container(
+                                  color: Colors.grey[200],
+                                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                                ),
+                              ),
                       ),
                       Positioned(
                         top: 14,
@@ -124,10 +139,7 @@ class PromoBannerCard extends StatelessWidget {
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(7),
-                            child: Image.asset(
-                              logoPath,
-                              fit: BoxFit.contain,
-                            ),
+                            child: _buildLogo(),
                           ),
                         ),
                       ),
@@ -139,6 +151,28 @@ class PromoBannerCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLogo() {
+    if (isAsset) {
+      return Image.asset(
+        logoPath.isNotEmpty ? logoPath : 'assets/images/logo.png',
+        fit: BoxFit.contain,
+      );
+    }
+    // If url
+    if (logoPath.startsWith('http')) {
+      return Image.network(
+        logoPath,
+        fit: BoxFit.contain,
+        errorBuilder: (c, o, s) => const Icon(Icons.store),
+      );
+    }
+    // fallback to asset logo
+    return Image.asset(
+      logoPath.isNotEmpty ? logoPath : 'assets/images/logo.png',
+      fit: BoxFit.contain,
     );
   }
 }
