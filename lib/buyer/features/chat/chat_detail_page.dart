@@ -7,6 +7,7 @@ import 'package:abc_e_mart/widgets/edit_chat_dialog.dart';
 import 'package:abc_e_mart/widgets/delete_chat_dialog.dart';
 import 'package:abc_e_mart/data/services/notification_service.dart';
 import 'package:abc_e_mart/widgets/unread_chat.dart';
+import 'package:abc_e_mart/widgets/chat_date_separator.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
@@ -519,12 +520,32 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                       final time = msg['sentAt'] is Timestamp ? _formatTime(msg['sentAt']) : '';
                       final isRead = msg['isRead'] == true;
                       final isEdited = msg.containsKey('editedAt') && msg['editedAt'] != null;
-
                       final showUnreadDivider = (unreadIndex != null && i == unreadIndex);
+
+                      // --- Tambahan: Cek perlu date separator ---
+                      bool showDateSeparator = false;
+                      DateTime? msgDate;
+                      if (msg['sentAt'] is Timestamp) {
+                        msgDate = (msg['sentAt'] as Timestamp).toDate();
+                        if (i == 0) {
+                          showDateSeparator = true;
+                        } else {
+                          final prevMsg = messages[i - 1].data() as Map<String, dynamic>;
+                          final prevDate = (prevMsg['sentAt'] as Timestamp).toDate();
+                          // Tampilkan separator jika beda hari
+                          if (!(msgDate.year == prevDate.year &&
+                              msgDate.month == prevDate.month &&
+                              msgDate.day == prevDate.day)) {
+                            showDateSeparator = true;
+                          }
+                        }
+                      }
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (showDateSeparator && msgDate != null)
+                            ChatDateSeparator(date: msgDate),
                           if (showUnreadDivider) const UnreadChatDivider(),
                           ChatBubble(
                             text: msg['text'] ?? '',

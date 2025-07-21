@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -204,6 +205,20 @@ class _AddAdsPageState extends State<AddAdsPage> {
       );
 
       await AdService.submitAdApplication(adApp);
+
+      // Tambah notifikasi admin
+      await FirebaseFirestore.instance.collection('admin_notifications').add({
+        'title': 'Pengajuan Iklan Baru',
+        'body': '${widget.storeName} mengajukan iklan: ${_judulController.text}',
+        'type': 'iklan',
+        'storeId': widget.storeId,
+        'storeName': widget.storeName,
+        'sellerId': widget.sellerId,
+        'productName': _produkIklan?.name ?? '',
+        'productId': _produkIklan?.id ?? '',
+        'isRead': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
         Navigator.pop(context);
