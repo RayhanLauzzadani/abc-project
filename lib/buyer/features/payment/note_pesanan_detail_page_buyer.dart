@@ -46,14 +46,46 @@ class NotaPesananDetailPageBuyer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Invoice ID
-            Text(
-              'Invoice ID : NPNOO1',
-              style: GoogleFonts.dmSans(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF373E3C),
-              ),
+            // Invoice ID and Status (one row)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Invoice ID Text
+                Text(
+                  'Invoice ID : NPNOO1',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF373E3C),
+                  ),
+                ),
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                  width: 110, // Width set to 110
+                  height: 21, // Height set to 21
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF28A745).withOpacity(0.1), // Light background for status
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(color: const Color(0xFF28A745), width: 1), // Border color: #28A745
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.circle, size: 4, color: const Color(0xFF28A745)), // Green dot
+                      const SizedBox(width: 6),
+                      Text(
+                        "Selesai",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 10, // Font size updated for better fit
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF28A745), // Font color: #28A745
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 23),
 
