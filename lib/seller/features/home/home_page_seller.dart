@@ -14,6 +14,7 @@ import 'package:abc_e_mart/seller/features/rating/store_rating_page.dart';
 import 'package:abc_e_mart/seller/features/notification/notification_page_seller.dart';
 import 'package:abc_e_mart/seller/features/chat/chat_list_page.dart';
 import 'package:abc_e_mart/seller/features/order/order_page.dart';
+import 'package:abc_e_mart/seller/features/transaction/transaction_page.dart';
 
 class HomePageSeller extends StatefulWidget {
   const HomePageSeller({super.key});
@@ -25,11 +26,12 @@ class HomePageSeller extends StatefulWidget {
 class _HomePageSellerState extends State<HomePageSeller> {
   String? _storeId;
 
-  Future<void> _setOnlineStatus(bool isOnline, {bool updateLastLogin = false}) async {
+  Future<void> _setOnlineStatus(
+    bool isOnline, {
+    bool updateLastLogin = false,
+  }) async {
     if (_storeId != null) {
-      final updateData = <String, dynamic>{
-        'isOnline': isOnline,
-      };
+      final updateData = <String, dynamic>{'isOnline': isOnline};
       if (updateLastLogin) {
         updateData['lastLogin'] = FieldValue.serverTimestamp();
       }
@@ -44,7 +46,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
   void dispose() {
     // Update store: set offline & lastLogin
     _setOnlineStatus(false, updateLastLogin: true);
-    
+
     // Update user: set isOnline true (balik ke buyer)
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -122,7 +124,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             onNotif: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => const NotificationPageSeller(),
+                                  builder: (_) =>
+                                      const NotificationPageSeller(),
                                 ),
                               );
                             },
@@ -151,7 +154,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 case 0: // Produk Toko
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => ProductsPage(storeId: storeId),
+                                      builder: (_) =>
+                                          ProductsPage(storeId: storeId),
                                     ),
                                   );
                                   break;
@@ -161,11 +165,12 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                       builder: (_) => const SellerOrderPage(),
                                     ),
                                   );
-                                  break;  
+                                  break;
                                 case 2: // Obrolan/Chat
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const SellerChatListPage(),
+                                      builder: (_) =>
+                                          const SellerChatListPage(),
                                     ),
                                   );
                                   break;
@@ -173,13 +178,20 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => StoreRatingPage(
-                                        storeId: storeId,         
-                                        storeName: shopName,      
+                                        storeId: storeId,
+                                        storeName: shopName,
                                       ),
                                     ),
                                   );
                                   break;
-                                        case 5:
+                                case 4:
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => TransactionPage(),
+                                    ),
+                                  );
+                                  break;
+                                case 5:
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => AdsListPage(

@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../widgets/cart_and_order_list_card.dart';
 import '../../../widgets/dummy/dummy_orders.dart';
+import 'package:abc_e_mart/buyer/features/order/order_tracking_page_buyer.dart';
 
 class CartTabInProgress extends StatelessWidget {
   const CartTabInProgress({super.key});
@@ -16,11 +17,7 @@ class CartTabInProgress extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              LucideIcons.clock,
-              size: 85,
-              color: Colors.grey[350],
-            ),
+            Icon(LucideIcons.clock, size: 85, color: Colors.grey[350]),
             const SizedBox(height: 30),
             Text(
               "Belum ada pesanan dalam proses",
@@ -58,9 +55,12 @@ class CartTabInProgress extends StatelessWidget {
           orderDateTime: order.orderDateTime,
           status: order.status,
           onTap: () {
-            // TODO: nanti navigasi ke halaman lacak pesanan
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Menuju Lacak Pesanan...")),
+            // Navigasi ke halaman lacak pesanan
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderTrackingPage(),
+              ), // Ganti dengan halaman Lacak Pesanan yang sesuai
             );
           },
         );

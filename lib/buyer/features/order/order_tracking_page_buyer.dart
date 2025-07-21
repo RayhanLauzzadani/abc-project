@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:abc_e_mart/buyer/features/payment/nota_pesanan_detail_page_buyer.dart';
+import 'package:abc_e_mart/buyer/features/payment/note_pesanan_detail_page_buyer.dart';
 
 class OrderTrackingPage extends StatefulWidget {
   @override
