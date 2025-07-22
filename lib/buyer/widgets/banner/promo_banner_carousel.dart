@@ -39,9 +39,9 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
     try {
       final now = DateTime.now();
       final snapshot = await FirebaseFirestore.instance
-        .collection('adsApplication')
-        .where('status', isEqualTo: 'disetujui')
-        .get();
+          .collection('adsApplication')
+          .where('status', isEqualTo: 'disetujui')
+          .get();
 
       List<Map<String, dynamic>> banners = [];
       for (var doc in snapshot.docs) {
@@ -72,14 +72,8 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
       // Fallback jika tidak ada banner aktif
       if (banners.isEmpty) {
         banners = [
-          {
-            'imageUrl': 'assets/images/banner1.jpg',
-            'isAsset': true,
-          },
-          {
-            'imageUrl': 'assets/images/banner2.jpg',
-            'isAsset': true,
-          },
+          {'imageUrl': 'assets/images/banner1.png', 'isAsset': true},
+          {'imageUrl': 'assets/images/banner2.png', 'isAsset': true},
         ];
       }
 
@@ -90,14 +84,8 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
       print('Firestore error: $e\n$st');
       setState(() {
         allBanners = [
-          {
-            'imageUrl': 'assets/images/banner1.jpg',
-            'isAsset': true,
-          },
-          {
-            'imageUrl': 'assets/images/banner2.jpg',
-            'isAsset': true,
-          },
+          {'imageUrl': 'assets/images/banner1.jpg', 'isAsset': true},
+          {'imageUrl': 'assets/images/banner2.jpg', 'isAsset': true},
         ];
       });
     }
@@ -152,19 +140,28 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                               ),
                               loadingBuilder: (context, child, progress) =>
                                   progress == null
-                                      ? child
-                                      : const Center(
-                                          child: CircularProgressIndicator(strokeWidth: 1.5),
-                                        ),
+                                  ? child
+                                  : const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.5,
+                                      ),
+                                    ),
                             ),
                     );
 
-                    if (data['isAsset'] == true || widget.onBannerTap == null) {
-                      return bannerImage;
+                    Widget childBanner = bannerImage;
+                    if (data['isAsset'] != true && widget.onBannerTap != null) {
+                      childBanner = GestureDetector(
+                        onTap: () => widget.onBannerTap!(data),
+                        child: bannerImage,
+                      );
                     }
-                    return GestureDetector(
-                      onTap: () => widget.onBannerTap!(data),
-                      child: bannerImage,
+                    // Tambahkan padding horizontal di sini
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 3,
+                      ), // Jarak 20px antar banner
+                      child: childBanner,
                     );
                   },
                 ),
