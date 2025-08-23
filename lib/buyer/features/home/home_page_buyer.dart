@@ -11,6 +11,7 @@ import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/favorite/favorite_page.dart';
 import 'package:abc_e_mart/buyer/features/notification/notification_page.dart';
 import '../profile/profile_page.dart';
+import 'package:abc_e_mart/widgets/abc_payment_card.dart';
 import 'package:abc_e_mart/buyer/features/cart/cart_page.dart';
 import 'package:abc_e_mart/buyer/features/catalog/catalog_page.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
@@ -216,6 +217,23 @@ class _HomeMainContentState extends State<_HomeMainContent> {
             ),
           ),
         if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 24)),
+        if (!isSearching)
+          SliverToBoxAdapter(
+            child: ABCPaymentCard(
+              balance: 25000,                 // TODO: ganti dari Firestore
+              primaryLabel: 'Isi Saldo',
+              onPrimary: () {
+                // TODO: navigate ke halaman Top Up
+                // Navigator.push(context, MaterialPageRoute(builder: (_) => const TopUpPage()));
+              },
+              onHistory: () {
+                // TODO: navigate ke halaman Riwayat
+                // Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentHistoryPage()));
+              },
+              // logoAsset default sudah 'assets/images/paymentlogo.png'
+            ),
+          ),
+        if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 16)),
         if (!isSearching)
           SliverToBoxAdapter(
             child: CategorySection(onCategorySelected: widget.onCategorySelected),
