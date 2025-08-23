@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/seller/widgets/seller_app_bar.dart';
 import 'package:abc_e_mart/seller/widgets/seller_profile_card.dart';
+import 'package:abc_e_mart/widgets/abc_payment_card.dart';
 import 'package:abc_e_mart/seller/widgets/seller_quick_access.dart';
 import 'package:abc_e_mart/seller/widgets/seller_summary_card.dart';
 import 'package:abc_e_mart/seller/widgets/seller_transaction_section.dart';
@@ -147,7 +148,23 @@ class _HomePageSellerState extends State<HomePageSeller> {
                               );
                             },
                           ),
-                          const SizedBox(height: 23),
+                          const SizedBox(height: 16),
+
+                          ABCPaymentCard(
+                            balance: 1250000,                // TODO: ganti dari Firestore
+                            primaryLabel: 'Tarik Tunai',
+                            primaryIcon: Icons.south,
+                            onPrimary: () {
+                              // TODO: navigate ke halaman Tarik Tunai
+                              // Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawPage()));
+                            },
+                            onHistory: () {
+                              // TODO: navigate ke halaman Riwayat
+                              // Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentHistoryPage()));
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          
                           SellerQuickAccess(
                             onTap: (index) {
                               switch (index) {
