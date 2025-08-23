@@ -1,7 +1,9 @@
 import 'package:abc_e_mart/seller/features/ads/ads_list_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:abc_e_mart/seller/widgets/seller_app_bar.dart';
 import 'package:abc_e_mart/seller/widgets/seller_profile_card.dart';
 import 'package:abc_e_mart/widgets/abc_payment_card.dart';
@@ -151,16 +153,19 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           const SizedBox(height: 16),
 
                           ABCPaymentCard(
-                            balance: 1250000,                // TODO: ganti dari Firestore
-                            primaryLabel: 'Tarik Tunai',
-                            primaryIcon: Icons.south,
+                            margin: EdgeInsets.zero,
+                            balance: 1255000,
+                            primaryLabel: 'Tarik Saldo',
+                            primaryIconWidget: SvgPicture.asset(
+                                'assets/icons/banknote-arrow-down.svg',
+                                width: 20, height: 20,
+                                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                              ),
                             onPrimary: () {
-                              // TODO: navigate ke halaman Tarik Tunai
-                              // Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawPage()));
+                              // TODO: ke halaman Tarik Saldo
                             },
                             onHistory: () {
-                              // TODO: navigate ke halaman Riwayat
-                              // Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentHistoryPage()));
+                              // TODO: ke halaman Riwayat
                             },
                           ),
                           const SizedBox(height: 16),
