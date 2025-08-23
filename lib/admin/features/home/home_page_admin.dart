@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/admin/widgets/admin_home_header.dart';
 import 'package:abc_e_mart/admin/widgets/admin_summary_card.dart';
+import 'package:abc_e_mart/admin/widgets/admin_abc_payment_section.dart';
 import 'package:abc_e_mart/admin/widgets/admin_store_submission_section.dart';
 import 'package:abc_e_mart/admin/widgets/admin_product_submission_section.dart';
 import 'package:abc_e_mart/admin/widgets/admin_bottom_navbar.dart';
@@ -215,6 +216,36 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             );
                           },
                         );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: AdminAbcPaymentSection(
+                      items: [
+                        AdminAbcPaymentData(
+                          name: "Nippon Mart",
+                          isSeller: true,
+                          type: AbcPaymentType.withdraw,
+                          amount: 25000,
+                          createdAt: DateTime(2025, 4, 30, 16, 21),
+                        ),
+                        AdminAbcPaymentData(
+                          name: "Rayhanmuzaki",
+                          isSeller: false,
+                          type: AbcPaymentType.topup,
+                          amount: 25000,
+                          createdAt: DateTime(2025, 4, 30, 16, 21),
+                        ),
+                      ],
+                      onSeeAll: () {
+                        // TODO: arahkan ke halaman daftar ABC Payment (nanti)
+                      },
+                      onDetail: (item) {
+                        // TODO: buka detail ajuan (nanti)
                       },
                     ),
                   ),
