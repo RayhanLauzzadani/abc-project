@@ -506,52 +506,66 @@ class _ProductImageWithBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final imageHeight = 210.0; // Konsisten seperti StoreDetailPage
+    const imageHeight = 210.0;
 
-    return Stack(
-      children: [
-        // SafeArea hanya top: true supaya gambar tidak nabrak status bar
-        SafeArea(
-          top: true,
-          bottom: false,
-          child: Container(
-            width: screenWidth,
+    return SafeArea( // <-- ini yang bikin tidak nabrak status bar
+      top: true,
+      bottom: false,
+      child: Stack(
+        children: [
+          // Kanvas + gambar contain (anti crop/zoom)
+          Container(
             height: imageHeight,
-            color: Color(0xFFF5F5F5),
-            child: imageUrl == null || imageUrl!.isEmpty
-                ? const Icon(Icons.store, size: 100, color: _ProductDetailPageState.colorPrimary)
-                : Image.network(
-                    imageUrl!,
-                    width: screenWidth,
-                    height: imageHeight,
-                    fit: BoxFit.cover,
-                    errorBuilder: (ctx, _, __) => const Icon(Icons.store, size: 100, color: _ProductDetailPageState.colorPrimary),
-                  ),
-          ),
-        ),
-        // Tombol back posisinya menyesuaikan padding status bar
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 12,
-          left: 16,
-          child: GestureDetector(
-            onTap: onBackTap,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: _ProductDetailPageState.colorPrimary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: 22,
-                color: Colors.white,
+            width: double.infinity,
+            color: const Color(0xFFF5F7FB),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: (imageUrl != null && imageUrl!.isNotEmpty)
+                    ? Image.network(
+                        imageUrl!,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        height: double.infinity,
+                        filterQuality: FilterQuality.high,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.image,
+                          size: 100,
+                          color: _ProductDetailPageState.colorPrimary,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.image,
+                        size: 100,
+                        color: _ProductDetailPageState.colorPrimary,
+                      ),
               ),
             ),
           ),
-        ),
-      ],
+
+          // tombol back – cukup jarak 12 dari padding SafeArea
+          Positioned(
+            top: 12,
+            left: 16,
+            child: GestureDetector(
+              onTap: onBackTap,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: _ProductDetailPageState.colorPrimary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 22,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

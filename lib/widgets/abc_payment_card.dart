@@ -106,8 +106,6 @@ class ABCPaymentCard extends StatelessWidget {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // aturan sederhana: kalau teks saldo panjang *dan* lebar kartu sempit,
-                // kita stack tombol aksi ke baris bawah agar tidak tabrakan
                 final bool shouldStack =
                     stackActionsWhenTight &&
                     (balanceText.length >= 14 && constraints.maxWidth < 360);

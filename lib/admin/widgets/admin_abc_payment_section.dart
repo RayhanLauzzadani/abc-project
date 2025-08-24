@@ -201,7 +201,7 @@ class _AbcPaymentCard extends StatelessWidget {
                                   data.name,
                                   style: GoogleFonts.dmSans(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 18,
+                                    fontSize: 16,
                                     color: const Color(0xFF373E3C),
                                   ),
                                   maxLines: 1,
@@ -213,7 +213,7 @@ class _AbcPaymentCard extends StatelessWidget {
                               _formatRupiah(data.amount),
                               style: GoogleFonts.dmSans(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 17,
+                                fontSize: 16,
                                 color: const Color(0xFF373E3C),
                               ),
                             ),
