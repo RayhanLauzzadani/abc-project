@@ -1,4 +1,6 @@
-# Miscellaneous
+# =====================================
+# General OS / Editor
+# =====================================
 *.class
 *.log
 *.pyc
@@ -11,21 +13,21 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-functions/.env 
 *.env
+functions/.env 
 
-# IntelliJ related
+# IntelliJ / Android Studio
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# VS Code
+.vscode/
 
-# Flutter/Dart/Pub related
+# =====================================
+# Flutter / Dart / Pub
+# =====================================
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -33,20 +35,47 @@ functions/.env
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
+coverage/
 
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
+# =====================================
+# Android specific
+# =====================================
+# Build outputs
 /android/app/debug
 /android/app/profile
 /android/app/release
 
-# Firebase admin keys
+# Firebase configs
+android/app/google-services.json
+google-services.json.b64
+firebase.json
 serviceAccountKey.json
 firebase-admin-script/serviceAccountKey.json
 firebase-admin-script/
+
+# Keystore & certificates (jangan pernah commit!)
+*.jks
+*.keystore
+*.pem
+upload-key.jks
+upload-key.jks.b64
+upload_certificate.pem
+
+# iOS specific
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# macOS specific
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/Flutter.framework
+macos/Flutter/Flutter.podspec
+
+# Linux specific
+linux/flutter/ephemeral/
+
+# Windows specific
+windows/flutter/ephemeral/
