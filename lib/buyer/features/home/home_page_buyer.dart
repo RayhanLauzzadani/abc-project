@@ -22,6 +22,7 @@ import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
 import 'package:abc_e_mart/buyer/data/services/address_service.dart';
 import 'package:abc_e_mart/buyer/data/models/address.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:abc_e_mart/buyer/features/wallet/history_wallet_page.dart';
 
 class HomePage extends StatefulWidget {
   final int initialIndex;
@@ -229,10 +230,12 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                   MaterialPageRoute(builder: (_) => const TopUpWalletPage()),
                 );
               },
-              onHistory: () {
-                // TODO: navigate ke halaman Riwayat
-                // Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentHistoryPage()));
-              },
+             onHistory: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryWalletPage()),
+              );
+            },
             ),
           ),
         if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 16)),
