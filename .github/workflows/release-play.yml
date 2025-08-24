@@ -1,0 +1,228 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Android Release (staging → internal, main → production)
+
+on:
+  push:
+    branches: [staging, main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Release notes (optional)"
+        required: false
+        default: ""
+
+jobs:
+  # ========================
+  # STAGING → INTERNAL
+  # ========================
+  release-internal:
+    if: github.ref_name == 'staging'
+    runs-on: ubuntu-latest
+
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ github.workspace }}/play-cred.json
+      PLAY_TRACK: internal
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter 3.32.5
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.32.5"
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Decode keystore & Play creds
+        shell: bash
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-key.jks
+          echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > "$PLAY_SERVICE_ACCOUNT_JSON_PATH"
+
+      - name: Restore google-services.json (if provided)
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}" ]; then
+            mkdir -p android/app
+            echo "${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+          fi
+
+      - name: Compute version
+        id: ver
+        shell: bash
+        run: |
+          # VERSION_NAME: from tag vX.Y.Z, else keep pubspec's name
+          REF_NAME="${GITHUB_REF_NAME}"
+          if [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VN="${REF_NAME#v}"
+          else
+            VN=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:\s*([0-9.]+)\+.*/\1/' || echo "0.0.0")
+          fi
+          VC="${GITHUB_RUN_NUMBER}"
+          echo "version_name=$VN" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VC" >> "$GITHUB_OUTPUT"
+          echo "Using version: $VN+$VC"
+
+      - name: Set version in pubspec.yaml
+        shell: bash
+        run: |
+          python3 - << 'PY'
+          import pathlib, re, os
+          p = pathlib.Path('pubspec.yaml')
+          s = p.read_text(encoding='utf-8')
+          vn = os.environ['VN']; vc = os.environ['VC']
+          s = re.sub(r'^version:\s*.*$', f'version: {vn}+{vc}', s, flags=re.M)
+          p.write_text(s, encoding='utf-8')
+          print("pubspec.yaml set to:", vn, "+", vc)
+          PY
+        env:
+          VN: ${{ steps.ver.outputs.version_name }}
+          VC: ${{ steps.ver.outputs.version_code }}
+
+      - name: Analyze & Test
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build AAB (release)
+        env:
+          ANDROID_KEYSTORE: ${{ github.workspace }}/upload-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build appbundle --release
+
+      - name: Upload to Google Play (Internal)
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE: ${{ github.workspace }}/upload-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ env.PLAY_SERVICE_ACCOUNT_JSON_PATH }}
+          PLAY_TRACK: ${{ env.PLAY_TRACK }}
+        run: ./gradlew --no-daemon publishReleaseBundle
+
+      - name: Upload artifact (AAB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  # ========================
+  # MAIN/TAG → PRODUCTION (needs approval via Environment)
+  # ========================
+  release-production:
+    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment:
+        name: production
+
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ github.workspace }}/play-cred.json
+      PLAY_TRACK: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter 3.32.5
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.32.5"
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Decode keystore & Play creds
+        shell: bash
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > upload-key.jks
+          echo "${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}" > "$PLAY_SERVICE_ACCOUNT_JSON_PATH"
+
+      - name: Restore google-services.json (if provided)
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}" ]; then
+            mkdir -p android/app
+            echo "${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+          fi
+
+      - name: Compute version
+        id: ver
+        shell: bash
+        run: |
+          REF_NAME="${GITHUB_REF_NAME}"
+          if [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VN="${REF_NAME#v}"
+          else
+            VN=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:\s*([0-9.]+)\+.*/\1/' || echo "0.0.0")
+          fi
+          VC="${GITHUB_RUN_NUMBER}"
+          echo "version_name=$VN" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VC" >> "$GITHUB_OUTPUT"
+          echo "Using version: $VN+$VC"
+
+      - name: Set version in pubspec.yaml
+        shell: bash
+        run: |
+          python3 - << 'PY'
+          import pathlib, re, os
+          p = pathlib.Path('pubspec.yaml')
+          s = p.read_text(encoding='utf-8')
+          vn = os.environ['VN']; vc = os.environ['VC']
+          s = re.sub(r'^version:\s*.*$', f'version: {vn}+{vc}', s, flags=re.M)
+          p.write_text(s, encoding='utf-8')
+          print("pubspec.yaml set to:", vn, "+", vc)
+          PY
+        env:
+          VN: ${{ steps.ver.outputs.version_name }}
+          VC: ${{ steps.ver.outputs.version_code }}
+
+      - name: Analyze & Test
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build AAB (release)
+        env:
+          ANDROID_KEYSTORE: ${{ github.workspace }}/upload-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build appbundle --release
+
+      - name: Upload to Google Play (Production)
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE: ${{ github.workspace }}/upload-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ env.PLAY_SERVICE_ACCOUNT_JSON_PATH }}
+          PLAY_TRACK: ${{ env.PLAY_TRACK }}
+        run: ./gradlew --no-daemon publishReleaseBundle
+
+      - name: Upload artifact (AAB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.aab
+          path: build/app/outputs/bundle/release/app-release.aab
