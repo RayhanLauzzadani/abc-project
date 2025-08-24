@@ -130,48 +130,51 @@ class _StoreDetailPageState extends State<StoreDetailPage> with SingleTickerProv
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // LOGO, BACK, dan tombol Chat/Favorite
-            Stack(
-              children: [
-                SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  height: 210,
-                  child: (store['logoUrl'] != null && store['logoUrl'].toString().isNotEmpty)
-                    ? Image.network(
-                        store['logoUrl'],
-                        width: MediaQuery.of(context).size.width,
-                        height: 210,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
-                        errorBuilder: (ctx, _, __) => Container(
-                          color: Color(0xFFF5F5F5),
-                          child: const Icon(Icons.store, size: 100, color: colorPrimary),
-                        ),
-                      )
-                    : Container(
-                        color: Color(0xFFF5F5F5),
-                        child: const Icon(Icons.store, size: 100, color: colorPrimary),
-                      ),
-                ),
-                // Tombol back
-                Positioned(
-                  top: 18,
-                  left: 18,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      color: colorPrimary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 22),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
+          Stack(
+            children: [
+              Container(
+                height: 210,
+                width: double.infinity,
+                color: const Color(0xFFF5F7FB), // kanvas lembut seperti figma
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: (store['logoUrl'] != null &&
+                            store['logoUrl'].toString().isNotEmpty)
+                        ? Image.network(
+                            store['logoUrl'],
+                            fit: BoxFit.contain,            // <-- kunci anti-stretch
+                            width: double.infinity,
+                            height: double.infinity,
+                            filterQuality: FilterQuality.high,
+                            errorBuilder: (ctx, _, __) => const Icon(
+                              Icons.store, size: 100, color: colorPrimary),
+                          )
+                        : const Icon(Icons.store, size: 100, color: colorPrimary),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // Tombol back tetap sama
+              Positioned(
+                top: 18,
+                left: 18,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: colorPrimary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 22),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ),
+            ],
+          ),
             const SizedBox(height: 10),
 
             // Info Toko
@@ -550,7 +553,7 @@ class _FirestoreProductList extends StatelessWidget {
                     maxCrossAxisExtent: 180,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    childAspectRatio: 0.78,
+                    childAspectRatio: 0.66,
                   ),
                   itemBuilder: (context, index) {
                     final product = docs[index].data() as Map<String, dynamic>;
