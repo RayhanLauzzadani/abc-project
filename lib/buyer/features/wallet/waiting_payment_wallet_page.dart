@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:abc_e_mart/buyer/features/wallet/success_top_up_page.dart';
+import 'package:abc_e_mart/buyer/features/wallet/history_wallet_page.dart';
 
 class WaitingPaymentWalletPage extends StatefulWidget {
   final int amount;                 // TOTAL (isi saldo + admin)

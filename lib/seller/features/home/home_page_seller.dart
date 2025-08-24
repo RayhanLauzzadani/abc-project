@@ -17,6 +17,8 @@ import 'package:abc_e_mart/seller/features/notification/notification_page_seller
 import 'package:abc_e_mart/seller/features/chat/chat_list_page.dart';
 import 'package:abc_e_mart/seller/features/order/order_page.dart';
 import 'package:abc_e_mart/seller/features/transaction/transaction_page.dart';
+import 'package:abc_e_mart/seller/features/wallet/withdraw_payment_page.dart';
+import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
 
 class HomePageSeller extends StatefulWidget {
   const HomePageSeller({super.key});
@@ -156,15 +158,27 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             balance: 25000,
                             primaryLabel: 'Tarik Saldo',
                             primaryIconWidget: SvgPicture.asset(
-                                'assets/icons/banknote-arrow-down.svg',
-                                width: 20, height: 20,
-                                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                              ),
+                              'assets/icons/banknote-arrow-down.svg',
+                              width: 20, height: 20,
+                              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                            ),
                             onPrimary: () {
-                              // TODO: ke halaman Tarik Saldo
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const WithdrawPaymentPage(
+                                    currentBalance: 25000, // samakan dengan card di atas
+                                    adminFee: 1000,
+                                    minWithdraw: 10000,
+                                  ),
+                                ),
+                              );
                             },
                             onHistory: () {
-                              // TODO: ke halaman Riwayat
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const WithdrawHistoryPageSeller(),
+                                ),
+                              );
                             },
                           ),
                           const SizedBox(height: 16),
