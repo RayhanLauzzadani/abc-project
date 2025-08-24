@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
-import 'package:abc_e_mart/buyer/features/wallet/history_wallet_page.dart';
 
-class SuccessTopUpPage extends StatelessWidget {
-  /// Opsional: kalau mau arahkan ke halaman “Status Saldo”.
-  final VoidCallback? onViewStatus;
+class FailedWithdrawalPage extends StatelessWidget {
+  final String reason;
+  final VoidCallback? onRetry;
 
-  const SuccessTopUpPage({super.key, this.onViewStatus});
+  const FailedWithdrawalPage({
+    super.key,
+    this.reason = 'Nomor rekening tidak valid.',
+    this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         automaticallyImplyLeading: false,
         centerTitle: true,
@@ -22,7 +24,7 @@ class SuccessTopUpPage extends StatelessWidget {
         surfaceTintColor: Colors.white,
         toolbarHeight: 72,
         title: Text(
-          'Pengisian Saldo',
+          'Status Verifikasi',
           style: GoogleFonts.dmSans(
             fontWeight: FontWeight.w700,
             fontSize: 19,
@@ -30,8 +32,6 @@ class SuccessTopUpPage extends StatelessWidget {
           ),
         ),
       ),
-
-      // Konten dinaikkan sedikit agar mirip referensi
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -39,19 +39,16 @@ class SuccessTopUpPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Lottie centang
               Lottie.asset(
-                'assets/lottie/success_check.json',
+                'assets/lottie/rejected.json',
                 width: 140,
                 height: 140,
-                repeat: false,
+                repeat: true,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 10),
-
-              // Judul
               Text(
-                'Saldo Sedang Diverifikasi',
+                'Penarikan Saldo Ditolak',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontWeight: FontWeight.w800,
@@ -59,12 +56,30 @@ class SuccessTopUpPage extends StatelessWidget {
                   color: const Color(0xFF222222),
                 ),
               ),
-              const SizedBox(height: 8),
-
-              // Deskripsi
+              const SizedBox(height: 10),
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: const Color(0xFF6B7280),
+                  ),
+                  children: [
+                    TextSpan(
+                      text: 'Alasan Penolakan : ',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF374151),
+                      ),
+                    ),
+                    TextSpan(text: reason),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
-                'Permintaan isi saldo Anda telah dikirim dan sedang menunggu verifikasi dari tim admin. '
-                'Kami akan mengirim notifikasi setelah saldo berhasil ditambahkan ke akun Anda.',
+                'Silakan ajukan pencairan ulang dengan memastikan data rekening tujuan sudah benar agar proses dapat berjalan lancar.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontSize: 14,
@@ -72,17 +87,12 @@ class SuccessTopUpPage extends StatelessWidget {
                   color: const Color(0xFF6B7280),
                 ),
               ),
-              const SizedBox(height: 18),
-
-              // Tombol utama
+              const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // kembali ke root/beranda
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
+                  onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1C55C0),
                     shape: RoundedRectangleBorder(
@@ -91,7 +101,7 @@ class SuccessTopUpPage extends StatelessWidget {
                     elevation: 0,
                   ),
                   child: Text(
-                    'Kembali ke Beranda',
+                    'Kembali',
                     style: GoogleFonts.dmSans(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -99,25 +109,24 @@ class SuccessTopUpPage extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-
-              // Link sekunder
-              TextButton(
-                onPressed: () {
-                  if (onViewStatus != null) {
-                    onViewStatus!.call();
-                  } else {
-                    // ⬇️ default: buka riwayat pakai context halaman ini (aman)
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const HistoryWalletPage()),
-                    );
-                  }
-                },
-                child: Text(
-                  'Lihat Status Saldo',
-                  style: GoogleFonts.dmSans(
-                    color: const Color(0xFF2056D3),
-                    fontWeight: FontWeight.w700,
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton(
+                  onPressed: onRetry,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF1C55C0)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                  ),
+                  child: Text(
+                    'Ajukan Pencairan Ulang',
+                    style: GoogleFonts.dmSans(
+                      color: const Color(0xFF1C55C0),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
