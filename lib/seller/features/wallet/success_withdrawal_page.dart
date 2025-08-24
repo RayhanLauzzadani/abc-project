@@ -1,13 +1,20 @@
+// lib/seller/features/wallet/success_withdrawal_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
-import 'package:abc_e_mart/buyer/features/wallet/history_wallet_page.dart';
 
-class SuccessTopUpPage extends StatelessWidget {
-  /// Opsional: kalau mau arahkan ke halaman “Status Saldo”.
-  final VoidCallback? onViewStatus;
+class SuccessWithdrawalPage extends StatelessWidget {
+  /// Arahkan ke homepage seller
+  final VoidCallback? onGoHome;
 
-  const SuccessTopUpPage({super.key, this.onViewStatus});
+  /// Arahkan ke halaman riwayat penarikan/riwayat transaksi
+  final VoidCallback? onViewHistory;
+
+  const SuccessWithdrawalPage({
+    super.key,
+    this.onGoHome,
+    this.onViewHistory,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +29,7 @@ class SuccessTopUpPage extends StatelessWidget {
         surfaceTintColor: Colors.white,
         toolbarHeight: 72,
         title: Text(
-          'Pengisian Saldo',
+          'Penarikan Saldo',
           style: GoogleFonts.dmSans(
             fontWeight: FontWeight.w700,
             fontSize: 19,
@@ -31,7 +38,6 @@ class SuccessTopUpPage extends StatelessWidget {
         ),
       ),
 
-      // Konten dinaikkan sedikit agar mirip referensi
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -51,7 +57,7 @@ class SuccessTopUpPage extends StatelessWidget {
 
               // Judul
               Text(
-                'Saldo Sedang Diverifikasi',
+                'Penarikan Saldo Diverifikasi',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontWeight: FontWeight.w800,
@@ -63,8 +69,8 @@ class SuccessTopUpPage extends StatelessWidget {
 
               // Deskripsi
               Text(
-                'Permintaan isi saldo Anda telah dikirim dan sedang menunggu verifikasi dari tim admin. '
-                'Kami akan mengirim notifikasi setelah saldo berhasil ditambahkan ke akun Anda.',
+                'Permintaan penarikan saldo Anda telah dikirim dan sedang menunggu verifikasi dari tim admin. '
+                'Kami akan mengirim notifikasi setelah dana berhasil ditransfer ke rekening tujuan Anda.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontSize: 14,
@@ -80,8 +86,12 @@ class SuccessTopUpPage extends StatelessWidget {
                 height: 46,
                 child: ElevatedButton(
                   onPressed: () {
-                    // kembali ke root/beranda
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    if (onGoHome != null) {
+                      onGoHome!.call();
+                    } else {
+                      // default: kembali ke halaman root (homepage seller)
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1C55C0),
@@ -104,17 +114,15 @@ class SuccessTopUpPage extends StatelessWidget {
               // Link sekunder
               TextButton(
                 onPressed: () {
-                  if (onViewStatus != null) {
-                    onViewStatus!.call();
+                  if (onViewHistory != null) {
+                    onViewHistory!.call();
                   } else {
-                    // ⬇️ default: buka riwayat pakai context halaman ini (aman)
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const HistoryWalletPage()),
-                    );
+                    // default: kembali ke halaman sebelumnya
+                    Navigator.of(context).pop();
                   }
                 },
                 child: Text(
-                  'Lihat Status Saldo',
+                  'Lihat Status Penarikan',
                   style: GoogleFonts.dmSans(
                     color: const Color(0xFF2056D3),
                     fontWeight: FontWeight.w700,
