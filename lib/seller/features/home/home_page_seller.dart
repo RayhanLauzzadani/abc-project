@@ -153,7 +153,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
 
                           ABCPaymentCard(
                             margin: EdgeInsets.zero,
-                            balance: 1255000,
+                            balance: 25000,
                             primaryLabel: 'Tarik Saldo',
                             primaryIconWidget: SvgPicture.asset(
                                 'assets/icons/banknote-arrow-down.svg',
