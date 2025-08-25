@@ -204,7 +204,8 @@ class _CartTabMineState extends State<CartTabMine> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-                  backgroundColor: const Color(0xFF2979FF),
+                  backgroundColor: const Color(0xFF1C55C0), // ← biru sama seperti "Pesan Sekarang"
+                  foregroundColor: Colors.white,            // ← teks putih
                   elevation: 0,
                 ),
                 child: Text(
@@ -212,7 +213,7 @@ class _CartTabMineState extends State<CartTabMine> {
                   style: GoogleFonts.dmSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: Colors.white,                    // ← pastikan putih
                   ),
                 ),
               ),
