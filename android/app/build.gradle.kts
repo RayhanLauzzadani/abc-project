@@ -1,14 +1,32 @@
+// android/app/build.gradle.kts
+import java.util.Properties
+
+val keystoreProps = Properties().apply {
+    val candidates = listOf(
+        rootProject.file("key.properties"),
+        rootProject.file("keystore.properties"),
+        file("key.properties")
+    )
+    for (f in candidates) {
+        if (f.exists()) {
+            f.inputStream().use { load(it) }
+            println("=== INFO: loaded keystore props from ${f.absolutePath} ===")
+            break
+        }
+    }
+}
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
     id("com.google.gms.google-services")
-    // (opsional) kalau pakai Crashlytics aktifkan baris di bawah:
+    // aktifkan kalau pakai Crashlytics
     id("com.google.firebase.crashlytics")
     // END: FlutterFire Configuration
-    id("kotlin-android")
+    id("org.jetbrains.kotlin.android")
     // Upload ke Google Play (Gradle Play Publisher)
     id("com.github.triplet.play") version "3.10.1"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // Flutter plugin HARUS terakhir
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -26,34 +44,73 @@ android {
     }
 
     defaultConfig {
-        // Application ID HARUS sama dengan di Play Console
         applicationId = "com.abce.mart"
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
-
-        // akan dioverride di CI (pubspec.yaml) tapi tetap beri default
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     signingConfigs {
         create("release") {
-            // di CI, ANDROID_KEYSTORE akan di-set ke path file yang didecode dari secret
-            storeFile = file(System.getenv("ANDROID_KEYSTORE") ?: "upload-key.jks")
-            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            // 1) Prioritas ENV (CI)
+            val envStorePath = System.getenv("ANDROID_KEYSTORE")
+            val envStorePwd  = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val envAlias     = System.getenv("ANDROID_KEY_ALIAS")
+            val envKeyPwd    = System.getenv("ANDROID_KEY_PASSWORD")
+
+            // 2) Fallback ke key.properties (lokal)
+            val propStorePath = keystoreProps.getProperty("storeFile")
+            val propStorePwd  = keystoreProps.getProperty("storePassword")
+            val propAlias     = keystoreProps.getProperty("keyAlias")
+            val propKeyPwd    = keystoreProps.getProperty("keyPassword")
+
+            val storePath = envStorePath ?: propStorePath
+            val storePwd  = envStorePwd  ?: propStorePwd
+            val alias     = envAlias     ?: propAlias
+            val keyPwd    = envKeyPwd    ?: propKeyPwd
+
+            // Resolve path: coba relative ke android/ dulu, kalau nggak ada coba relative ke app/
+            val resolvedStoreFile = storePath?.let {
+                val fromAndroid = rootProject.file(it)                 // android/<path>
+                val fromApp     = file(it)                             // android/app/<path>
+                when {
+                    fromAndroid.exists() -> fromAndroid
+                    fromApp.exists()     -> fromApp
+                    else                 -> file(it) // biar keliatan di log
+                }
+            }
+
+            println("=== SIGN DEBUG ===")
+            println("storePath=$storePath")
+            println("resolved=${resolvedStoreFile?.absolutePath}")
+            println("exists=${resolvedStoreFile?.exists()} alias=$alias")
+
+            if (
+                resolvedStoreFile != null && resolvedStoreFile.exists() &&
+                !storePwd.isNullOrBlank() &&
+                !alias.isNullOrBlank() &&
+                !keyPwd.isNullOrBlank()
+            ) {
+                storeFile = resolvedStoreFile
+                storePassword = storePwd
+                keyAlias = alias
+                keyPassword = keyPwd
+            } else {
+                println("WARNING: Release keystore NOT configured. Release build will fall back to debug signing.")
+            }
         }
     }
 
     buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
+        getByName("release") {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
-            // proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            isShrinkResources = false
         }
-        debug {
-            // biarkan default
+        getByName("debug") {
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
@@ -62,12 +119,13 @@ flutter {
     source = "../.."
 }
 
-// Konfigurasi Gradle Play Publisher (ambil kredensial & track dari ENV)
+// Gradle Play Publisher
 play {
-    // path file JSON service account yang dibuat di step workflow
+    // file JSON service account (dibuat di workflow dari secrets)
     serviceAccountCredentials.set(
         file(System.getenv("PLAY_SERVICE_ACCOUNT_JSON_PATH") ?: "play-cred.json")
     )
+    // track default (internal / alpha / beta / production)
     track.set(System.getenv("PLAY_TRACK") ?: "internal")
     defaultToAppBundles.set(true)
 }
