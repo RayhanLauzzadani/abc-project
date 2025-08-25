@@ -3,9 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-// buka chat buyer<->toko
 import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+// ⬇️ popup sukses baru
+import 'package:abc_e_mart/buyer/features/order/widgets/order_success_pop_up.dart';
 
 class OrderTrackingPage extends StatefulWidget {
   final String orderId;
@@ -18,6 +19,7 @@ class OrderTrackingPage extends StatefulWidget {
 class _OrderTrackingPageState extends State<OrderTrackingPage> {
   bool _isAddressExpanded = false;
   final _scrollController = ScrollController();
+  bool _completing = false; // ⬅️ untuk disable tombol + spinner
 
   @override
   void dispose() {
@@ -25,16 +27,44 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     super.dispose();
   }
 
-  // Buyer menutup pesanan -> COMPLETED
+  // Buyer menutup pesanan -> panggil CF completeOrder
   Future<void> _markAsCompleted() async {
-    await FirebaseFirestore.instance
-        .collection('orders')
-        .doc(widget.orderId)
-        .update({
-      'status': 'COMPLETED',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    if (mounted) Navigator.pop(context);
+    if (_completing) return;
+    setState(() => _completing = true);
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
+      await functions.httpsCallable('completeOrder').call({'orderId': widget.orderId});
+
+      if (!mounted) return;
+
+      // Tampilkan animasi sukses
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const OrderArrivedDialog(
+          message: "Pesanan telah sampai. Selamat menikmati! 🎉",
+          lottiePath: "assets/lottie/success_check.json",
+          lottieSize: 120,
+        ),
+      );
+      await Future.delayed(const Duration(milliseconds: 1300));
+      if (!mounted) return;
+      Navigator.of(context).pop(); // tutup dialog
+      Navigator.of(context).pop(); // tutup halaman tracking (order pindah ke Riwayat)
+    } on FirebaseFunctionsException catch (e) {
+      final msg = e.message ?? 'Gagal menyelesaikan pesanan.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyelesaikan pesanan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _completing = false);
+    }
   }
 
   // Buat/ambil chat antara buyer & toko
@@ -354,11 +384,16 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(100)),
                     elevation: 0),
-                  onPressed: _markAsCompleted,
-                  child: Text('Produk Sudah Sampai',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 16, fontWeight: FontWeight.w700,
-                        color: const Color(0xFFFAFAFA))),
+                  onPressed: _completing ? null : _markAsCompleted,
+                  child: _completing
+                      ? const SizedBox(
+                          width: 22, height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text('Produk Sudah Sampai',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 16, fontWeight: FontWeight.w700,
+                            color: const Color(0xFFFAFAFA))),
                 ),
               ),
             ),

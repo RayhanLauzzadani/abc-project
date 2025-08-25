@@ -6,6 +6,8 @@ import '../../data/models/cart/cart_item.dart';
 import '../../data/repositories/cart_repository.dart';
 import '../../widgets/success_add_cart_popup.dart';
 import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
+import 'package:abc_e_mart/buyer/features/cart/checkout_summary_page.dart';
+import 'package:abc_e_mart/buyer/data/models/address.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -22,6 +24,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   bool _isDescExpanded = false;
   int _selectedVariant = 0;
+  bool isBuyNowLoading = false;
 
   List<String> variants = [];
   static const int descLimit = 160;
@@ -199,6 +202,79 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       );
     }
     setState(() => isAddCartLoading = false);
+  }
+
+  Future<void> _buyNow() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Anda belum login!")),
+      );
+      return;
+    }
+    if (user.uid == (widget.product['ownerId'] ?? '')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Tidak bisa membeli produk dari toko sendiri!")),
+      );
+      return;
+    }
+
+    setState(() => isBuyNowLoading = true);
+
+    try {
+      final addrCol = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('addresses');
+
+      QuerySnapshot<Map<String, dynamic>> q =
+          await addrCol.where('isPrimary', isEqualTo: true).limit(1).get();
+      if (q.docs.isEmpty) {
+        q = await addrCol.where('isDefault', isEqualTo: true).limit(1).get();
+      }
+      if (q.docs.isEmpty) {
+        q = await addrCol.limit(1).get();
+      }
+      if (q.docs.isEmpty) {
+        setState(() => isBuyNowLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Anda belum menambahkan alamat pengiriman.")),
+        );
+        return;
+      }
+
+      final addrDoc = q.docs.first;
+      final address = AddressModel.fromMap(addrDoc.id, addrDoc.data());
+
+      final item = CartItem(
+        id: widget.product['id'],
+        name: widget.product['name'],
+        image: _productImageUrl ?? '',
+        price: widget.product['price'],
+        quantity: 1,
+        variant: variants.isNotEmpty ? variants[_selectedVariant] : '',
+      );
+
+      final String storeName = widget.product['storeName'] ?? '';
+      if (!mounted) return;
+
+      // Buka checkout → saat sukses, checkout akan pop() dan kembali ke halaman ini
+      await Navigator.of(context).push<Map<String, dynamic>>(
+        MaterialPageRoute(
+          builder: (_) => CheckoutSummaryPage(
+            address: address,
+            cartItems: [item],
+            storeName: storeName,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Gagal membuka checkout: $e")));
+    } finally {
+      if (mounted) setState(() => isBuyNowLoading = false);
+    }
   }
 
   @override
@@ -448,21 +524,25 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     const SizedBox(width: 14),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: !isOwner ? () {/* TODO: Beli langsung */} : null,
+                        onPressed: (!isOwner && !isBuyNowLoading) ? _buyNow : null, // ⟵ ganti
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorPrimary,
                           padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
                         ),
-                        child: Text("Beli Langsung",
-                          style: GoogleFonts.dmSans(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
+                        child: isBuyNowLoading
+                            ? const SizedBox(
+                                height: 20, width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(
+                                "Beli Langsung",
+                                style: GoogleFonts.dmSans(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
                       ),
                     ),
                   ],

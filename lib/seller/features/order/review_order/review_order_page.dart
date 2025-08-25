@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'order_accepted_popup.dart';
 import 'order_delivered_popup.dart';
 
@@ -23,11 +24,23 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   }
 
   Future<void> _acceptOrder() async {
-    await _updateStatus('ACCEPTED');
-    await showDialog(context: context, builder: (_) => const OrderAcceptedPopup());
-    if (mounted) setState(() {}); // stream akan auto-refresh
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
+      await functions.httpsCallable('acceptOrder').call({'orderId': widget.orderId});
+      if (!mounted) return;
+      await showDialog(context: context, builder: (_) => const OrderAcceptedPopup());
+      if (mounted) setState(() {});
+    } on FirebaseFunctionsException catch (e) {
+      final msg = e.message ?? 'Gagal menerima pesanan.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menerima pesanan: $e')),
+      );
+    }
   }
 
+  // ❗️UBAH: tolak pesanan harus memanggil cancelOrder agar dana buyer dikembalikan
   Future<void> _rejectOrder() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -40,28 +53,48 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5B5B)),
-            child: const Text('Tolak'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5B5B),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Tolak',
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
           ),
         ],
       ),
     );
     if (ok == true) {
-      await _updateStatus('REJECTED');
-      if (mounted) Navigator.pop(context);
+      try {
+        final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
+        await functions.httpsCallable('cancelOrder').call({
+          'orderId': widget.orderId,
+          'reason': 'Seller rejected',
+        });
+        if (mounted) Navigator.pop(context); // keluar halaman setelah sukses
+      } on FirebaseFunctionsException catch (e) {
+        final msg = e.message ?? 'Gagal membatalkan pesanan.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membatalkan pesanan: $e')),
+        );
+      }
     }
   }
 
   Future<void> _shipOrder() async {
-    await _updateStatus('SHIPPED');
+    await _updateStatus('SHIPPED'); // aman: tidak menyentuh saldo
     if (!mounted) return;
-
-    await showDialog(
+   await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const OrderDeliveredPopup(),
     );
-
     if (mounted) Navigator.pop(context);
   }
 
@@ -107,8 +140,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 final buyerName = (userSnap.data?.data()?['name'] ?? '-') as String;
 
                 final isLong = addressText.length > 60;
-                final showAcceptReject = status == 'PLACED';
-                final showShip = status == 'ACCEPTED';
 
                 return CustomScrollView(
                   slivers: [

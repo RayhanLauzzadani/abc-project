@@ -7,6 +7,7 @@ import '../../data/repositories/cart_repository.dart';
 import '../../data/services/address_service.dart';
 import '../cart/checkout_summary_page.dart';
 import '../../data/models/address.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CartTabMine extends StatefulWidget {
   final Map<String, bool> storeChecked;
@@ -55,6 +56,8 @@ class _CartTabMineState extends State<CartTabMine> {
   Future<void> _onQtyChanged(StoreCart store, int idx, int qty) async {
     if (currentUser == null) return;
     final item = store.items[idx];
+
+    // Hapus item (tetap seperti sebelumnya)
     if (qty == 0) {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -63,10 +66,7 @@ class _CartTabMineState extends State<CartTabMine> {
           content: const Text('Apakah Anda yakin ingin menghapus produk ini dari keranjang?'),
           actionsAlignment: MainAxisAlignment.end,
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Batal', style: TextStyle(color: Colors.black)),
-            ),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Batal', style: TextStyle(color: Colors.black))),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               style: ElevatedButton.styleFrom(
@@ -88,15 +88,52 @@ class _CartTabMineState extends State<CartTabMine> {
         );
         await fetchCart();
       }
-    } else {
-      await cartRepo.updateCartItemQuantity(
+      return;
+    }
+
+    // --- NEW: Validasi stok & minBuy terbaru sebelum update qty
+    final prodSnap = await FirebaseFirestore.instance
+        .collection('products')
+        .doc(item.id)
+        .get();
+
+    final prod = prodSnap.data() ?? {};
+    final int stock = (prod['stock'] as num?)?.toInt() ?? 0;
+    final int minBuy = (prod['minBuy'] as num?)?.toInt() ?? 1;
+    final String name = (prod['name'] ?? 'Produk') as String;
+
+    if (stock <= 0) {
+      // stok habis: tawarkan hapus
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stok $name habis. Produk akan dihapus dari keranjang.')),
+      );
+      await cartRepo.removeCartItem(
         userId: currentUser!.uid,
         storeId: store.storeId,
         productId: item.id,
-        quantity: qty,
       );
       await fetchCart();
+      return;
     }
+
+    // Clamp ke rentang valid
+    int desired = qty;
+    if (desired < minBuy) desired = minBuy;
+    if (desired > stock) desired = stock;
+
+    if (desired != qty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Jumlah $name disesuaikan ke $desired (min $minBuy, stok $stock).')),
+      );
+    }
+
+    await cartRepo.updateCartItemQuantity(
+      userId: currentUser!.uid,
+      storeId: store.storeId,
+      productId: item.id,
+      quantity: desired,
+    );
+    await fetchCart();
   }
 
   @override
