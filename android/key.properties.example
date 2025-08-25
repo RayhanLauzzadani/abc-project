@@ -1,0 +1,12 @@
+# Salin file ini menjadi: android/key.properties
+# Lalu isi sesuai keystore lokal kamu (JANGAN di-commit)
+
+# Kalau file .jks-nya disimpan di android/app/upload-key.jks:
+storeFile=app/upload-key.jks
+
+# atau kalau kamu taruh di android/app:
+# storeFile=android/app/upload-key.jks
+
+storePassword=GANTI_DENGAN_PASSWORD_KESTORE
+keyAlias=upload
+keyPassword=GANTI_DENGAN_PASSWORD_ALIAS

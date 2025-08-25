@@ -32,6 +32,12 @@ class AuthService {
           'lastLogin': FieldValue.serverTimestamp(),
           'storeName': "",
           'addressList': [],
+             'wallet': {
+            'available': 0,
+            'onHold': 0,
+            'currency': 'IDR',
+            'updatedAt': FieldValue.serverTimestamp(),
+            }
         });
         return null; // sukses
       }

@@ -221,22 +221,61 @@ class _HomeMainContentState extends State<_HomeMainContent> {
         if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 24)),
         if (!isSearching)
           SliverToBoxAdapter(
-            child: ABCPaymentCard(
-              balance: 25000,                 // TODO: ganti dari Firestore
-              primaryLabel: 'Isi Saldo',
-              onPrimary: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TopUpWalletPage()),
-                );
-              },
-             onHistory: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryWalletPage()),
-              );
-            },
-            ),
+            child: (userUid.isEmpty)
+                ? ABCPaymentCard(
+                    balance: 0,
+                    primaryLabel: 'Isi Saldo',
+                    onPrimary: () {
+                      Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
+                    },
+                    onHistory: () {
+                      Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const HistoryWalletPage()));
+                    },
+                  )
+                : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(userUid)
+                        .snapshots(),
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        // loading tipis: tetap render kartu dengan 0 biar UI stabil
+                        return ABCPaymentCard(
+                          balance: 0,
+                          primaryLabel: 'Isi Saldo',
+                          onPrimary: () {
+                            Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
+                          },
+                          onHistory: () {
+                            Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => const HistoryWalletPage()));
+                          },
+                        );
+                      }
+                      final data = snap.data?.data();
+                      final wallet = (data?['wallet'] as Map<String, dynamic>?) ?? {};
+                      // aman untuk num/double/int
+                      final available = (wallet['available'] is num)
+                          ? (wallet['available'] as num).toInt()
+                          : 0;
+
+                      return ABCPaymentCard(
+                        balance: available,
+                        primaryLabel: 'Isi Saldo',
+                        onPrimary: () {
+                          Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
+                        },
+                        onHistory: () {
+                          Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const HistoryWalletPage()));
+                        },
+                      );
+                    },
+                  ),
           ),
         if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 16)),
         if (!isSearching)

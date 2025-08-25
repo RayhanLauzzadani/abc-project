@@ -153,31 +153,49 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           ),
                           const SizedBox(height: 16),
 
-                          ABCPaymentCard(
-                            margin: EdgeInsets.zero,
-                            balance: 25000,
-                            primaryLabel: 'Tarik Saldo',
-                            primaryIconWidget: SvgPicture.asset(
-                              'assets/icons/banknote-arrow-down.svg',
-                              width: 20, height: 20,
-                              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                            ),
-                            onPrimary: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const WithdrawPaymentPage(
-                                    currentBalance: 25000, // samakan dengan card di atas
-                                    adminFee: 1000,
-                                    minWithdraw: 10000,
-                                  ),
+                          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(uid) // uid seller yang login (sudah dideklarasikan di atas)
+                                .snapshots(),
+                            builder: (context, snap) {
+                              int available = 0; // default saat loading/null
+
+                              if (snap.hasData) {
+                                final data = snap.data!.data();
+                                final wallet = (data?['wallet'] as Map<String, dynamic>?) ?? {};
+                                if (wallet['available'] is num) {
+                                  available = (wallet['available'] as num).toInt();
+                                }
+                              }
+
+                              return ABCPaymentCard(
+                                margin: EdgeInsets.zero,
+                                balance: available, // saldo live dari Firestore
+                                primaryLabel: 'Tarik Saldo',
+                                primaryIconWidget: SvgPicture.asset(
+                                  'assets/icons/banknote-arrow-down.svg',
+                                  width: 20, height: 20,
+                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                                 ),
-                              );
-                            },
-                            onHistory: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const WithdrawHistoryPageSeller(),
-                                ),
+                                onPrimary: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => WithdrawPaymentPage(
+                                        currentBalance: available, // kirim saldo real
+                                        adminFee: 1000,
+                                        minWithdraw: 10000,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onHistory: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const WithdrawHistoryPageSeller(),
+                                    ),
+                                  );
+                                },
                               );
                             },
                           ),

@@ -143,9 +143,9 @@ class _AnimatedCartTabBar extends StatelessWidget {
         if (selectedIndex == 0) {
           underlineLeft = tabLefts[0];
         } else if (selectedIndex == 1) {
-          underlineLeft = tabLefts[1] - 4.5;
+          underlineLeft = tabLefts[1] - 5;
         } else {
-          underlineLeft = tabLefts[2] - 8;
+          underlineLeft = tabLefts[2] - 9;
         }
         final underlineWidth = textPainters[selectedIndex].width;
 

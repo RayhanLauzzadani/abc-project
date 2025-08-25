@@ -5,6 +5,7 @@ enum OrderStatus {
   inProgress, // Dalam Proses
   success,    // Selesai
   canceled,   // Dibatalkan
+  delivered,  // Terkirim / Selesai kirim
 }
 
 class CartAndOrderListCard extends StatelessWidget {
@@ -39,12 +40,31 @@ class CartAndOrderListCard extends StatelessWidget {
     this.actionIconOverride,
   }) : super(key: key);
 
+   Widget _buildProductImage(String path) {
+    final isUrl = path.startsWith('http');
+    final img = isUrl
+        ? Image.network(
+            path,
+            width: 60, height: 60, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 28, color: Colors.grey),
+          )
+        : Image.asset(
+            path,
+            width: 60, height: 60, fit: BoxFit.cover,
+          );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: img,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Color statusBgColor;
     Color statusTextColor;
     Color statusBorderColor;
     String label;
+
     switch (status) {
       case OrderStatus.inProgress:
         statusBgColor = const Color(0xFFFFFBF1);
@@ -64,11 +84,17 @@ class CartAndOrderListCard extends StatelessWidget {
         statusBorderColor = const Color(0xFFDC3545);
         label = statusText ?? "Dibatalkan";
         break;
+      case OrderStatus.delivered:
+        statusBgColor = const Color(0xFFF1F7FF);
+        statusTextColor = const Color(0xFF1976D2);
+        statusBorderColor = const Color(0xFF1976D2);
+        label = statusText ?? "Terkirim";
+        break;
     }
 
-  String actionText = actionTextOverride ??
-    (status == OrderStatus.inProgress ? "Lacak Pesanan" : "Detail Pesanan");
-  IconData actionIcon = actionIconOverride ?? Icons.chevron_right_rounded;
+    final String actionText = actionTextOverride ??
+      (status == OrderStatus.inProgress ? "Lacak Pesanan" : "Detail Pesanan");
+    final IconData actionIcon = actionIconOverride ?? Icons.chevron_right_rounded;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -99,15 +125,7 @@ class CartAndOrderListCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Gambar produk
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.asset(
-                    productImage,
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                _buildProductImage(productImage),
                 const SizedBox(width: 15),
                 // Kolom info + badge pakai Stack
                 Expanded(

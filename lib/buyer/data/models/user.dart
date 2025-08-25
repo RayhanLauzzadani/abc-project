@@ -11,6 +11,9 @@ class UserModel {
   final List<Map<String, dynamic>> addressList;
   final Map<String, List<String>>? favorites;
   final String? photoUrl;
+  final int walletAvailable;
+  final int walletOnHold;
+  final String walletCurrency;
 
   UserModel({
     required this.uid,
@@ -23,10 +26,17 @@ class UserModel {
     this.storeId,
     this.favorites,
     this.photoUrl,
+    this.walletAvailable = 0,
+    this.walletOnHold = 0,
+    this.walletCurrency = 'IDR',
   });
 
   factory UserModel.fromMap(String id, Map<String, dynamic> map) {
     List<String> roleList = [];
+    final wallet = (map['wallet'] as Map<String, dynamic>?) ?? {};
+    final avail = wallet['available'] is num ? (wallet['available'] as num).toInt() : 0;
+    final hold  = wallet['onHold']   is num ? (wallet['onHold'] as num).toInt()   : 0;
+
     if (map['role'] is String) {
       roleList = [map['role']];
     } else if (map['role'] is List) {
@@ -48,6 +58,9 @@ class UserModel {
                       MapEntry(key, List<String>.from(value ?? []))))
           : null,
       photoUrl: map['photoUrl'],
+      walletAvailable: avail,
+      walletOnHold: hold,
+      walletCurrency: wallet['currency'] ?? 'IDR',
     );
   }
 
@@ -62,6 +75,11 @@ class UserModel {
       'addressList': addressList,
       if (favorites != null) 'favorites': favorites,
       if (photoUrl != null) 'photoUrl': photoUrl,
+      'wallet': {
+        'available': walletAvailable,
+        'onHold': walletOnHold,
+        'currency': walletCurrency,
+      },
     };
   }
 }
