@@ -10,13 +10,21 @@ class LineItem {
 }
 
 class DetailWalletSuccessPage extends StatelessWidget {
-  final bool isTopup;                
-  final String counterpartyName;      
-  final int amount;                  
+  final bool isTopup;
+  final String counterpartyName;
+  /// PEMBAYARAN: total pembayaran
+  /// TOP-UP: SALDO DIPILIH (bukan total)
+  final int amount;
   final DateTime createdAt;
-  final List<LineItem>? items;      
-  final int? shippingFeeOverride;     
-  final int? adminFee;                
+
+  // untuk pembayaran
+  final List<LineItem>? items;
+  final int? shippingFeeOverride;
+  final int? tax;  
+
+  // untuk top up
+  final int? adminFee;
+  final int? totalTopup; // amount + adminFee (opsional, fallback dihitung sendiri)
 
   const DetailWalletSuccessPage({
     super.key,
@@ -26,7 +34,9 @@ class DetailWalletSuccessPage extends StatelessWidget {
     required this.createdAt,
     this.items,
     this.shippingFeeOverride,
+    this.tax,
     this.adminFee,
+    this.totalTopup,
   });
 
   String _rp(int v) {
@@ -49,14 +59,16 @@ class DetailWalletSuccessPage extends StatelessWidget {
     final sign = isTopup ? '+' : '-';
     final amountColor = isTopup ? const Color(0xFF18A558) : const Color(0xFF373E3C);
 
-    // pembayaran: hitung subtotal & ongkir
+    // PEMBAYARAN
     final list = items ?? const <LineItem>[];
     final subtotal = list.fold<int>(0, (a, e) => a + e.price * e.qty);
-    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal));
+    final taxValue = tax ?? 0;
+    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal - taxValue));
 
-    // topup: breakdown
+    // TOP-UP
     final admin = adminFee ?? 1000;
-    final saldoDipilih = (amount - admin);
+    final saldoDipilih = isTopup ? amount : 0; // amount = saldo dipilih
+    final totalTopupValue = isTopup ? (totalTopup ?? (saldoDipilih + admin)) : 0;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -72,10 +84,8 @@ class DetailWalletSuccessPage extends StatelessWidget {
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     width: 40, height: 40,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2563EB), shape: BoxShape.circle),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white, size: 20),
+                    decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -91,7 +101,7 @@ class DetailWalletSuccessPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
         children: [
-          // ICON SUKSES — LOTTIE
+          // Lottie success
           Center(
             child: SizedBox(
               width: 110,
@@ -102,9 +112,8 @@ class DetailWalletSuccessPage extends StatelessWidget {
           const SizedBox(height: 4),
           Center(
             child: Text(
-              '$sign${_rp(amount)}',
-              style: GoogleFonts.dmSans(
-                fontSize: 20, fontWeight: FontWeight.w800, color: amountColor),
+              '$sign${_rp(amount)}', // TOP-UP: tampilkan saldo dipilih
+              style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.w800, color: amountColor),
             ),
           ),
           const SizedBox(height: 6),
@@ -117,7 +126,6 @@ class DetailWalletSuccessPage extends StatelessWidget {
 
           const SizedBox(height: 18),
 
-          // Bayar Ke / Sumber Dana -> kotak abu-abu
           _sectionTitle(isTopup ? 'Sumber Dana' : 'Bayar Ke'),
           const SizedBox(height: 8),
           _grayCard(
@@ -127,7 +135,7 @@ class DetailWalletSuccessPage extends StatelessWidget {
             ),
           ),
 
-          // ======= PEMBAYARAN: Rincian Pesanan (semua item dalam 1 kotak, qty kanan, harga di bawah qty, TANPA garis)
+          // Rincian Pesanan (pembayaran)
           if (!isTopup && list.isNotEmpty) ...[
             const SizedBox(height: 18),
             _sectionTitle('Rincian Pesanan'),
@@ -140,10 +148,8 @@ class DetailWalletSuccessPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            list[i].name,
-                            style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF232323)),
-                          ),
+                          child: Text(list[i].name,
+                              style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF232323))),
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -164,7 +170,6 @@ class DetailWalletSuccessPage extends StatelessWidget {
             ),
           ],
 
-          // ======= RINGKASAN (tanpa garis pemisah di dalam kotak)
           const SizedBox(height: 18),
           _sectionTitle(isTopup ? 'Ringkasan Top Up' : 'Ringkasan Pembayaran'),
           const SizedBox(height: 8),
@@ -180,7 +185,7 @@ class DetailWalletSuccessPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            _grayCard(child: _twoCols('Total Top Up', _rp(amount), bold: true)),
+            _grayCard(child: _twoCols('Total Top Up', _rp(totalTopupValue), bold: true)),
           ] else ...[
             _grayCard(
               child: Column(
@@ -188,6 +193,10 @@ class DetailWalletSuccessPage extends StatelessWidget {
                   _twoCols('Subtotal', _rp(subtotal), muted: true),
                   const SizedBox(height: 10),
                   _twoCols('Biaya Pengiriman', _rp(shipping), muted: true),
+                  if (taxValue > 0) ...[
+                    const SizedBox(height: 10),
+                    _twoCols('Pajak', _rp(taxValue), muted: true),
+                  ],
                 ],
               ),
             ),

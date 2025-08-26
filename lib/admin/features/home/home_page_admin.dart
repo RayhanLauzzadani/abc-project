@@ -17,6 +17,7 @@ import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
 import 'package:abc_e_mart/admin/features/approval/payment/admin_payment_approval_page.dart';
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
 import 'package:abc_e_mart/admin/features/notification/notification_page_admin.dart';
+import 'package:abc_e_mart/admin/features/approval/payment/admin_payment_approval_detail_page.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
 import 'package:abc_e_mart/seller/data/models/ad.dart';
 import 'package:intl/intl.dart';
@@ -94,6 +95,62 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         (route) => false,
       );
     }
+  }
+
+  Future<List<AdminAbcPaymentData>> _mapPaymentAppsToUi(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) async {
+    return Future.wait(docs.map((d) async {
+      final m = d.data();
+      final typeStr = (m['type'] as String? ?? '').toLowerCase();
+      final isWithdraw = typeStr == 'withdrawal';
+      final submittedAt =
+          (m['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+      if (isWithdraw) {
+        // Tampilkan nama toko
+        String name = 'Penjual';
+        final storeId = m['storeId'] as String?;
+        if (storeId != null && storeId.isNotEmpty) {
+          final st = await FirebaseFirestore.instance
+              .collection('stores')
+              .doc(storeId)
+              .get();
+          name = (st.data()?['name'] as String?) ?? name;
+        }
+        final amount = (m['amount'] as num?)?.toInt() ?? 0; // nominal diajukan
+        return AdminAbcPaymentData(
+          applicationId: d.id,
+          name: name,
+          isSeller: true,
+          type: AbcPaymentType.withdraw,
+          amount: amount,
+          createdAt: submittedAt,
+        );
+      } else {
+        // Top-up → tampilkan nama user (fallback email)
+        String name = (m['buyerEmail'] as String?) ?? 'Pembeli';
+        final buyerId = m['buyerId'] as String?;
+        if (buyerId != null && buyerId.isNotEmpty) {
+          final u = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(buyerId)
+              .get();
+          name = (u.data()?['displayName'] as String?) ??
+                (u.data()?['name'] as String?) ??
+                name;
+        }
+        final amount = (m['amount'] as num?)?.toInt() ?? 0; // jumlah isi saldo
+        return AdminAbcPaymentData(
+          applicationId: d.id,
+          name: name,
+          isSeller: false,
+          type: AbcPaymentType.topup,
+          amount: amount,
+          createdAt: submittedAt,
+        );
+      }
+    }));
   }
 
   String _formatDate(DateTime dt) {
@@ -227,30 +284,72 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AdminAbcPaymentSection(
-                      items: [
-                        AdminAbcPaymentData(
-                          name: "Nippon Mart",
-                          isSeller: true,
-                          type: AbcPaymentType.withdraw,
-                          amount: 25000,
-                          createdAt: DateTime(2025, 4, 30, 16, 21),
-                        ),
-                        AdminAbcPaymentData(
-                          name: "Rayhanmuzaki",
-                          isSeller: false,
-                          type: AbcPaymentType.topup,
-                          amount: 25000,
-                          createdAt: DateTime(2025, 4, 30, 16, 21),
-                        ),
-                      ],
-                      onSeeAll: () {
-                        setState(() {
-                          _currentIndex = 1; // buka tab Pembayaran
-                        });
-                      },
-                      onDetail: (item) {
-                        // TODO: buka detail ajuan (nanti)
+                    child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('paymentApplications')
+                          .where('status', isEqualTo: 'pending')
+                          .orderBy('submittedAt', descending: true)
+                          .limit(2)
+                          .snapshots(),
+                      builder: (context, snap) {
+                        if (snap.hasError) {
+                          // tampilkan kartu dengan empty state
+                          return AdminAbcPaymentSection(
+                            items: const [],
+                            onSeeAll: () => setState(() => _currentIndex = 1),
+                          );
+                        }
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 30),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        final docs = snap.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          // kosong -> seperti Ajuan Toko
+                          return AdminAbcPaymentSection(
+                            items: const [],
+                            onSeeAll: () => setState(() => _currentIndex = 1),
+                          );
+                        }
+
+                        // Perlu fetch nama toko / nama user -> bungkus dengan FutureBuilder
+                        return FutureBuilder<List<AdminAbcPaymentData>>(
+                          future: _mapPaymentAppsToUi(docs),
+                          builder: (context, mapped) {
+                            if (mapped.connectionState == ConnectionState.waiting) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 30),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            final items = mapped.data ?? const <AdminAbcPaymentData>[];
+                            return AdminAbcPaymentSection(
+                              items: items,
+                              onSeeAll: () => setState(() => _currentIndex = 1),
+                              onDetail: (item) {
+                                if (item.applicationId == null) return;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AdminPaymentApprovalDetailPage(
+                                      applicationId: item.applicationId!,
+                                      type: item.type == AbcPaymentType.withdraw
+                                          ? PaymentRequestType.withdrawal
+                                          : PaymentRequestType.topUp,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
                       },
                     ),
                   ),
