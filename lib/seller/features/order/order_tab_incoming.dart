@@ -20,11 +20,11 @@ class SellerOrderTabIncoming extends StatelessWidget {
 
     // Pesanan masuk = status 'PLACED' untuk seller ini
     final stream = FirebaseFirestore.instance
-        .collection('orders')
-        .where('sellerId', isEqualTo: uid)
-        .where('status', whereIn: ['PLACED']) // kalau mau terima juga 'ACCEPTED', tinggal tambah di array
-        .orderBy('createdAt', descending: true) // kemungkinan perlu index komposit
-        .snapshots();
+      .collection('orders')
+      .where('sellerId', isEqualTo: uid)
+      .where('status', whereIn: ['PLACED', 'ACCEPTED'])
+      .orderBy('createdAt', descending: true)
+      .snapshots();
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: stream,
@@ -66,6 +66,7 @@ class SellerOrderTabIncoming extends StatelessWidget {
           itemBuilder: (context, i) {
             final data = docs[i].data();
             final orderId = docs[i].id;
+            final statusStr = ((data['status'] ?? 'PLACED') as String).toUpperCase();
 
             final storeName = (data['storeName'] ?? '-') as String;
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
@@ -83,9 +84,9 @@ class SellerOrderTabIncoming extends StatelessWidget {
               itemCount: itemCount,
               totalPrice: totalPrice,
               orderDateTime: orderDateTime,
-              status: OrderStatus.inProgress, // badge disembunyikan
+              status: OrderStatus.inProgress,        // badge tetap disembunyikan
               showStatusBadge: false,
-              actionTextOverride: "Tinjau Pesanan",
+              actionTextOverride: statusStr == 'ACCEPTED' ? 'Kirim Pesanan' : 'Tinjau Pesanan', // <= opsional
               actionIconOverride: Icons.chevron_right_rounded,
               onTap: () {
                 Navigator.push(

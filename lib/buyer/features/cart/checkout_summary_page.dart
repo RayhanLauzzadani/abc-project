@@ -315,7 +315,13 @@ Future<bool> _validateStockBeforeCheckout() async {
                                 _SummaryRow(label: 'Subtotal', value: subtotal),
                                 const SizedBox(height: 8),
                                 _SummaryRow(label: 'Biaya Pengiriman', value: widget.shippingFee),
-                                const SizedBox(height: 8),
+
+                                // >>> Tambahkan ini (hanya tampil jika > 0)
+                                if (widget.taxFee > 0) ...[
+                                  const SizedBox(height: 8),
+                                  _SummaryRow(label: 'Pajak', value: widget.taxFee),
+                                ],
+
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 8),
                                   child: Divider(thickness: 1, color: Color(0xFFE5E5E5), height: 1),

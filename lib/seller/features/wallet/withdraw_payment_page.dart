@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:abc_e_mart/seller/features/wallet/success_withdrawal_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
-import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/data/services/payment_application_service.dart';
@@ -19,7 +18,7 @@ class WithdrawPaymentPage extends StatefulWidget {
     super.key,
     this.currentBalance = 150000,
     this.adminFee = 1000,
-    this.minWithdraw = 10000,
+    this.minWithdraw = 15000,
     this.storeId,
   });
 
@@ -30,7 +29,7 @@ class WithdrawPaymentPage extends StatefulWidget {
 class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
   // nominal
   int _amount = 20000;
-  final List<int> _presets = const [10000, 20000, 25000, 50000, 100000, 200000];
+  final List<int> _presets = const [15000, 20000, 25000, 50000, 100000, 200000];
 
   // form data
   final _bankCtrl = TextEditingController();
@@ -44,6 +43,18 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
   @override
   void initState() {
     super.initState();
+
+    // Pilih preset VALID pertama (>= minWithdraw && <= currentBalance)
+    int? firstEnabled;
+    for (final v in _presets) {
+      if (v >= widget.minWithdraw && v <= widget.currentBalance) {
+        firstEnabled = v;
+        break;
+      }
+    }
+    // Kalau ada yang valid → pakai itu. Kalau tidak ada → pakai minWithdraw (hanya sebagai tampilan).
+    _amount = firstEnabled ?? widget.minWithdraw;
+
     _bankCtrl.addListener(() => setState(() => _bankLen = _bankCtrl.text.characters.length));
     _accNoCtrl.addListener(() => setState(() => _accNoLen = _accNoCtrl.text.characters.length));
     _ownerCtrl.addListener(() => setState(() => _ownerLen = _ownerCtrl.text.characters.length));
@@ -132,18 +143,18 @@ Future<void> _submitWithdrawal() async {
     );
 
     if (!mounted) return;
-    // Buka halaman sukses (teks menunggu verifikasi)
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SuccessWithdrawalPage(
+          // Hanya pop dua kali: success -> withdraw -> kembali ke HomePageSeller lama
           onGoHome: () {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const HomePageSeller()),
-              (r) => false,
-            );
+            Navigator.of(context).pop(); // tutup SuccessWithdrawalPage
+            Navigator.of(context).pop(); // tutup WithdrawPaymentPage
           },
+          // Opsional: tutup success dulu, lalu buka riwayat
           onViewHistory: () {
+            Navigator.of(context).pop(); // tutup SuccessWithdrawalPage
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const WithdrawHistoryPageSeller()),
             );
@@ -165,6 +176,7 @@ Future<void> _submitWithdrawal() async {
   @override
   Widget build(BuildContext context) {
     final totalReceived = (_amount - widget.adminFee).clamp(0, 1 << 31);
+    final bool canWithdrawNow = widget.currentBalance >= widget.minWithdraw;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -336,12 +348,29 @@ Future<void> _submitWithdrawal() async {
                           const SizedBox(height: 10),
                           Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
-                              '*Minimal Penarikan Sebesar ${_formatRp(widget.minWithdraw)}',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 12.5,
-                                color: const Color(0xFF9AA0A6),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '*Minimal Penarikan Sebesar ${_formatRp(widget.minWithdraw)}',
+                                  style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF9AA0A6)),
+                                ),
+                                if (!canWithdrawNow) ...[
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.info_outline, size: 16, color: Color(0xFFEF4444)),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Saldo belum cukup untuk penarikan minimal.',
+                                          style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFFEF4444)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ],

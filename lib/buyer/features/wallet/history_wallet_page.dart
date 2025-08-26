@@ -19,7 +19,7 @@ class WalletTxn {
   final WalletTxnType type;
   final String title;     // "Isi Saldo" / "Pembayaran"
   final String subtitle;  // "Dari ABC Payment" / nama toko
-  final int amount;       // untuk ditampilkan di kartu (topup: amount saja; payment: total)
+  final int amount;       // topup: SALDO DIPILIH; payment: total bayar
   final DateTime createdAt;
   final WalletTxnStatus status;
 
@@ -29,6 +29,7 @@ class WalletTxn {
   final String? reason;  // topup rejection reason
   final List<LineItem>? items; // payment -> detail
   final int? shipping;   // payment
+  final int? tax;
 
   WalletTxn({
     required this.id,
@@ -43,6 +44,7 @@ class WalletTxn {
     this.reason,
     this.items,
     this.shipping,
+    this.tax,
   });
 }
 
@@ -79,27 +81,24 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() { _loading = true; _error = null; });
 
     try {
       final fs = FirebaseFirestore.instance;
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('Belum login');
 
-      // ---------- TOPUP (paymentApplications) ----------
+      // ---------- TOPUP ----------
       final topupSnap = await fs
           .collection('paymentApplications')
           .where('type', isEqualTo: 'topup')
           .where('buyerId', isEqualTo: uid)
           .orderBy('submittedAt', descending: true)
           .limit(100)
-          .get(); // -> QuerySnapshot<Map<String, dynamic>>
+          .get();
 
       final topups = topupSnap.docs.map((d) {
-        final Map<String, dynamic> data = d.data();
+        final data = d.data();
 
         final ts = data['submittedAt'] as Timestamp?;
         final created = ts?.toDate() ?? DateTime.now();
@@ -108,21 +107,21 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
         final status = switch (statusStr) {
           'approved' => WalletTxnStatus.success,
           'rejected' => WalletTxnStatus.failed,
-          _ => WalletTxnStatus.pending,
+          _          => WalletTxnStatus.pending,
         };
 
-        final amount    = (data['amount'] as num?)?.toInt() ?? 0;
+        final amount    = (data['amount'] as num?)?.toInt() ?? 0;  // SALDO DIPILIH
         final adminFee  = (data['fee'] as num?)?.toInt();
         final totalPaid = (data['totalPaid'] as num?)?.toInt();
         final reason    = data['rejectionReason'] as String?;
-        final methodLbl = data['method'] as String?; // opsional: tampilkan sumber
+        final methodLbl = data['method'] as String?;
 
         return WalletTxn(
           id: d.id,
           type: WalletTxnType.topup,
           title: 'Isi Saldo',
           subtitle: methodLbl == null ? 'Dari ABC Payment' : 'Dari $methodLbl',
-          amount: amount,
+          amount: amount,              // << tampilkan + sesuai saldo dipilih
           createdAt: created,
           status: status,
           adminFee: adminFee,
@@ -131,42 +130,34 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
         );
       }).toList();
 
-      // ---------- PAYMENT (orders selesai) ----------
-      // Penting: pakai generic agar data() non-nullable.
-      Query<Map<String, dynamic>> ordersQuery = fs
+      // ---------- PAYMENT ----------
+      final orderSnap = await fs
           .collection('orders')
           .where('buyerId', isEqualTo: uid)
           .where('status', whereIn: ['COMPLETED', 'SUCCESS'])
           .orderBy('updatedAt', descending: true)
-          .limit(100);
-
-      final orderSnap = await ordersQuery.get(); // QuerySnapshot<Map<String, dynamic>>
+          .limit(100)
+          .get();
 
       final payments = orderSnap.docs.map((d) {
-        final Map<String, dynamic> data = d.data();
+        final data = d.data();
 
         final ts = (data['updatedAt'] as Timestamp?) ?? (data['createdAt'] as Timestamp?);
         final created = ts?.toDate() ?? DateTime.now();
 
         final storeName = (data['storeName'] as String?) ?? 'Toko';
 
-        // amounts & shipping (fallback bila field lama)
-        final Map<String, dynamic> amounts =
-            (data['amounts'] as Map<String, dynamic>?) ?? const {};
-        final int total = ((amounts['total'] as num?) ?? (data['total'] as num?) ?? 0).toInt();
-        final int shipping =
-            ((amounts['shipping'] as num?) ?? (data['shipping'] as num?) ?? 0).toInt();
+        final amounts = (data['amounts'] as Map<String, dynamic>?) ?? const {};
+        final total    = ((amounts['total'] as num?)    ?? (data['total'] as num?)    ?? 0).toInt();
+        final shipping = ((amounts['shipping'] as num?) ?? (data['shipping'] as num?) ?? 0).toInt();
+        final tax      = ((amounts['tax'] as num?)      ?? (data['tax'] as num?)      ?? 0).toInt();
 
-        // items -> List<LineItem>
-        final List<Map<String, dynamic>> rawItems =
-            List<Map<String, dynamic>>.from((data['items'] as List?) ?? const []);
-        final items = rawItems
-            .map((m) => LineItem(
-                  (m['name'] as String?) ?? 'Item',
-                  ((m['qty'] as num?) ?? 1).toInt(),
-                  ((m['price'] as num?) ?? 0).toInt(),
-                ))
-            .toList();
+        final rawItems = List<Map<String, dynamic>>.from((data['items'] as List?) ?? const []);
+        final items = rawItems.map((m) => LineItem(
+          (m['name'] as String?) ?? 'Item',
+          ((m['qty'] as num?) ?? 1).toInt(),
+          ((m['price'] as num?) ?? 0).toInt(),
+        )).toList();
 
         return WalletTxn(
           id: d.id,
@@ -178,24 +169,19 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
           status: WalletTxnStatus.success,
           items: items,
           shipping: shipping,
+          tax: tax,                     // <<< TAMBAHKAN KE MODEL
         );
       }).toList();
 
-      // gabungkan & urutkan
       final merged = <WalletTxn>[...topups, ...payments]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       setState(() {
-        _items
-          ..clear()
-          ..addAll(merged);
+        _items..clear()..addAll(merged);
         _loading = false;
       });
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      setState(() { _error = e.toString(); _loading = false; });
     }
   }
 
@@ -211,14 +197,11 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
 
   String _formatDate(DateTime d) {
     String two(int n) => n.toString().padLeft(2, '0');
-    final day = two(d.day), mon = two(d.month), yr = d.year.toString();
-    final hh = two(d.hour), mm = two(d.minute);
-    return '$day/$mon/$yr, $hh:$mm';
+    return '${two(d.day)}/${two(d.month)}/${d.year}, ${two(d.hour)}:${two(d.minute)}';
   }
 
   List<WalletTxn> get _filtered {
     var items = _items;
-
     if (_filterIndex == 1) {
       items = items.where((e) => e.type == WalletTxnType.topup).toList();
     } else if (_filterIndex == 2) {
@@ -227,10 +210,9 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
 
     final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
-      items = items.where((e) {
-        return e.title.toLowerCase().contains(q) ||
-               e.subtitle.toLowerCase().contains(q);
-      }).toList();
+      items = items.where((e) =>
+        e.title.toLowerCase().contains(q) || e.subtitle.toLowerCase().contains(q)
+      ).toList();
     }
     return items;
   }
@@ -251,28 +233,14 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2563EB),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                    width: 40, height: 40,
+                    decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                   ),
                 ),
                 const SizedBox(width: 16),
-                Text(
-                  'Riwayat Transaksi',
-                  style: GoogleFonts.dmSans(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 19,
-                    color: const Color(0xFF232323),
-                  ),
-                ),
+                Text('Riwayat Transaksi',
+                  style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 19, color: const Color(0xFF232323))),
               ],
             ),
           ),
@@ -313,8 +281,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(20),
-                          child: Text(_error!,
-                              textAlign: TextAlign.center,
+                          child: Text(_error!, textAlign: TextAlign.center,
                               style: GoogleFonts.dmSans(color: Colors.red)),
                         ),
                       )
@@ -324,43 +291,38 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                             ? const _EmptyState()
                             : ListView.separated(
                                 padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                itemCount: _filtered.length,
                                 itemBuilder: (context, i) {
                                   final e = _filtered[i];
                                   final isTopup = e.type == WalletTxnType.topup;
+                                  final isSuccess = e.status == WalletTxnStatus.success;
 
                                   final sign = isTopup
-                                      ? (e.status == WalletTxnStatus.success ? '+' : '')
+                                      ? (isSuccess ? '+' : '')
                                       : '-';
                                   final amountText = '$sign${_formatRupiah(e.amount)}';
 
-                                  final amountColor =
-                                      (isTopup && e.status == WalletTxnStatus.success)
-                                          ? const Color(0xFF18A558)
-                                          : const Color(0xFF373E3C);
+                                  final amountColor = (isTopup && isSuccess)
+                                      ? const Color(0xFF18A558)
+                                      : const Color(0xFF373E3C);
 
-                                  final isSuccess = e.status == WalletTxnStatus.success;
-
-                                  // === onTap card ===
+                                  // onTap
                                   VoidCallback? onTapCard;
                                   if (!isSuccess && isTopup && e.status == WalletTxnStatus.pending) {
                                     onTapCard = () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => const VerificationTopUpPage()),
-                                      );
+                                      Navigator.push(context,
+                                        MaterialPageRoute(builder: (_) => const VerificationTopUpPage()));
                                     };
                                   } else if (!isSuccess && isTopup && e.status == WalletTxnStatus.failed) {
                                     onTapCard = () {
-                                      Navigator.push(
-                                        context,
+                                      Navigator.push(context,
                                         MaterialPageRoute(
                                           builder: (_) => FailedTopUpPage(
                                             reason: e.reason ?? 'Pengajuan isi saldo ditolak.',
                                             onRetry: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(builder: (_) => const TopUpWalletPage()),
-                                              );
+                                              Navigator.push(context,
+                                                MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
                                             },
                                           ),
                                         ),
@@ -394,25 +356,15 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Container(
-                                                  width: 44,
-                                                  height: 44,
+                                                  width: 44, height: 44,
                                                   decoration: const BoxDecoration(
-                                                    color: Color(0xFF1C55C0),
-                                                    shape: BoxShape.circle,
-                                                  ),
+                                                    color: Color(0xFF1C55C0), shape: BoxShape.circle),
                                                   alignment: Alignment.center,
                                                   child: isTopup
                                                       ? SvgPicture.asset(
                                                           'assets/icons/banknote-arrow-down.svg',
-                                                          width: 22,
-                                                          height: 22,
-                                                          color: Colors.white,
-                                                        )
-                                                      : Icon(
-                                                          LucideIcons.creditCard,
-                                                          size: 22,
-                                                          color: Colors.white,
-                                                        ),
+                                                          width: 22, height: 22, color: Colors.white)
+                                                      : Icon(LucideIcons.creditCard, size: 22, color: Colors.white),
                                                 ),
                                                 const SizedBox(width: 12),
                                                 Expanded(
@@ -424,25 +376,16 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                         children: [
                                                           Expanded(
                                                             child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment.start,
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
                                                               children: [
-                                                                Text(
-                                                                  e.title,
+                                                                Text(e.title,
                                                                   style: GoogleFonts.dmSans(
-                                                                    fontSize: 15.5,
-                                                                    fontWeight: FontWeight.w700,
-                                                                    color: const Color(0xFF232323),
-                                                                  ),
-                                                                ),
+                                                                    fontSize: 15.5, fontWeight: FontWeight.w700,
+                                                                    color: const Color(0xFF232323))),
                                                                 const SizedBox(height: 2),
-                                                                Text(
-                                                                  e.subtitle,
+                                                                Text(e.subtitle,
                                                                   style: GoogleFonts.dmSans(
-                                                                    fontSize: 12.5,
-                                                                    color: const Color(0xFF5B5F62),
-                                                                  ),
-                                                                ),
+                                                                      fontSize: 12.5, color: const Color(0xFF5B5F62))),
                                                               ],
                                                             ),
                                                           ),
@@ -450,8 +393,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                           Column(
                                                             crossAxisAlignment: CrossAxisAlignment.end,
                                                             children: [
-                                                              Text(
-                                                                amountText,
+                                                              Text(amountText,
                                                                 style: GoogleFonts.dmSans(
                                                                   fontSize: 15,
                                                                   fontWeight: FontWeight.w700,
@@ -460,7 +402,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                               ),
                                                               if (isSuccess) ...[
                                                                 const SizedBox(height: 6),
-                                                                const _StatusBadge(),
+                                                                const _StatusBadge(), // compact
                                                               ],
                                                             ],
                                                           ),
@@ -476,34 +418,30 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
 
                                             Row(
                                               children: [
-                                                Text(
-                                                  _formatDate(e.createdAt),
+                                                Text(_formatDate(e.createdAt),
                                                   style: GoogleFonts.dmSans(
-                                                    fontSize: 12.5,
-                                                    color: const Color(0xFF9AA0A6),
-                                                  ),
-                                                ),
+                                                    fontSize: 12.5, color: const Color(0xFF9AA0A6))),
                                                 const Spacer(),
                                                 if (isSuccess)
                                                   InkWell(
                                                     onTap: () {
                                                       if (isTopup) {
-                                                        // detail topup: kirim totalPaid & admin fee
+                                                        // >>> TOP-UP
                                                         Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
                                                             builder: (_) => DetailWalletSuccessPage(
                                                               isTopup: true,
                                                               counterpartyName: e.subtitle,
-                                                              amount: e.totalPaid ?? (e.amount + (e.adminFee ?? 0)),
+                                                              amount: e.amount,
                                                               createdAt: e.createdAt,
-                                                              items: null,
                                                               adminFee: e.adminFee ?? 0,
+                                                              totalTopup: e.totalPaid ?? (e.amount + (e.adminFee ?? 0)),
                                                             ),
                                                           ),
                                                         );
                                                       } else {
-                                                        // detail payment
+                                                        // >>> PEMBAYARAN
                                                         Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
@@ -514,6 +452,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                               createdAt: e.createdAt,
                                                               items: e.items,
                                                               shippingFeeOverride: e.shipping,
+                                                              tax: e.tax,
                                                             ),
                                                           ),
                                                         );
@@ -521,8 +460,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                     },
                                                     child: Row(
                                                       children: [
-                                                        Text(
-                                                          'Lihat Detail',
+                                                        Text('Lihat Detail',
                                                           style: GoogleFonts.dmSans(
                                                             fontSize: 12.5,
                                                             fontWeight: FontWeight.w600,
@@ -530,8 +468,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                           ),
                                                         ),
                                                         const SizedBox(width: _detailChevronGap),
-                                                        const Icon(Icons.chevron_right,
-                                                            size: 16, color: Color(0xFF6B7280)),
+                                                        const Icon(Icons.chevron_right, size: 16, color: Color(0xFF6B7280)),
                                                       ],
                                                     ),
                                                   )
@@ -545,8 +482,6 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                     ),
                                   );
                                 },
-                                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                                itemCount: _filtered.length,
                               ),
                       ),
           ),
@@ -556,7 +491,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
   }
 }
 
-/// ===== Selector chip (sama seperti sebelumnya) =====
+/// ===== Selector chip
 class _TypeSelector extends StatelessWidget {
   final List<String> labels;
   final int selectedIndex;
@@ -611,9 +546,9 @@ class _TypeSelector extends StatelessWidget {
   }
 }
 
-/// ===== Badge status
+/// ===== Badge status (kompak seperti seller)
 class _StatusBadge extends StatelessWidget {
-  final WalletTxnStatus? status; // null => default Berhasil (untuk kanan-atas)
+  final WalletTxnStatus? status; // null => default Berhasil
   const _StatusBadge({this.status});
 
   @override
@@ -645,7 +580,7 @@ class _StatusBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
         border: Border.all(color: border, width: 1.25),
@@ -671,7 +606,7 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-/// ===== Empty state =====
+/// ===== Empty state
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
@@ -687,11 +622,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 18),
             Text(
               'Belum ada transaksi',
-              style: GoogleFonts.dmSans(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
+              style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey[700]),
             ),
             const SizedBox(height: 6),
             Text(

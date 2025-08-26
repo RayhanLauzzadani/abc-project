@@ -16,22 +16,21 @@ enum _SellerTxnStatus { success, pending, failed }
 
 class _SellerTxn {
   final String id;
-  final _SellerTxnType type;   // income / withdraw
-  final String title;          // "Pemasukan" / "Penarikan Saldo"
-  final String subtitle;       // contoh: "Pesanan #ORD123" / "Ke Rekening BCA ***2341"
-  final int amount;            // income: total pemasukan; withdraw: jumlah pengajuan
+  final _SellerTxnType type;
+  final String title;
+  final String subtitle;
+  final int amount;
   final DateTime createdAt;
   final _SellerTxnStatus status;
-
-  // extra untuk detail:
-  // income
   final List<LineItem>? items;
   final int? shipping;
-
-  // withdraw
-  final int? adminFee;     // fee admin
-  final int? received;     // bersih diterima
-  final String? reason;    // alasan penolakan (jika ada)
+  final int? adminFee;
+  final int? received;
+  final String? reason;
+  final String? proofUrl;
+  final String? proofName;
+  final int? proofBytes;
+  final int? tax;
 
   const _SellerTxn({
     required this.id,
@@ -46,6 +45,10 @@ class _SellerTxn {
     this.adminFee,
     this.received,
     this.reason,
+    this.proofUrl,
+    this.proofName,
+    this.proofBytes,
+    this.tax, 
   });
 }
 
@@ -157,17 +160,26 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
         final received = (data['received'] as num?)?.toInt();
         final reason = data['rejectionReason'] as String?;
 
+        // + proof (opsional)
+        final proof = (data['proof'] as Map<String, dynamic>?) ?? const {};
+        final proofUrl = proof['url'] as String?;
+        final proofName = proof['name'] as String?;
+        final proofBytes = (proof['bytes'] as num?)?.toInt();
+
         return _SellerTxn(
           id: d.id,
           type: _SellerTxnType.withdraw,
           title: 'Penarikan Saldo',
           subtitle: subtitle,
-          amount: amountRequested,         // yang ditampilkan di list
+          amount: amountRequested, 
           createdAt: created,
           status: status,
           adminFee: fee,
           received: received,
           reason: reason,
+          proofUrl: proofUrl,
+          proofName: proofName,
+          proofBytes: proofBytes,
         );
       }).toList();
 
@@ -188,9 +200,9 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
 
         final orderId = d.id; // tampilkan di subjudul
         final amounts = (data['amounts'] as Map<String, dynamic>?) ?? const {};
-        final total = ((amounts['total'] as num?) ?? (data['total'] as num?) ?? 0).toInt();
-        final shipping =
-            ((amounts['shipping'] as num?) ?? (data['shipping'] as num?) ?? 0).toInt();
+        final total    = ((amounts['total'] as num?)    ?? (data['total'] as num?)    ?? 0).toInt();
+        final shipping = ((amounts['shipping'] as num?) ?? (data['shipping'] as num?) ?? 0).toInt();
+        final tax      = ((amounts['tax'] as num?)      ?? (data['tax'] as num?)      ?? 0).toInt();
 
         final rawItems = List<Map<String, dynamic>>.from((data['items'] as List?) ?? const []);
         final items = rawItems
@@ -211,6 +223,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
           status: _SellerTxnStatus.success,
           items: items,
           shipping: shipping,
+          tax: tax,
         );
       }).toList();
 
@@ -511,22 +524,25 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
                                                               createdAt: e.createdAt,
                                                               items: e.items,
                                                               shippingFeeOverride: e.shipping,
+                                                              tax: e.tax,                     // <-- baru
                                                             ),
                                                           ),
                                                         );
                                                       } else {
                                                         // withdraw: Detail (Total diterima = received)
-                                                        final received =
-                                                            e.received ?? (e.amount - (e.adminFee ?? 0));
                                                         Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
                                                             builder: (_) => DetailWalletSellerSuccessPage(
                                                               isIncome: false,
                                                               counterpartyName: e.subtitle,
-                                                              amount: received,
+                                                              amount: e.amount,                // << requested amount (20.000)
                                                               createdAt: e.createdAt,
                                                               adminFee: e.adminFee ?? 0,
+                                                              received: e.received,            // untuk hitung total diterima
+                                                              proofUrl: e.proofUrl,            // tampilkan bukti
+                                                              proofName: e.proofName,
+                                                              proofBytes: e.proofBytes,
                                                             ),
                                                           ),
                                                         );
@@ -659,7 +675,7 @@ class _StatusBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
         border: Border.all(color: border, width: 1.25),

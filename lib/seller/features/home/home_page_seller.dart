@@ -195,7 +195,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                         currentBalance:
                                             available, // kirim saldo real
                                         adminFee: 1000,
-                                        minWithdraw: 10000,
+                                        minWithdraw: 15000,
                                       ),
                                     ),
                                   );

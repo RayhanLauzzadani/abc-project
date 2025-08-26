@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-
 import 'package:abc_e_mart/admin/widgets/admin_dual_action_buttons.dart';
 import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
 import 'package:abc_e_mart/admin/widgets/admin_reject_reason_page.dart';
@@ -399,7 +398,7 @@ class _AdminPaymentApprovalDetailPageState
                     const SizedBox(height: 6),
                   ],
 
-                  const SizedBox(height: 80),
+                  const SizedBox(height: 16),
                 ],
               ),
             );

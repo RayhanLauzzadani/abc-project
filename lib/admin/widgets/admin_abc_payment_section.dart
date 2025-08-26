@@ -110,10 +110,11 @@ enum AbcPaymentType { withdraw, topup }
 
 class AdminAbcPaymentData {
   final String name;
-  final bool isSeller;        // true = Penjual, false = Pembeli
-  final AbcPaymentType type;  // withdraw / topup
+  final bool isSeller;
+  final AbcPaymentType type;
   final int amount;
   final DateTime createdAt;
+  final String? applicationId;
 
   const AdminAbcPaymentData({
     required this.name,
@@ -121,6 +122,7 @@ class AdminAbcPaymentData {
     required this.type,
     required this.amount,
     required this.createdAt,
+    this.applicationId,
   });
 }
 
