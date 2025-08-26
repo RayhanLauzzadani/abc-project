@@ -3,12 +3,16 @@ import 'package:abc_e_mart/seller/data/models/seller_transaction_card_data.dart'
 
 class SellerTransactionCard extends StatelessWidget {
   final SellerTransactionCardData data;
-  const SellerTransactionCard({Key? key, required this.data}) : super(key: key);
+  final VoidCallback onDetail; // Add onDetail parameter
+
+  const SellerTransactionCard({Key? key, required this.data, required this.onDetail}) : super(key: key);
 
   Color get statusColor {
     switch (data.status) {
       case 'Sukses':
         return const Color(0xFF29B057);
+      case 'Tertahan':
+        return const Color(0xFFFFB800); // kuning pekat
       case 'Gagal':
         return const Color(0xFFFF6161);
       default:
@@ -68,7 +72,7 @@ class SellerTransactionCard extends StatelessWidget {
                 ),
               ),
               InkWell(
-                onTap: data.onDetail,
+                onTap: onDetail, // Use onDetail here
                 child: Row(
                   children: const [
                     Text(
@@ -157,7 +161,6 @@ class SellerTransactionCard extends StatelessWidget {
   }
 
   String _formatCurrency(int amount) {
-    // Custom simple formatter, ganti ke intl jika mau
     return amount.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (Match m) => '${m[1]}.',
@@ -179,23 +182,13 @@ class _StatusBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color, width: 1),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            status,
-            style: TextStyle(
-              fontWeight: FontWeight.w500, // medium
-              fontSize: 10, // revised from 12
-              color: color,
-            ),
-          ),
-        ],
+      child: Text(
+        status, // Removing the dot from status
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 10,
+          color: color,
+        ),
       ),
     );
   }

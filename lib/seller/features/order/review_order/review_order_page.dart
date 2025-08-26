@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'order_accepted_popup.dart';
-import 'order_delivered_popup.dart';
+
+// GANTI path ini sesuai struktur proyekmu kalau beda
+import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
 class ReviewOrderPage extends StatefulWidget {
   final String orderId;
@@ -40,7 +41,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     }
   }
 
-  // ❗️UBAH: tolak pesanan harus memanggil cancelOrder agar dana buyer dikembalikan
+  // Tolak pesanan → panggil cancelOrder agar dana buyer dikembalikan
   Future<void> _rejectOrder() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -90,7 +91,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   Future<void> _shipOrder() async {
     await _updateStatus('SHIPPED'); // aman: tidak menyentuh saldo
     if (!mounted) return;
-   await showDialog(
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const OrderDeliveredPopup(),
@@ -119,7 +120,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             final data = snap.data!.data()!;
             final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
             final buyerId = (data['buyerId'] ?? '') as String;
-            final status = ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
             final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
@@ -131,306 +131,40 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             final addressText = (shipAddr['address'] ?? '-') as String;
             final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
-            // ambil nama buyer (opsional; kalau gagal tetap tampil '-')
+            // Jika buyerId kosong, langsung render pakai '-' sebagai buyerName
+            if (buyerId.isEmpty) {
+              return _buildOrderContent(
+                buyerName: '-',
+                createdAt: createdAt,
+                addressLabel: addressLabel,
+                addressText: addressText,
+                items: items,
+                subtotal: subtotal,
+                shipping: shipping,
+                tax: tax,
+                total: total,
+                method: method,
+                data: data,
+              );
+            }
+
+            // Kalau ada buyerId, ambil nama buyer dulu
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: buyerId.isEmpty
-                ? null
-                : FirebaseFirestore.instance.collection('users').doc(buyerId).snapshots(),
+              stream: FirebaseFirestore.instance.collection('users').doc(buyerId).snapshots(),
               builder: (context, userSnap) {
                 final buyerName = (userSnap.data?.data()?['name'] ?? '-') as String;
-
-                final isLong = addressText.length > 60;
-
-                return CustomScrollView(
-                  slivers: [
-                    // Sticky header
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _StickyHeaderDelegate(
-                        minHeight: 66,
-                        maxHeight: 66,
-                        child: Container(
-                          color: Colors.white,
-                          padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 6),
-                          alignment: Alignment.centerLeft,
-                          child: Row(
-                            children: [
-                              GestureDetector(
-                                onTap: () => Navigator.of(context).pop(),
-                                child: Container(
-                                  width: 40, height: 40,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF2056D3), shape: BoxShape.circle),
-                                  child: const Icon(Icons.arrow_back_ios_new_rounded,
-                                      color: Colors.white, size: 20),
-                                ),
-                              ),
-                              const SizedBox(width: 15),
-                              Text('Tinjau Pesanan',
-                                  style: GoogleFonts.dmSans(
-                                      fontSize: 17, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // header info
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 6),
-                            Text('Username Pembeli',
-                                style: GoogleFonts.dmSans(
-                                    fontWeight: FontWeight.bold, fontSize: 17)),
-                            const SizedBox(height: 2),
-                            Text(buyerName, style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 12),
-                            const Divider(color: Color(0xFFE6E6E6)),
-                            const SizedBox(height: 8),
-                            Text('Tanggal & Waktu',
-                                style: GoogleFonts.dmSans(
-                                    fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 2),
-                            Text(
-                              createdAt != null ? _fmtDateTime(createdAt) : '-',
-                              style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282)),
-                            ),
-                            const SizedBox(height: 13),
-                            Text('Alamat Pengiriman',
-                                style: GoogleFonts.dmSans(
-                                    fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 2),
-                            Builder(builder: (_) {
-                              final body = '$addressLabel, $addressText';
-                              if (isLong && !_showFullAddress) {
-                                final cut = body.substring(0, 60);
-                                return Wrap(
-                                  children: [
-                                    Text('$cut... ',
-                                        style: GoogleFonts.dmSans(fontSize: 13.5)),
-                                    GestureDetector(
-                                      onTap: () => setState(() => _showFullAddress = true),
-                                      child: Text('Lihat Selengkapnya',
-                                          style: GoogleFonts.dmSans(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF2056D3))),
-                                    ),
-                                  ],
-                                );
-                              }
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(body, style: GoogleFonts.dmSans(fontSize: 13.5)),
-                                  if (isLong)
-                                    GestureDetector(
-                                      onTap: () => setState(() => _showFullAddress = false),
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(top: 1),
-                                        child: Text('Tutup',
-                                            style: GoogleFonts.dmSans(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: const Color(0xFF2056D3))),
-                                      ),
-                                    ),
-                                ],
-                              );
-                            }),
-                            const SizedBox(height: 15),
-                            const Divider(color: Color(0xFFE6E6E6)),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // list item
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: Column(
-                          children: items.map((it) {
-                            final img = (it['imageUrl'] ?? it['image']) as String?; // fallback
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.5),
-                              child: Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(13),
-                                    child: img != null && img.isNotEmpty
-                                        ? Image.network(
-                                            img, width: 56, height: 56, fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => _imgFallback(),
-                                          )
-                                        : _imgFallback(),
-                                  ),
-                                  const SizedBox(width: 13),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text((it['name'] ?? '-') as String,
-                                            style: GoogleFonts.dmSans(
-                                                fontWeight: FontWeight.bold, fontSize: 14.7)),
-                                        if (((it['variant'] ?? it['note'] ?? '') as String).isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 2.5),
-                                            child: Text(
-                                              (it['variant'] ?? it['note']) as String,
-                                              style: GoogleFonts.dmSans(
-                                                  fontSize: 12.5, color: const Color(0xFF888888)),
-                                            ),
-                                          ),
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            'Rp ${_rupiah(((it['price'] as num?) ?? 0).toInt())}',
-                                            style: GoogleFonts.dmSans(
-                                                fontSize: 13.5, color: const Color(0xFF232323)),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 9, top: 3),
-                                    child: Text('x${((it['qty'] as num?) ?? 0).toInt()}',
-                                        style: GoogleFonts.dmSans(
-                                            fontSize: 13.5, color: const Color(0xFF444444))),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-
-                    // Nota & metode pembayaran
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-                        child: Container(
-                          padding: const EdgeInsets.fromLTRB(13, 4, 13, 13),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF9F9F9),
-                            borderRadius: BorderRadius.circular(11),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text('Nota Pesanan',
-                                      style: GoogleFonts.dmSans(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 15,
-                                        color: const Color(0xFF222222),
-                                      )),
-                                  const Spacer(),
-                                  TextButton(
-                                    onPressed: () {},
-                                    child: Row(
-                                      children: [
-                                        Text('Lihat',
-                                            style: GoogleFonts.dmSans(
-                                              fontSize: 13.5,
-                                              color: const Color(0xFF2056D3),
-                                            )),
-                                        const Icon(Icons.receipt_long_rounded,
-                                            color: Color(0xFF2056D3), size: 17),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Text('Metode Pembayaran',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 13,
-                                        color: const Color(0xFF828282),
-                                      )),
-                                  const Spacer(),
-                                  Row(
-                                    children: [
-                                      Text(
-                                        method == 'ABC_PAYMENT' ? 'ABC Payment' : method,
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 13.2,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Image.asset(
-                                        'assets/images/paymentlogo.png',
-                                        height: 18,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // subtotal / total
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: Column(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF9F9F9),
-                                borderRadius: BorderRadius.circular(13),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _feeRow('Subtotal', subtotal),
-                                  const SizedBox(height: 3),
-                                  _feeRow('Biaya Pengiriman', shipping),
-                                  const SizedBox(height: 3),
-                                  _feeRow('Pajak & Biaya Lainnya', tax),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF3F3F3),
-                                borderRadius: BorderRadius.circular(13),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-                              child: Row(
-                                children: [
-                                  Text('Total',
-                                      style: GoogleFonts.dmSans(
-                                          fontSize: 16.3, fontWeight: FontWeight.bold)),
-                                  const Spacer(),
-                                  Text('Rp ${_rupiah(total)}',
-                                      style: GoogleFonts.dmSans(
-                                          fontWeight: FontWeight.bold, fontSize: 16.5)),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 30),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                return _buildOrderContent(
+                  buyerName: buyerName,
+                  createdAt: createdAt,
+                  addressLabel: addressLabel,
+                  addressText: addressText,
+                  items: items,
+                  subtotal: subtotal,
+                  shipping: shipping,
+                  tax: tax,
+                  total: total,
+                  method: method,
+                  data: data,
                 );
               },
             );
@@ -501,6 +235,328 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     );
   }
 
+  // ---------- content builder (dipanggil oleh StreamBuilder utama) ----------
+  Widget _buildOrderContent({
+    required String buyerName,
+    required DateTime? createdAt,
+    required String addressLabel,
+    required String addressText,
+    required List<Map<String, dynamic>> items,
+    required int subtotal,
+    required int shipping,
+    required int tax,
+    required int total,
+    required String method,
+    required Map<String, dynamic> data,
+  }) {
+    final isLong = addressText.length > 60;
+
+    return CustomScrollView(
+      slivers: [
+        // Sticky header
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _StickyHeaderDelegate(
+            minHeight: 66,
+            maxHeight: 66,
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 20, bottom: 6),
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration:
+                          const BoxDecoration(color: Color(0xFF2056D3), shape: BoxShape.circle),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Text('Tinjau Pesanan',
+                      style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // header info
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6),
+                Text('Username Pembeli',
+                    style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 17)),
+                const SizedBox(height: 2),
+                Text(buyerName,
+                    style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                const Divider(color: Color(0xFFE6E6E6)),
+                const SizedBox(height: 8),
+                Text('Tanggal & Waktu',
+                    style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(
+                  createdAt != null ? _fmtDateTime(createdAt) : '-',
+                  style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282)),
+                ),
+                const SizedBox(height: 13),
+                Text('Alamat Pengiriman',
+                    style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 2),
+                Builder(builder: (_) {
+                  final body = '$addressLabel, $addressText';
+                  if (isLong && !_showFullAddress) {
+                    final cut = body.substring(0, 60);
+                    return Wrap(
+                      children: [
+                        Text('$cut...', style: GoogleFonts.dmSans(fontSize: 13.5)),
+                        GestureDetector(
+                          onTap: () => setState(() => _showFullAddress = true),
+                          child: Text(' Lihat Selengkapnya',
+                              style: GoogleFonts.dmSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF2056D3))),
+                        ),
+                      ],
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(body, style: GoogleFonts.dmSans(fontSize: 13.5)),
+                      if (isLong)
+                        GestureDetector(
+                          onTap: () => setState(() => _showFullAddress = false),
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Text('Tutup',
+                                style: GoogleFonts.dmSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF2056D3))),
+                          ),
+                        ),
+                    ],
+                  );
+                }),
+                const SizedBox(height: 15),
+                const Divider(color: Color(0xFFE6E6E6)),
+              ],
+            ),
+          ),
+        ),
+
+        // list item
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Column(
+              children: items.map((it) {
+                final img = (it['imageUrl'] ?? it['image']) as String?; // fallback
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.5),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: img != null && img.isNotEmpty
+                            ? Image.network(
+                                img,
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _imgFallback(),
+                              )
+                            : _imgFallback(),
+                      ),
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text((it['name'] ?? '-') as String,
+                                style: GoogleFonts.dmSans(
+                                    fontWeight: FontWeight.bold, fontSize: 14.7)),
+                            if (((it['variant'] ?? it['note'] ?? '') as String).isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2.5),
+                                child: Text(
+                                  (it['variant'] ?? it['note']) as String,
+                                  style: GoogleFonts.dmSans(
+                                      fontSize: 12.5, color: const Color(0xFF888888)),
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Rp ${_rupiah(((it['price'] as num?) ?? 0).toInt())}',
+                                style: GoogleFonts.dmSans(
+                                    fontSize: 13.5, color: const Color(0xFF232323)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 9, top: 3),
+                        child: Text('x${((it['qty'] as num?) ?? 0).toInt()}',
+                            style: GoogleFonts.dmSans(
+                                fontSize: 13.5, color: const Color(0xFF444444))),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+
+        // Nota & metode pembayaran
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(13, 4, 13, 13),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9F9F9),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text('Nota Pesanan',
+                          style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            color: const Color(0xFF222222),
+                          )),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {
+                          // --- Mapping dokumen order → map untuk TransactionDetailPage ---
+                          final txMap = _mapOrderToTransaction(
+                            orderId: widget.orderId,
+                            data: data,
+                            buyerName: buyerName,
+                          );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TransactionDetailPage(transaction: txMap),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            Text('Lihat',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 13.5,
+                                  color: const Color(0xFF2056D3),
+                                )),
+                            const Icon(Icons.receipt_long_rounded,
+                                color: Color(0xFF2056D3), size: 17),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text('Metode Pembayaran',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            color: const Color(0xFF828282),
+                          )),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Text(
+                            method == 'ABC_PAYMENT' ? 'ABC Payment' : method,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13.2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Image.asset(
+                            'assets/images/paymentlogo.png',
+                            height: 18,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // subtotal / total
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9F9F9),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _feeRow('Subtotal', subtotal),
+                      const SizedBox(height: 3),
+                      _feeRow('Biaya Pengiriman', shipping),
+                      const SizedBox(height: 3),
+                      _feeRow('Pajak & Biaya Lainnya', tax),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F3F3),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                  child: Row(
+                    children: [
+                      Text('Total',
+                          style: GoogleFonts.dmSans(
+                              fontSize: 16.3, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      Text('Rp ${_rupiah(total)}',
+                          style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.bold, fontSize: 16.5)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ---------- helpers ----------
   static Widget _imgFallback() => Container(
         width: 56,
@@ -544,6 +600,72 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     final min = dt.minute.toString().padLeft(2, '0');
     return '$d/$m/$y, $hour12:$min $ampm';
   }
+
+  // Map dokumen order → map untuk TransactionDetailPage
+  Map<String, dynamic> _mapOrderToTransaction({
+    required String orderId,
+    required Map<String, dynamic> data,
+    required String buyerName,
+  }) {
+    final rawStatus =
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+
+    // label UI
+    String labelStatus;
+    if (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SETTLED') {
+      labelStatus = 'Sukses';
+    } else if (rawStatus == 'CANCELLED' || rawStatus == 'REJECTED') {
+      labelStatus = 'Gagal';
+    } else {
+      labelStatus = 'Tertahan'; // PLACED / ACCEPTED / SHIPPED
+    }
+
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+    final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
+    final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
+    final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
+    final tax = ((amounts['tax'] as num?) ?? 0).toInt();
+    final total = ((amounts['total'] as num?) ?? 0).toInt();
+
+    final createdAt = (data['createdAt'] is Timestamp)
+        ? (data['createdAt'] as Timestamp).toDate()
+        : null;
+
+    final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+    final addressLabel = (ship['label'] ?? '-') as String;
+    final addressText = (ship['address'] ?? '-') as String;
+    final phone = (ship['phone'] ?? '-') as String;
+
+    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+
+    return {
+      'invoiceId': orderId,
+      'status': labelStatus,
+      'date': createdAt,
+      'buyerName': buyerName,
+      'shipping': {
+        'recipient': buyerName,
+        'addressLabel': addressLabel,
+        'addressText': addressText,
+        'phone': phone,
+      },
+      'paymentMethod': method,
+      'items': items.map((it) {
+        return {
+          'name': (it['name'] ?? '-') as String,
+          'qty': ((it['qty'] as num?) ?? 0).toInt(),
+          'price': ((it['price'] as num?) ?? 0).toInt(),
+          'variant': (it['variant'] ?? it['note'] ?? '') as String,
+        };
+      }).toList(),
+      'amounts': {
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total,
+      },
+    };
+  }
 }
 
 // Sticky header delegate (tetap sama)
@@ -568,4 +690,37 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
+}
+
+// ====== Popups yang kamu gunakan (biar file ini komplit). ======
+// Kamu sudah punya file aslinya; kalau sudah diimport dari file terpisah, hapus kelas dummy ini.
+
+class OrderAcceptedPopup extends StatelessWidget {
+  const OrderAcceptedPopup({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Pesanan Diterima', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
+      content: Text('Pesanan berhasil diterima.', style: GoogleFonts.dmSans()),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+      ],
+    );
+  }
+}
+
+class OrderDeliveredPopup extends StatelessWidget {
+  const OrderDeliveredPopup({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Pesanan Dikirim', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
+      content: Text('Pesanan berhasil ditandai dikirim.', style: GoogleFonts.dmSans()),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+      ],
+    );
+  }
 }

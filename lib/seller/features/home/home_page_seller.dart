@@ -156,16 +156,22 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('users')
-                                .doc(uid) // uid seller yang login (sudah dideklarasikan di atas)
+                                .doc(
+                                  uid,
+                                ) // uid seller yang login (sudah dideklarasikan di atas)
                                 .snapshots(),
                             builder: (context, snap) {
                               int available = 0; // default saat loading/null
 
                               if (snap.hasData) {
                                 final data = snap.data!.data();
-                                final wallet = (data?['wallet'] as Map<String, dynamic>?) ?? {};
+                                final wallet =
+                                    (data?['wallet']
+                                        as Map<String, dynamic>?) ??
+                                    {};
                                 if (wallet['available'] is num) {
-                                  available = (wallet['available'] as num).toInt();
+                                  available = (wallet['available'] as num)
+                                      .toInt();
                                 }
                               }
 
@@ -175,14 +181,19 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 primaryLabel: 'Tarik Saldo',
                                 primaryIconWidget: SvgPicture.asset(
                                   'assets/icons/banknote-arrow-down.svg',
-                                  width: 20, height: 20,
-                                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                  width: 20,
+                                  height: 20,
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
                                 ),
                                 onPrimary: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => WithdrawPaymentPage(
-                                        currentBalance: available, // kirim saldo real
+                                        currentBalance:
+                                            available, // kirim saldo real
                                         adminFee: 1000,
                                         minWithdraw: 10000,
                                       ),
@@ -192,7 +203,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 onHistory: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const WithdrawHistoryPageSeller(),
+                                      builder: (_) =>
+                                          const WithdrawHistoryPageSeller(),
                                     ),
                                   );
                                 },
@@ -200,7 +212,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          
+
                           SellerQuickAccess(
                             onTap: (index) {
                               switch (index) {
@@ -312,7 +324,13 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 onDetail: () {},
                               ),
                             ],
-                            onSeeAll: () {},
+                            onSeeAll: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => TransactionPage(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
