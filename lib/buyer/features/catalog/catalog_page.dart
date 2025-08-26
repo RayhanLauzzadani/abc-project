@@ -8,8 +8,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:abc_e_mart/buyer/features/product/product_detail_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-// store list UI
 import 'package:abc_e_mart/buyer/features/store/store_card.dart';
 import 'package:abc_e_mart/buyer/features/store/store_detail_page.dart';
 

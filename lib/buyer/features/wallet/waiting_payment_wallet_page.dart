@@ -7,7 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:abc_e_mart/buyer/features/wallet/success_top_up_page.dart';
-import 'package:abc_e_mart/buyer/features/wallet/history_wallet_page.dart';
+import 'package:abc_e_mart/data/services/payment_application_service.dart';
 
 class WaitingPaymentWalletPage extends StatefulWidget {
   final int amount;                 // TOTAL (isi saldo + admin)
@@ -257,6 +257,68 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal menyimpan: $e', style: GoogleFonts.dmSans())),
+      );
+    }
+  }
+
+  Future<T?> _withLoading<T>(Future<T> Function() block) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      return await block();
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
+
+  Future<void> _submitTopUp() async {
+    if (_proof == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unggah bukti pembayaran terlebih dahulu.', style: GoogleFonts.dmSans())),
+      );
+      return;
+    }
+
+    // (opsional) cegah submit kalau waktu habis
+    if (_remaining.inSeconds <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sesi pembayaran telah berakhir. Ulangi pembayaran.', style: GoogleFonts.dmSans())),
+      );
+      return;
+    }
+
+    try {
+      await _withLoading(() async {
+        // 1) upload bukti ke Storage
+        final proof = await PaymentApplicationService.instance.uploadProof(
+          file: File(_proof!.path),
+          filenameHint: 'topup_${widget.orderId}.${_proof!.name.split('.').last}',
+        );
+
+        // 2) buat dokumen paymentApplications (type: topup)
+        await PaymentApplicationService.instance.createTopUpApplication(
+          orderId: widget.orderId,
+          amountTopUp: _isiSaldo,
+          adminFee: widget.adminFee,
+          totalPaid: widget.amount,
+          methodLabel: widget.methodLabel,
+          proof: proof,
+        );
+      });
+
+      // 3) sukses → ke halaman sukses
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SuccessTopUpPage()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengirim pengajuan: $e', style: GoogleFonts.dmSans())),
       );
     }
   }
@@ -553,19 +615,7 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: () {
-                if (_proof == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Unggah bukti pembayaran terlebih dahulu.', style: GoogleFonts.dmSans())),
-                  );
-                  return;
-                }
-                // Arahkan ke halaman sukses
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SuccessTopUpPage()),
-                );
-              },
+              onPressed: _submitTopUp,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1C55C0),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),

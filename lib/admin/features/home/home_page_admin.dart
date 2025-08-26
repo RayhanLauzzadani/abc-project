@@ -14,6 +14,7 @@ import 'package:abc_e_mart/admin/widgets/admin_ad_submission_section.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_page.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/auth/login_page.dart';
+import 'package:abc_e_mart/admin/features/approval/payment/admin_payment_approval_page.dart';
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
 import 'package:abc_e_mart/admin/features/notification/notification_page_admin.dart';
 import 'package:abc_e_mart/data/models/category_type.dart';
@@ -106,10 +107,12 @@ class _HomePageAdminState extends State<HomePageAdmin> {
     Widget mainBody;
 
     if (_currentIndex == 1) {
-      mainBody = const AdminStoreApprovalPage();
+      mainBody = const AdminPaymentApprovalPage();
     } else if (_currentIndex == 2) {
-      mainBody = const AdminProductApprovalPage();
+      mainBody = const AdminStoreApprovalPage();
     } else if (_currentIndex == 3) {
+      mainBody = const AdminProductApprovalPage();
+    } else if (_currentIndex == 4) {
       mainBody = const AdminAdApprovalPage();
     } else {
       mainBody = Column(
@@ -242,7 +245,9 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                         ),
                       ],
                       onSeeAll: () {
-                        // TODO: arahkan ke halaman daftar ABC Payment (nanti)
+                        setState(() {
+                          _currentIndex = 1; // buka tab Pembayaran
+                        });
                       },
                       onDetail: (item) {
                         // TODO: buka detail ajuan (nanti)

@@ -1,21 +1,26 @@
-  import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:abc_e_mart/seller/features/wallet/success_withdrawal_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
 import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:abc_e_mart/data/services/payment_application_service.dart';
 
 class WithdrawPaymentPage extends StatefulWidget {
   final int currentBalance; // contoh: 150000
   final int adminFee;       // contoh: 1000
   final int minWithdraw;    // contoh: 10000
+  final String? storeId;
 
   const WithdrawPaymentPage({
     super.key,
     this.currentBalance = 150000,
     this.adminFee = 1000,
     this.minWithdraw = 10000,
+    this.storeId,
   });
 
   @override
@@ -34,6 +39,7 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
 
   // counter
   int _bankLen = 0, _accNoLen = 0, _ownerLen = 0;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -79,6 +85,82 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
 
     return hasRequired && nominalOk;
   }
+
+  Future<String> _resolveStoreId() async {
+  if (widget.storeId != null && widget.storeId!.isNotEmpty) {
+    return widget.storeId!;
+  }
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) {
+    throw Exception('Belum login');
+  }
+  final q = await FirebaseFirestore.instance
+      .collection('stores')
+      .where('ownerId', isEqualTo: uid)
+      .limit(1)
+      .get();
+
+  if (q.docs.isEmpty) {
+    throw Exception('Toko tidak ditemukan untuk akun ini.');
+  }
+  return q.docs.first.id;
+}
+
+// Submit pengajuan penarikan ke paymentApplications (type: withdrawal)
+Future<void> _submitWithdrawal() async {
+  if (!_isFormValid || _submitting) return;
+  setState(() => _submitting = true);
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Belum login');
+    }
+
+    final storeId = await _resolveStoreId();
+    final amount = _amount;
+    final fee = widget.adminFee;
+    final received = (amount - fee) < 0 ? 0 : (amount - fee);
+
+    await PaymentApplicationService.instance.createWithdrawalApplication(
+      ownerId: user.uid,
+      storeId: storeId,
+      bankName: _bankCtrl.text.trim(),
+      accountNumber: _accNoCtrl.text.trim(),
+      amountRequested: amount,
+      adminFee: fee,
+      received: received,
+    );
+
+    if (!mounted) return;
+    // Buka halaman sukses (teks menunggu verifikasi)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SuccessWithdrawalPage(
+          onGoHome: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomePageSeller()),
+              (r) => false,
+            );
+          },
+          onViewHistory: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WithdrawHistoryPageSeller()),
+            );
+          },
+        ),
+      ),
+    );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengirim penarikan: $e')),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _submitting = false);
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -393,51 +475,27 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
                     height: 50,
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isFormValid
-                        ? () {
-                            // TODO: kirim request penarikan ke backend di sini (optional)
-
-                            // Buka halaman sukses penarikan
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SuccessWithdrawalPage(
-                                  // tombol "Kembali ke Beranda"
-                                  onGoHome: () {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(builder: (_) => const HomePageSeller()),
-                                      (r) => false,
-                                    );
-                                  },
-                                  // link "Lihat Status Penarikan"
-                                  onViewHistory: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const WithdrawHistoryPageSeller(),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            );
-                          }
-                        : null,
+                      onPressed: _isFormValid ? _submitWithdrawal : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2056D3),
                         disabledBackgroundColor: const Color(0xFFBFC7DA),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                       ),
-                      child: Text(
-                        'Tarik Saldo',
-                        style: GoogleFonts.dmSans(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(
+                              'Tarik Saldo',
+                              style: GoogleFonts.dmSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                    )
                   ),
                 ),
               ),
