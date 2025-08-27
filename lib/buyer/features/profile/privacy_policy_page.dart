@@ -3,13 +3,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
 
 class PrivacyPolicyPage extends StatelessWidget {
-  const PrivacyPolicyPage({super.key});
+  final bool fromProfile; // <— NEW
+  const PrivacyPolicyPage({super.key, this.fromProfile = true});
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+      return const ProfileAppBar(title: 'Kebijakan Privasi');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const ProfileAppBar(title: 'Kebijakan Privasi'),
+      appBar: _buildAppBar(context),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
         child: Column(
