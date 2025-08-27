@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'package:abc_e_mart/seller/features/chat/chat_detail_page.dart';
+// Ganti path ini kalau lokasi file berbeda
+import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
 class TrackOrderPageSeller extends StatefulWidget {
   final String orderId;
@@ -78,7 +81,6 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
         'buyerAvatar': buyerAvatar,
         'lastMessage': '',
         'lastTimestamp': null,
-        // opsional meta
         'createdAt': FieldValue.serverTimestamp(),
       });
       chatId = ref.id;
@@ -156,18 +158,35 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
 
           final data = snap.data!.data()!;
           final status = (data['status'] ?? 'PLACED') as String;
+
+          // === NEW: invoiceId tampilan (fallback ke doc.id)
+          final realDocId = snap.data!.id;
+          final rawInvoice = (data['invoiceId'] as String?)?.trim();
+          final displayedInvoice = (rawInvoice != null && rawInvoice.isNotEmpty)
+              ? rawInvoice
+              : realDocId;
+
           final storeName = (data['storeName'] ?? '-') as String;
           final buyerId = (data['buyerId'] ?? '') as String;
-          final orderId = snap.data!.id;
 
           final addressMap =
               (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
           final addressLabel = (addressMap['label'] ?? '-') as String;
-          final addressText = (addressMap['address'] ?? '-') as String;
+          final addressText = (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
 
           final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
           final stepIndex = _currentStepIndex(status);
           final step1Title = _step1Title(status);
+
+          // amounts + method dinamis
+          final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
+          final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
+          final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
+          final tax = ((amounts['tax'] as num?) ?? 0).toInt();
+          final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+
+          final methodRaw = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+          final methodText = methodRaw == 'ABC_PAYMENT' ? 'ABC Payment' : methodRaw;
 
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: buyerId.isEmpty
@@ -209,7 +228,7 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                     // 2) Sedang dikirim -> TANPA subjudul
                     _statusItem(
                       title: 'Produk Sedang Dikirim',
-                      subtitle: '', // <— kosong sesuai request
+                      subtitle: '',
                       asset: 'assets/icons/deliver.svg',
                       activeColor: const Color(0xFF1C55C0),
                       isReached: stepIndex >= 1,
@@ -221,7 +240,7 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                     // 3) Sampai tujuan -> subjudul = nama buyer
                     _statusItem(
                       title: 'Produk Sampai Tujuan',
-                      subtitle: buyerName, // <— pakai nama buyer
+                      subtitle: buyerName,
                       asset: 'assets/icons/circle_check.svg',
                       activeColor: const Color(0xFF28A745),
                       isReached: stepIndex >= 2,
@@ -248,7 +267,7 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        // foto profil buyer: photoUrl atau default icon
+                        // foto profil buyer
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: buyerAvatar.isNotEmpty
@@ -272,7 +291,8 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                                       fontWeight: FontWeight.bold,
                                       color: const Color(0xFF373E3C))),
                               const SizedBox(height: 4),
-                              Text('#$orderId',
+                              // === NEW: tampilkan invoice (fallback doc.id)
+                              Text('#$displayedInvoice',
                                   style: GoogleFonts.dmSans(
                                       fontSize: 12,
                                       color: const Color(0xFF9A9A9A))),
@@ -346,9 +366,9 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                           child: _productRow(
                             name: (it['name'] ?? '-') as String,
                             subtitle: (it['variant'] ?? '') as String,
-                            price: (it['price'] ?? 0) as num,
-                            qty: (it['qty'] ?? 0) as num,
-                            imageUrl: (it['imageUrl'] ?? '') as String,
+                            price: ((it['price'] as num?) ?? 0),
+                            qty: ((it['qty'] as num?) ?? 0),
+                            imageUrl: (it['imageUrl'] ?? it['image'] ?? '') as String,
                           ),
                         )),
 
@@ -356,8 +376,28 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                     _divider(),
                     const SizedBox(height: 14),
 
-                    // Nota Pesanan
-                    _notaPesananCard(methodText: 'ABC Payment'),
+                    // Nota Pesanan (dinamis + tombol Lihat)
+                    _notaPesananCard(
+                      methodText: methodText,
+                      onView: () {
+                        final txMap = _mapOrderToTransaction(
+                          displayedId: displayedInvoice,
+                          orderDocId: realDocId,
+                          data: data,
+                          buyerName: buyerName,
+                        );
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TransactionDetailPage(transaction: txMap),
+                          ),
+                        );
+                      },
+                      subtotal: subtotal,
+                      shipping: shipping,
+                      tax: tax,
+                      total: total,
+                    ),
+
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -476,28 +516,82 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
     );
   }
 
-  Widget _notaPesananCard({required String methodText}) {
+  Widget _notaPesananCard({
+    required String methodText,
+    required VoidCallback onView,
+    required int subtotal,
+    required int shipping,
+    required int tax,
+    required int total,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F8F8),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Text('Metode Pembayaran',
-              style: GoogleFonts.dmSans(
-                  fontSize: 16, color: const Color(0xFF777777))),
+          // header + tombol lihat
           Row(
             children: [
-              Text(methodText,
+              Text('Nota Pesanan',
                   style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF373E3C))),
-              const SizedBox(width: 10),
-              Image.asset('assets/images/paymentlogo.png', width: 32, height: 32),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF222222))),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: onView,
+                icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Color(0xFF2056D3)),
+                label: Text('Lihat',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13.5, color: const Color(0xFF2056D3))),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // method
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Metode Pembayaran',
+                  style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF828282))),
+              Row(
+                children: [
+                  Text(methodText,
+                      style: GoogleFonts.dmSans(
+                          fontSize: 13.2, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Image.asset('assets/images/paymentlogo.png', height: 18),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // ringkasan singkat
+          _feeRow('Subtotal', subtotal),
+          const SizedBox(height: 4),
+          _feeRow('Biaya Pengiriman', shipping),
+          if (tax > 0) ...[
+            const SizedBox(height: 4),
+            _feeRow('Pajak & Biaya Lainnya', tax),
+          ],
+          const Divider(height: 16, color: Color(0xFFE5E5E5)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total',
+                  style: GoogleFonts.dmSans(
+                      fontSize: 15.5, fontWeight: FontWeight.w700)),
+              Text('Rp ${_formatRupiah(total)}',
+                  style: GoogleFonts.dmSans(
+                      fontSize: 15.5, fontWeight: FontWeight.w700)),
             ],
           ),
         ],
@@ -505,7 +599,22 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
     );
   }
 
-  String _formatRupiah(int v) {
+  static Widget _feeRow(String title, int amount) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title,
+            style: GoogleFonts.dmSans(
+                fontSize: 13.5, color: const Color(0xFF777777))),
+        Text('Rp ${_formatRupiahStatic(amount)}',
+            style: GoogleFonts.dmSans(
+                fontSize: 13.5, fontWeight: FontWeight.w600, color: const Color(0xFF373E3C))),
+      ],
+    );
+  }
+
+  String _formatRupiah(int v) => _formatRupiahStatic(v);
+  static String _formatRupiahStatic(int v) {
     final s = v.toString();
     final b = StringBuffer();
     for (int i = 0; i < s.length; i++) {
@@ -514,5 +623,72 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
       if (idxFromRight > 1 && idxFromRight % 3 == 1) b.write('.');
     }
     return b.toString();
+  }
+
+  // Map dokumen order → map untuk TransactionDetailPage
+  Map<String, dynamic> _mapOrderToTransaction({
+    required String displayedId,  // invoice tampilan
+    required String orderDocId,   // doc.id asli (opsional)
+    required Map<String, dynamic> data,
+    required String buyerName,
+  }) {
+    final rawStatus =
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+
+    String labelStatus;
+    if (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SETTLED' || rawStatus == 'SUCCESS') {
+      labelStatus = 'Sukses';
+    } else if (rawStatus == 'CANCELLED' || rawStatus == 'CANCELED' || rawStatus == 'REJECTED' || rawStatus == 'FAILED') {
+      labelStatus = 'Gagal';
+    } else {
+      labelStatus = 'Tertahan'; // PLACED / ACCEPTED / SHIPPED
+    }
+
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+    final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
+    final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
+    final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
+    final tax = ((amounts['tax'] as num?) ?? 0).toInt();
+    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+
+    final createdAt = (data['createdAt'] is Timestamp)
+        ? (data['createdAt'] as Timestamp).toDate()
+        : null;
+
+    final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+    final addressLabel = (ship['label'] ?? '-') as String;
+    final addressText = (ship['addressText'] ?? ship['address'] ?? '-') as String;
+    final phone = (ship['phone'] ?? '-') as String;
+
+    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+
+    return {
+      'invoiceId': displayedId,
+      'orderDocId': orderDocId,
+      'status': labelStatus,
+      'date': createdAt,
+      'buyerName': buyerName,
+      'shipping': {
+        'recipient': buyerName,
+        'addressLabel': addressLabel,
+        'addressText': addressText,
+        'phone': phone,
+      },
+      'paymentMethod': method,
+      'items': items.map((it) {
+        return {
+          'name': (it['name'] ?? '-') as String,
+          'qty': ((it['qty'] as num?) ?? 0).toInt(),
+          'price': ((it['price'] as num?) ?? 0).toInt(),
+          'variant': (it['variant'] ?? it['note'] ?? '') as String,
+        };
+      }).toList(),
+      'amounts': {
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total,
+      },
+    };
   }
 }

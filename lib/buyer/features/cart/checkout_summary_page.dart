@@ -50,41 +50,40 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
       widget.cartItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
   int get total => subtotal + widget.shippingFee + widget.taxFee;
 
-  // ① Tambah helper ini di _CheckoutSummaryPageState
-Future<bool> _validateStockBeforeCheckout() async {
-  // ambil stok terbaru tiap produk
-  final prods = await Future.wait(widget.cartItems.map((it) {
-    return FirebaseFirestore.instance.collection('products').doc(it.id).get();
-  }));
+  // Validasi stok terbaru sebelum checkout
+  Future<bool> _validateStockBeforeCheckout() async {
+    final prods = await Future.wait(widget.cartItems.map((it) {
+      return FirebaseFirestore.instance.collection('products').doc(it.id).get();
+    }));
 
-  for (int i = 0; i < widget.cartItems.length; i++) {
-    final it = widget.cartItems[i];
-    final data = prods[i].data() ?? {};
-    final int stock = (data['stock'] is num) ? (data['stock'] as num).toInt() : 0;
-    final int minBuy = (data['minBuy'] is num) ? (data['minBuy'] as num).toInt() : 1;
-    final String name = (data['name'] ?? 'Produk') as String;
+    for (int i = 0; i < widget.cartItems.length; i++) {
+      final it = widget.cartItems[i];
+      final data = prods[i].data() ?? {};
+      final int stock = (data['stock'] is num) ? (data['stock'] as num).toInt() : 0;
+      final int minBuy = (data['minBuy'] is num) ? (data['minBuy'] as num).toInt() : 1;
+      final String name = (data['name'] ?? 'Produk') as String;
 
-    if (stock <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stok $name habis.')),
-      );
-      return false;
+      if (stock <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stok $name habis.')),
+        );
+        return false;
+      }
+      if (it.quantity < minBuy) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Minimal pembelian $name adalah $minBuy.')),
+        );
+        return false;
+      }
+      if (it.quantity > stock) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Jumlah $name melebihi stok (tersedia $stock).')),
+        );
+        return false;
+      }
     }
-    if (it.quantity < minBuy) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Minimal pembelian $name adalah $minBuy.')),
-      );
-      return false;
-    }
-    if (it.quantity > stock) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Jumlah $name melebihi stok (tersedia $stock).')),
-      );
-      return false;
-    }
+    return true;
   }
-  return true;
-}
 
   Future<void> _handleCheckout() async {
     if (selectedPaymentMethod != 'ABC Payment') {
@@ -126,12 +125,12 @@ Future<bool> _validateStockBeforeCheckout() async {
       }
 
       final okStock = await _validateStockBeforeCheckout();
-        if (!okStock) {
-          setState(() => isLoading = false);
-          return;
-        }
+      if (!okStock) {
+        setState(() => isLoading = false);
+        return;
+      }
 
-      // 2) Ambil sellerId & storeId dari produk pertama (satu toko per checkout)
+      // Ambil sellerId & storeId dari produk pertama (satu toko per checkout)
       final String firstProductId = widget.cartItems.first.id;
       final prodSnap = await FirebaseFirestore.instance
           .collection('products')
@@ -141,7 +140,7 @@ Future<bool> _validateStockBeforeCheckout() async {
       final String sellerId = (prod['ownerId'] ?? '') as String;
       final String storeId = (prod['shopId'] ?? '') as String;
 
-      // 3) Susun items (sesuai schema CF)
+      // Susun items (sesuai schema CF)
       final items = widget.cartItems.map((it) {
         return {
           'productId': it.id,
@@ -153,7 +152,7 @@ Future<bool> _validateStockBeforeCheckout() async {
         };
       }).toList();
 
-      // 4) PANGGIL CLOUD FUNCTION (BUKAN tulis Firestore langsung)
+      // Panggil Cloud Function
       final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
       final idempotencyKey =
           '${user.uid}-$storeId-${DateTime.now().millisecondsSinceEpoch}';
@@ -178,7 +177,25 @@ Future<bool> _validateStockBeforeCheckout() async {
 
       final orderId = (res.data as Map)['orderId'] as String?;
 
-      // 5) Bersihkan item keranjang toko ini
+      // === NEW: coba ambil invoiceId untuk ditampilkan di UI (fallback: orderId) ===
+      String? invoiceId;
+      if (orderId != null) {
+        try {
+          final ordDoc = await FirebaseFirestore.instance
+              .collection('orders')
+              .doc(orderId)
+              .get();
+
+          invoiceId = (ordDoc.data()?['invoiceId'] as String?)?.trim();
+        } catch (_) {
+          // abaikan jika gagal fetch (mis. latency); fallback ke orderId
+        }
+      }
+      final displayId = (invoiceId != null && invoiceId.isNotEmpty)
+          ? invoiceId
+          : (orderId ?? '-');
+
+      // Bersihkan item keranjang toko ini
       try {
         final cartRepo = CartRepository();
         for (final it in widget.cartItems) {
@@ -192,12 +209,12 @@ Future<bool> _validateStockBeforeCheckout() async {
 
       setState(() => isLoading = false);
 
-      // 6) Sukses UI
+      // Sukses UI (tampilkan nomor invoice)
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const OrderSuccessDialog(
-          message: 'Pesanan Anda berhasil dibuat!',
+        builder: (_) => OrderSuccessDialog(
+          message: 'Pesanan Anda berhasil dibuat!\nInvoice: $displayId',
           lottiePath: 'assets/lottie/success_check.json',
           lottieSize: 120,
         ),
@@ -315,13 +332,10 @@ Future<bool> _validateStockBeforeCheckout() async {
                                 _SummaryRow(label: 'Subtotal', value: subtotal),
                                 const SizedBox(height: 8),
                                 _SummaryRow(label: 'Biaya Pengiriman', value: widget.shippingFee),
-
-                                // >>> Tambahkan ini (hanya tampil jika > 0)
                                 if (widget.taxFee > 0) ...[
                                   const SizedBox(height: 8),
                                   _SummaryRow(label: 'Pajak', value: widget.taxFee),
                                 ],
-
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 8),
                                   child: Divider(thickness: 1, color: Color(0xFFE5E5E5), height: 1),
@@ -403,13 +417,13 @@ Future<bool> _validateStockBeforeCheckout() async {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text('Saldo ABC Payment',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 13.5, color: Colors.grey[800], fontWeight: FontWeight.w500)),
+                                        style: GoogleFonts.dmSans(
+                                            fontSize: 13.5, color: Colors.grey[800], fontWeight: FontWeight.w500)),
                                     Row(
                                       children: [
                                         Text('Rp ${formatRupiah(available)}',
-                                          style: GoogleFonts.dmSans(
-                                            fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.black87)),
+                                            style: GoogleFonts.dmSans(
+                                                fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.black87)),
                                         const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -421,9 +435,10 @@ Future<bool> _validateStockBeforeCheckout() async {
                                             ),
                                           ),
                                           child: Text(enough ? 'Cukup' : 'Tidak cukup',
-                                            style: GoogleFonts.dmSans(
-                                              fontSize: 11, fontWeight: FontWeight.w700,
-                                              color: enough ? const Color(0xFF2E7D32) : const Color(0xFFC62828))),
+                                              style: GoogleFonts.dmSans(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: enough ? const Color(0xFF2E7D32) : const Color(0xFFC62828))),
                                         ),
                                       ],
                                     ),

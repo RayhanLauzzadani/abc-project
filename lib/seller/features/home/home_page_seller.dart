@@ -19,6 +19,8 @@ import 'package:abc_e_mart/seller/features/order/order_page.dart';
 import 'package:abc_e_mart/seller/features/transaction/transaction_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_payment_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
+// detail invoice
+import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
 class HomePageSeller extends StatefulWidget {
   const HomePageSeller({super.key});
@@ -29,6 +31,7 @@ class HomePageSeller extends StatefulWidget {
 
 class _HomePageSellerState extends State<HomePageSeller> {
   String? _storeId;
+  Map<String, dynamic>? _storeData; // ⬅️ simpan data toko agar bisa dipakai di transaksi
 
   Future<void> _setOnlineStatus(
     bool isOnline, {
@@ -48,10 +51,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
 
   @override
   void dispose() {
-    // Update store: set offline & lastLogin
     _setOnlineStatus(false, updateLastLogin: true);
 
-    // Update user: set isOnline true (balik ke buyer)
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).set({
@@ -87,26 +88,29 @@ class _HomePageSellerState extends State<HomePageSeller> {
                     );
                   }
 
-                  // Ambil data store pertama
                   final doc = snapshot.data!.docs.first;
                   final data = doc.data() as Map<String, dynamic>;
                   final storeId = doc.id;
 
-                  // Simpan storeId agar bisa update status di dispose
+                  // simpan data toko untuk dipakai di detail transaksi
+                  _storeData = {
+                    'name': data['name'] ?? '-',
+                    'address': data['address'] ?? '-',
+                    'phone': data['phone'] ?? '-',
+                  };
+
                   if (_storeId != storeId) {
                     _storeId = storeId;
-                    // Saat masuk halaman seller: set isOnline=true
                     _setOnlineStatus(true);
                   }
 
                   final shopName = data['name'] ?? "-";
-                  final description =
-                      data['description'] ?? "Menjual berbagai kebutuhan";
+                  final description = data['description'] ?? "Menjual berbagai kebutuhan";
                   final address = data['address'] ?? "-";
                   final logoUrl = data['logoUrl'] ?? "";
                   final phone = data['phone'] ?? "-";
 
-                  // Sisa data dummy, nanti integrasi dengan Firestore juga
+                  // dummy summary
                   final pesananMasuk = 42;
                   final pesananDikirim = 5;
                   final pesananSelesai = 30;
@@ -122,14 +126,11 @@ class _HomePageSellerState extends State<HomePageSeller> {
                         children: [
                           const SizedBox(height: 31),
                           SellerAppBar(
-                            onBack: () {
-                              Navigator.pop(context);
-                            },
+                            onBack: () => Navigator.pop(context),
                             onNotif: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const NotificationPageSeller(),
+                                  builder: (_) => const NotificationPageSeller(),
                                 ),
                               );
                             },
@@ -153,31 +154,25 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           ),
                           const SizedBox(height: 16),
 
+                          // Saldo
                           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('users')
-                                .doc(
-                                  uid,
-                                ) // uid seller yang login (sudah dideklarasikan di atas)
+                                .doc(uid)
                                 .snapshots(),
                             builder: (context, snap) {
-                              int available = 0; // default saat loading/null
-
+                              int available = 0;
                               if (snap.hasData) {
-                                final data = snap.data!.data();
-                                final wallet =
-                                    (data?['wallet']
-                                        as Map<String, dynamic>?) ??
-                                    {};
+                                final u = snap.data!.data();
+                                final wallet = (u?['wallet'] as Map<String, dynamic>?) ?? {};
                                 if (wallet['available'] is num) {
-                                  available = (wallet['available'] as num)
-                                      .toInt();
+                                  available = (wallet['available'] as num).toInt();
                                 }
                               }
 
                               return ABCPaymentCard(
                                 margin: EdgeInsets.zero,
-                                balance: available, // saldo live dari Firestore
+                                balance: available,
                                 primaryLabel: 'Tarik Saldo',
                                 primaryIconWidget: SvgPicture.asset(
                                   'assets/icons/banknote-arrow-down.svg',
@@ -192,8 +187,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => WithdrawPaymentPage(
-                                        currentBalance:
-                                            available, // kirim saldo real
+                                        currentBalance: available,
                                         adminFee: 1000,
                                         minWithdraw: 15000,
                                       ),
@@ -203,8 +197,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 onHistory: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) =>
-                                          const WithdrawHistoryPageSeller(),
+                                      builder: (_) => const WithdrawHistoryPageSeller(),
                                     ),
                                   );
                                 },
@@ -213,63 +206,50 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           ),
                           const SizedBox(height: 16),
 
+                          // Quick Access
                           SellerQuickAccess(
                             onTap: (index) {
                               switch (index) {
-                                case 0: // Produk Toko
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ProductsPage(storeId: storeId),
-                                    ),
-                                  );
+                                case 0:
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => ProductsPage(storeId: storeId),
+                                  ));
                                   break;
-                                case 1: // Pesanan
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const SellerOrderPage(),
-                                    ),
-                                  );
+                                case 1:
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => const SellerOrderPage(),
+                                  ));
                                   break;
-                                case 2: // Obrolan/Chat
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const SellerChatListPage(),
-                                    ),
-                                  );
+                                case 2:
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => const SellerChatListPage(),
+                                  ));
                                   break;
                                 case 3:
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => StoreRatingPage(
-                                        storeId: storeId,
-                                        storeName: shopName,
-                                      ),
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => StoreRatingPage(
+                                      storeId: storeId,
+                                      storeName: shopName,
                                     ),
-                                  );
+                                  ));
                                   break;
                                 case 4:
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => TransactionPage(),
-                                    ),
-                                  );
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => const TransactionPage(),
+                                  ));
                                   break;
                                 case 5:
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => AdsListPage(
-                                        // Kirim storeId atau sellerId sesuai page mu
-                                        sellerId: uid,
-                                      ),
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => AdsListPage(
+                                      sellerId: uid,
                                     ),
-                                  );
+                                  ));
                                   break;
-                                // Tambahkan case lain jika ada fitur quick access lain
                               }
                             },
                           ),
+
+                          // Summary
                           SellerSummaryCard(
                             pesananMasuk: pesananMasuk,
                             pesananDikirim: pesananDikirim,
@@ -278,57 +258,55 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             saldo: saldo,
                             saldoTertahan: saldoTertahan,
                           ),
-                          SellerTransactionSection(
-                            transactions: [
-                              SellerTransactionCardData(
-                                invoiceId: "NPN001",
-                                date: "5 Juli 2025",
-                                status: "Sukses",
-                                items: [
-                                  TransactionCardItem(
-                                    name: "Ayam Geprek",
-                                    note: "Pedas",
-                                    qty: 1,
-                                  ),
-                                  TransactionCardItem(
-                                    name: "Ayam Geprek",
-                                    note: "Sedang",
-                                    qty: 1,
-                                  ),
-                                  TransactionCardItem(
-                                    name: "Ayam Geprek",
-                                    note: "",
-                                    qty: 1,
-                                  ),
-                                ],
-                                total: 75000,
-                                onDetail: () {},
-                              ),
-                              SellerTransactionCardData(
-                                invoiceId: "#014456",
-                                date: "5 Juli 2025",
-                                status: "Gagal",
-                                items: [
-                                  TransactionCardItem(
-                                    name: "Ayam Geprek",
-                                    note: "Sedang",
-                                    qty: 1,
-                                  ),
-                                  TransactionCardItem(
-                                    name: "Ayam Geprek",
-                                    note: "Pedas",
-                                    qty: 1,
-                                  ),
-                                ],
-                                total: 75000,
-                                onDetail: () {},
-                              ),
-                            ],
-                            onSeeAll: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => TransactionPage(),
-                                ),
+
+                          // Transaction Section
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('orders')
+                                .where('sellerId', isEqualTo: uid)
+                                .where('status', whereIn: [
+                                  'COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED',
+                                  'CANCELLED', 'CANCELED', 'REJECTED', 'FAILED',
+                                ])
+                                .orderBy('updatedAt', descending: true)
+                                .limit(5)
+                                .snapshots(),
+                            builder: (context, txSnap) {
+                              if (txSnap.connectionState == ConnectionState.waiting) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              }
+
+                              final docs = txSnap.data?.docs ?? [];
+                              if (docs.isEmpty) {
+                                return SellerTransactionSection(
+                                  transactions: const [],
+                                  onSeeAll: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(builder: (_) => const TransactionPage()),
+                                    );
+                                  },
+                                );
+                              }
+
+                              final cardsData = docs.map((d) {
+                                final od = d.data();
+                                return _mapOrderDocToCard(
+                                  docId: d.id,
+                                  data: od,
+                                  onDetail: () => _openTransactionDetail(orderId: d.id, data: od),
+                                );
+                              }).toList();
+
+                              return SellerTransactionSection(
+                                transactions: cardsData,
+                                onSeeAll: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const TransactionPage()),
+                                  );
+                                },
                               );
                             },
                           ),
@@ -340,5 +318,158 @@ class _HomePageSellerState extends State<HomePageSeller> {
               ),
       ),
     );
+  }
+
+  // buka detail transaksi
+  Future<void> _openTransactionDetail({
+    required String orderId,
+    required Map<String, dynamic> data,
+  }) async {
+    String buyerName = (data['buyerName'] ?? '') as String? ?? '';
+    if (buyerName.trim().isEmpty) {
+      final buyerId = (data['buyerId'] ?? '') as String? ?? '';
+      if (buyerId.isNotEmpty) {
+        try {
+          final snap = await FirebaseFirestore.instance.collection('users').doc(buyerId).get();
+          buyerName = (snap.data()?['name'] ?? '-') as String? ?? '-';
+        } catch (_) {
+          buyerName = '-';
+        }
+      } else {
+        buyerName = '-';
+      }
+    }
+
+    final txMap = _mapOrderToTransaction(orderId: orderId, data: data, buyerName: buyerName);
+
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TransactionDetailPage(transaction: txMap)),
+    );
+  }
+
+  SellerTransactionCardData _mapOrderDocToCard({
+    required String docId,
+    required Map<String, dynamic> data,
+    required VoidCallback onDetail,
+  }) {
+    final invoice = (data['invoiceId'] as String?)?.trim();
+    final displayInvoice = (invoice != null && invoice.isNotEmpty) ? invoice : docId;
+
+    final ts = data['updatedAt'] ?? data['createdAt'];
+    final dt = ts is Timestamp ? ts.toDate() : null;
+    final dateStr = dt != null ? _fmtDateIndo(dt) : '-';
+
+    final statusRaw = ((data['status'] ?? '') as String).toUpperCase();
+    final statusUi = _statusToUi(statusRaw);
+
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+    final itemCards = items.map((it) {
+      return TransactionCardItem(
+        name: (it['name'] ?? '-') as String,
+        note: (it['variant'] ?? it['note'] ?? '') as String,
+        qty: ((it['qty'] as num?) ?? 0).toInt(),
+      );
+    }).toList();
+
+    final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
+    final total = ((amounts['total'] as num?) ?? 0).toInt();
+
+    return SellerTransactionCardData(
+      invoiceId: displayInvoice,
+      date: dateStr,
+      status: statusUi,
+      items: itemCards,
+      total: total,
+      onDetail: onDetail,
+    );
+  }
+
+  Map<String, dynamic> _mapOrderToTransaction({
+    required String orderId,
+    required Map<String, dynamic> data,
+    required String buyerName,
+  }) {
+    final statusRaw =
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+
+    String uiStatus;
+    if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(statusRaw)) {
+      uiStatus = 'Sukses';
+    } else if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(statusRaw)) {
+      uiStatus = 'Gagal';
+    } else {
+      uiStatus = 'Tertahan';
+    }
+
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+    final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
+    final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
+    final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
+    final tax = ((amounts['tax'] as num?) ?? 0).toInt();
+    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+
+    final createdAt = (data['updatedAt'] ?? data['createdAt']);
+    final date = createdAt is Timestamp ? createdAt.toDate() : null;
+
+    final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+    final addressLabel = (ship['label'] ?? '-') as String;
+    final addressText = (ship['addressText'] ?? ship['address'] ?? '-') as String;
+    final phone = (ship['phone'] ?? '-') as String;
+
+    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+
+    final inv = (data['invoiceId'] as String?)?.trim();
+    final invoiceId = (inv != null && inv.isNotEmpty) ? inv : orderId;
+
+    return {
+      'invoiceId': invoiceId,
+      'status': uiStatus,
+      'date': date,
+
+      // ⬇️ Info toko ikut dikirim (supaya muncul di PDF)
+      'store': {
+        'name': _storeData?['name'] ?? '-',
+        'phone': _storeData?['phone'] ?? '-',
+        'address': _storeData?['address'] ?? '-',
+      },
+
+      'buyerName': buyerName,
+      'shipping': {
+        'recipient': buyerName,
+        'addressLabel': addressLabel,
+        'addressText': addressText,
+        'phone': phone,
+      },
+      'paymentMethod': method,
+      'items': items
+          .map((it) => {
+                'name': (it['name'] ?? '-') as String,
+                'qty': ((it['qty'] as num?) ?? 0).toInt(),
+                'price': ((it['price'] as num?) ?? 0).toInt(),
+                'variant': (it['variant'] ?? it['note'] ?? '') as String,
+              })
+          .toList(),
+      'amounts': {
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total,
+      },
+    };
+  }
+
+  String _statusToUi(String raw) {
+    if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(raw)) return 'Sukses';
+    if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(raw)) return 'Gagal';
+    return 'Tertahan';
+  }
+
+  String _fmtDateIndo(DateTime d) {
+    const bulan = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return '${d.day} ${bulan[d.month - 1]} ${d.year}';
   }
 }

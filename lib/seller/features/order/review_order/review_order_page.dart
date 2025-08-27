@@ -118,6 +118,12 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             }
 
             final data = snap.data!.data()!;
+            final orderDocId = snap.data!.id;
+
+            // invoice yang ditampilkan (prioritas invoiceId, fallback doc.id)
+            final rawInvoice = (data['invoiceId'] as String?)?.trim();
+            final displayedId = (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : orderDocId;
+
             final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
             final buyerId = (data['buyerId'] ?? '') as String;
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
@@ -145,6 +151,8 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 total: total,
                 method: method,
                 data: data,
+                displayedId: displayedId,
+                orderDocId: orderDocId,
               );
             }
 
@@ -165,6 +173,8 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   total: total,
                   method: method,
                   data: data,
+                  displayedId: displayedId,
+                  orderDocId: orderDocId,
                 );
               },
             );
@@ -248,6 +258,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     required int total,
     required String method,
     required Map<String, dynamic> data,
+
+    // NEW: untuk invoice tampilan & doc.id asli
+    required String displayedId,
+    required String orderDocId,
   }) {
     final isLong = addressText.length > 60;
 
@@ -298,6 +312,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 const SizedBox(height: 2),
                 Text(buyerName,
                     style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                // NEW: tampilkan nomor invoice (atau doc.id jika belum ada)
+                Text('#$displayedId',
+                    style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF888888))),
                 const SizedBox(height: 12),
                 const Divider(color: Color(0xFFE6E6E6)),
                 const SizedBox(height: 8),
@@ -447,7 +465,8 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                         onPressed: () {
                           // --- Mapping dokumen order → map untuk TransactionDetailPage ---
                           final txMap = _mapOrderToTransaction(
-                            orderId: widget.orderId,
+                            displayedId: displayedId, // invoice tampilan
+                            orderDocId: orderDocId,   // doc.id asli (opsional)
                             data: data,
                             buyerName: buyerName,
                           );
@@ -603,7 +622,8 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
   // Map dokumen order → map untuk TransactionDetailPage
   Map<String, dynamic> _mapOrderToTransaction({
-    required String orderId,
+    required String displayedId,  // invoice tampilan (invoiceId/doc.id)
+    required String orderDocId,   // doc.id asli (opsional)
     required Map<String, dynamic> data,
     required String buyerName,
   }) {
@@ -612,9 +632,9 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
     // label UI
     String labelStatus;
-    if (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SETTLED') {
+    if (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SETTLED' || rawStatus == 'SUCCESS') {
       labelStatus = 'Sukses';
-    } else if (rawStatus == 'CANCELLED' || rawStatus == 'REJECTED') {
+    } else if (rawStatus == 'CANCELLED' || rawStatus == 'CANCELED' || rawStatus == 'REJECTED' || rawStatus == 'FAILED') {
       labelStatus = 'Gagal';
     } else {
       labelStatus = 'Tertahan'; // PLACED / ACCEPTED / SHIPPED
@@ -625,7 +645,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
     final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
     final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-    final total = ((amounts['total'] as num?) ?? 0).toInt();
+    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
 
     final createdAt = (data['createdAt'] is Timestamp)
         ? (data['createdAt'] as Timestamp).toDate()
@@ -633,13 +653,14 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
     final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
     final addressLabel = (ship['label'] ?? '-') as String;
-    final addressText = (ship['address'] ?? '-') as String;
+    final addressText = (ship['addressText'] ?? ship['address'] ?? '-') as String;
     final phone = (ship['phone'] ?? '-') as String;
 
     final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
     return {
-      'invoiceId': orderId,
+      'invoiceId': displayedId, // ← tampil di nota
+      'orderDocId': orderDocId, // ← kalau halaman nota butuh doc.id
       'status': labelStatus,
       'date': createdAt,
       'buyerName': buyerName,

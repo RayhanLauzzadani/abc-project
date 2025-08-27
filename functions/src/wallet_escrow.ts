@@ -22,6 +22,35 @@ const asInt = (v: unknown, def = 0) =>
 const httpsError = (code: FunctionsErrorCode, message: string) =>
   new HttpsError(code, message);
 
+// ---------- (NEW) invoice helpers ----------
+// INV-YYYYMMDD-XXXXXX (X = A..Z / 2..9 tanpa karakter yang mirip)  // <<< NEW
+function generateInvoiceId(): string {                               // <<< NEW
+  const now = new Date();                                           // <<< NEW
+  const yyyy = now.getFullYear().toString();                        // <<< NEW
+  const mm = String(now.getMonth() + 1).padStart(2, "0");           // <<< NEW
+  const dd = String(now.getDate()).padStart(2, "0");                // <<< NEW
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";              // <<< NEW
+  let rand = "";                                                    // <<< NEW
+  for (let i = 0; i < 6; i++) {                                     // <<< NEW
+    rand += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+  }
+  return `INV-${yyyy}${mm}${dd}-${rand}`;
+}
+
+// pastikan unik di koleksi `orders` (3x percobaan, lalu fallback timestamp)     // <<< NEW
+async function generateUniqueInvoiceId(): Promise<string> {                      // <<< NEW
+  for (let i = 0; i < 3; i++) {
+    const candidate = generateInvoiceId();
+    const snap = await db
+      .collection("orders")
+      .where("invoiceId", "==", candidate)
+      .limit(1)
+      .get();
+    if (snap.empty) return candidate;
+  }
+  return `INV-${Date.now()}`;
+}
+
 // ---------- 1) init wallet saat user baru (v1 auth trigger) ----------
 export const initWalletOnSignup = functions
   .region(REGION)
@@ -83,13 +112,22 @@ export const placeOrder = onCall(
         .limit(1)
         .get();
       if (!dup.empty) {
-        return { ok: true, orderId: dup.docs[0].id, idempotent: true };
+        const d = dup.docs[0].data();
+        return {
+          ok: true,
+          orderId: dup.docs[0].id,
+          idempotent: true,
+          invoiceId: d.invoiceId ?? null, // <<< NEW (kembalikan juga kalau sudah ada)
+        };
       }
     }
 
     const buyerRef = db.collection("users").doc(buyerId);
     const orderRef = db.collection("orders").doc();
     const buyerTxRef = buyerRef.collection("transactions").doc();
+
+    // generate invoice unik (di luar transaksi supaya tidak memanjang)  // <<< NEW
+    const invoiceId = await generateUniqueInvoiceId();                 // <<< NEW
 
     await db.runTransaction(async (t: Transaction) => {
       const buyerSnap = await t.get(buyerRef);
@@ -129,9 +167,13 @@ export const placeOrder = onCall(
           label: (shippingAddress as any)?.label ?? "-",
           address: (shippingAddress as any)?.address ?? "-",
         },
+        // --- waktu + idempoten
         createdAt: NOW,
         updatedAt: NOW,
         idempotencyKey: (idempotencyKey as string) ?? null,
+
+        // --- (NEW) simpan invoiceId
+        invoiceId, // <<< NEW
       });
 
       // 3) catat transaksi buyer (ESCROWED)
@@ -148,7 +190,7 @@ export const placeOrder = onCall(
       });
     });
 
-    return { ok: true, orderId: orderRef.id };
+    return { ok: true, orderId: orderRef.id, invoiceId }; // <<< CHANGED (kembalikan invoiceId)
   }
 );
 
@@ -205,12 +247,12 @@ export const completeOrder = onCall(
       });
 
       const items: any[] = order.items || [];
-        for (const it of items) {
-          const ref = db.collection("products").doc(String(it.productId));
-          const qty = asInt(it.qty);
-          t.update(ref, { sold: admin.firestore.FieldValue.increment(qty) });
-        }
-      
+      for (const it of items) {
+        const ref = db.collection("products").doc(String(it.productId));
+        const qty = asInt(it.qty);
+        t.update(ref, { sold: admin.firestore.FieldValue.increment(qty) });
+      }
+
       const storeIdStr = String(order.storeId || "");
       if (storeIdStr) {
         // jumlahkan total qty semua item di pesanan
@@ -404,5 +446,3 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
 
   return { ok: true };
 });
-
-

@@ -19,6 +19,7 @@ class CartTabHistory extends StatelessWidget {
     if (s == 'CANCELED' || s == 'CANCELLED' || s == 'REJECTED') {
       return (cards.OrderStatus.canceled, 'Dibatalkan');
     }
+    // fallback (harusnya jarang muncul di riwayat)
     return (cards.OrderStatus.inProgress, '—');
   }
 
@@ -32,13 +33,13 @@ class CartTabHistory extends StatelessWidget {
       );
     }
 
-    // Tampilkan pesanan yang sudah berakhir (selesai atau batal)
+    // Pesanan yang sudah berakhir (selesai atau batal)
     final endStatuses = ['COMPLETED', 'SUCCESS', 'CANCELED', 'CANCELLED', 'REJECTED'];
 
     final stream = FirebaseFirestore.instance
         .collection('orders')
         .where('buyerId', isEqualTo: uid)
-        .where('status', whereIn: endStatuses) // <-- kuncinya
+        .where('status', whereIn: endStatuses) // mungkin perlu index komposit
         .orderBy('updatedAt', descending: true)
         .snapshots();
 
@@ -57,11 +58,16 @@ class CartTabHistory extends StatelessWidget {
               children: [
                 Icon(LucideIcons.history, size: 85, color: Colors.grey[350]),
                 const SizedBox(height: 30),
-                Text("Riwayat pesanan masih kosong",
-                    style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey[700])),
+                Text(
+                  "Riwayat pesanan masih kosong",
+                  style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                ),
                 const SizedBox(height: 8),
-                Text("Belum ada riwayat pesanan sebelumnya.",
-                    style: GoogleFonts.dmSans(fontSize: 14.5, color: Colors.grey[500]), textAlign: TextAlign.center),
+                Text(
+                  "Belum ada riwayat pesanan sebelumnya.",
+                  style: GoogleFonts.dmSans(fontSize: 14.5, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           );
@@ -79,7 +85,10 @@ class CartTabHistory extends StatelessWidget {
 
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
             final firstImage = items.isNotEmpty ? (items.first['imageUrl'] ?? '') as String : '';
-            final itemCount = items.fold<int>(0, (a, it) => a + ((it['qty'] as num?)?.toInt() ?? 0));
+            final itemCount = items.fold<int>(
+              0,
+              (a, it) => a + ((it['qty'] as num?)?.toInt() ?? 0),
+            );
 
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
             final totalPrice = ((amounts['total'] as num?) ?? 0).toInt();
@@ -87,20 +96,32 @@ class CartTabHistory extends StatelessWidget {
             final ts = data['updatedAt'] ?? data['createdAt'];
             final orderDateTime = ts is Timestamp ? ts.toDate() : DateTime.now();
 
-            // ambil status (fallback ke shippingAddress.status kalau dok lama)
+            // status (fallback ke shippingAddress.status untuk data lama)
             final rawStatus = (data['status'] ?? data['shippingAddress']?['status']) as String?;
             final (badgeStatus, badgeText) = _mapStatus(rawStatus);
 
+            // ambil invoiceId (kalau ada) untuk ditampilkan di kartu
+            final invoiceRaw = (data['invoiceId'] as String?)?.trim();
+            final displayId = (invoiceRaw != null && invoiceRaw.isNotEmpty) ? invoiceRaw : null;
+
             return cards.CartAndOrderListCard(
               storeName: storeName,
-              orderId: orderId,
+              orderId: orderId,               // tetap pakai doc.id untuk navigasi
+              displayId: displayId,           // tampilkan #invoiceId di UI kalau ada
               productImage: firstImage,
               itemCount: itemCount,
               totalPrice: totalPrice,
               orderDateTime: orderDateTime,
-              status: badgeStatus,    // hijau untuk selesai, merah untuk batal
-              statusText: badgeText,  // "Selesai" / "Dibatalkan"
+              status: badgeStatus,            // hijau untuk selesai, merah untuk batal
+              statusText: badgeText,          // "Selesai" / "Dibatalkan"
+              actionTextOverride: "Detail Pesanan",
+              actionIconOverride: Icons.chevron_right_rounded,
               onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => DetailHistoryPage(orderId: orderId)),
+                );
+              },
+              onActionTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => DetailHistoryPage(orderId: orderId)),
                 );
