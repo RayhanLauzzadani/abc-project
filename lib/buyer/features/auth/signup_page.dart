@@ -7,6 +7,8 @@ import '../../data/services/auth_service.dart';
 import '../../data/services/google_auth_service.dart';
 import '../home/home_page_buyer.dart';
 import 'package:abc_e_mart/buyer/widgets/success_dialog.dart';
+import 'package:abc_e_mart/buyer/features/profile/terms_page.dart';
+import 'package:abc_e_mart/buyer/features/profile/privacy_policy_page.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -29,6 +31,8 @@ class _SignupPageState extends State<SignupPage> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  late final TapGestureRecognizer _termsTap;
+  late final TapGestureRecognizer _privacyTap;
 
   bool get _isEmailValid {
     final email = emailController.text.trim();
@@ -43,7 +47,30 @@ class _SignupPageState extends State<SignupPage> {
       passwordController.text.length >= 8;
 
   @override
+  void initState() {
+    super.initState();
+    _termsTap = TapGestureRecognizer()
+      ..onTap = () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const TermsPage(),
+          ),
+        );
+      };
+    _privacyTap = TapGestureRecognizer()
+      ..onTap = () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const PrivacyPolicyPage(),
+          ),
+        );
+      };
+  }
+
+  @override
   void dispose() {
+    _termsTap.dispose();
+    _privacyTap.dispose();
     firstNameController.dispose();
     lastNameController.dispose();
     emailController.dispose();
@@ -202,10 +229,7 @@ class _SignupPageState extends State<SignupPage> {
                             color: colorPrimary,
                             decoration: TextDecoration.underline,
                           ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () {
-                              // TODO: Arahkan ke halaman syarat penggunaan
-                            },
+                          recognizer: _termsTap,
                         ),
                         const TextSpan(text: " dan "),
                         TextSpan(
@@ -214,10 +238,7 @@ class _SignupPageState extends State<SignupPage> {
                             color: colorPrimary,
                             decoration: TextDecoration.underline,
                           ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () {
-                              // TODO: Arahkan ke halaman kebijakan privasi
-                            },
+                          recognizer: _privacyTap,
                         ),
                         const TextSpan(text: " kami."),
                       ],
