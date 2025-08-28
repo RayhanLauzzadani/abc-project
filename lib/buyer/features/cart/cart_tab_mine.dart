@@ -28,133 +28,154 @@ class CartTabMine extends StatefulWidget {
 class _CartTabMineState extends State<CartTabMine> {
   final cartRepo = CartRepository();
   List<StoreCart> storeCarts = [];
-  bool isLoading = true;
+  bool isLoading = true; // dipakai hanya untuk initial/refresh besar
   User? currentUser;
+
+  // track item yang sedang diupdate agar tidak double tap (opsional)
+  final Set<String> _busyItems = {};
+
+  String _busyKey(String storeId, String productId) => '$storeId::$productId';
 
   @override
   void initState() {
     super.initState();
     currentUser = FirebaseAuth.instance.currentUser;
-    fetchCart();
+    fetchCart(); // initial load pakai spinner penuh
   }
 
-  Future<void> fetchCart() async {
+  /// Ambil keranjang.
+  /// [silent] = true ⟶ tanpa spinner halaman (dipakai saat ubah qty/hapus).
+  Future<void> fetchCart({bool silent = false}) async {
     if (currentUser == null) {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) setState(() => isLoading = false);
       return;
     }
-    setState(() => isLoading = true);
+    if (!silent) {
+      if (mounted) setState(() => isLoading = true);
+    }
+
     final carts = await cartRepo.getCart(currentUser!.uid);
+
+    if (!mounted) return;
     setState(() {
       storeCarts = carts;
-      isLoading = false;
+      if (!silent) isLoading = false;
     });
+
+    // sinkronkan daftar storeId ke parent utk checkbox state
+    widget.onStoreListChanged?.call(storeCarts.map((e) => e.storeId).toList());
   }
 
   Future<void> _onQtyChanged(StoreCart store, int idx, int qty) async {
     if (currentUser == null) return;
     final item = store.items[idx];
+    final key = _busyKey(store.storeId, item.id);
+    if (_busyItems.contains(key)) return; // cegah spam tap
+    setState(() => _busyItems.add(key));
 
-    // Hapus item (tetap seperti sebelumnya)
-    if (qty == 0) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Hapus Produk', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: const Text('Apakah Anda yakin ingin menghapus produk ini dari keranjang?'),
-          actionsAlignment: MainAxisAlignment.end,
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Batal', style: TextStyle(color: Colors.black))),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2979FF),
-                elevation: 0,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    try {
+      // Hapus item (dengan konfirmasi)
+      if (qty == 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Hapus Produk', style: TextStyle(fontWeight: FontWeight.bold)),
+            content: const Text('Apakah Anda yakin ingin menghapus produk ini dari keranjang?'),
+            actionsAlignment: MainAxisAlignment.end,
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Batal', style: TextStyle(color: Colors.black))),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2979FF),
+                  elevation: 0,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Ya, Hapus', style: TextStyle(color: Colors.white)),
               ),
-              child: const Text('Ya, Hapus', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
-      if (confirmed == true) {
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          await cartRepo.removeCartItem(
+            userId: currentUser!.uid,
+            storeId: store.storeId,
+            productId: item.id,
+          );
+          await fetchCart(silent: true); // ⟵ tanpa spinner penuh
+        }
+        return;
+      }
+
+      // Validasi stok & minBuy terbaru
+      final prodSnap =
+          await FirebaseFirestore.instance.collection('products').doc(item.id).get();
+      final prod = prodSnap.data() ?? {};
+      final int stock = (prod['stock'] as num?)?.toInt() ?? 0;
+      final int minBuy = (prod['minBuy'] as num?)?.toInt() ?? 1;
+      final String name = (prod['name'] ?? 'Produk') as String;
+
+      if (stock <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stok $name habis. Produk akan dihapus dari keranjang.')),
+        );
         await cartRepo.removeCartItem(
           userId: currentUser!.uid,
           storeId: store.storeId,
           productId: item.id,
         );
-        await fetchCart();
+        await fetchCart(silent: true);
+        return;
       }
-      return;
-    }
 
-    // --- NEW: Validasi stok & minBuy terbaru sebelum update qty
-    final prodSnap = await FirebaseFirestore.instance
-        .collection('products')
-        .doc(item.id)
-        .get();
+      // Clamp jumlah sesuai aturan terbaru
+      int desired = qty;
+      if (desired < minBuy) desired = minBuy;
+      if (desired > stock) desired = stock;
+      if (desired != qty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Jumlah $name disesuaikan ke $desired (min $minBuy, stok $stock).')),
+        );
+      }
 
-    final prod = prodSnap.data() ?? {};
-    final int stock = (prod['stock'] as num?)?.toInt() ?? 0;
-    final int minBuy = (prod['minBuy'] as num?)?.toInt() ?? 1;
-    final String name = (prod['name'] ?? 'Produk') as String;
-
-    if (stock <= 0) {
-      // stok habis: tawarkan hapus
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stok $name habis. Produk akan dihapus dari keranjang.')),
-      );
-      await cartRepo.removeCartItem(
+      // Update qty di server
+      await cartRepo.updateCartItemQuantity(
         userId: currentUser!.uid,
         storeId: store.storeId,
         productId: item.id,
+        quantity: desired,
       );
-      await fetchCart();
-      return;
+
+      // Refresh ringan tanpa mengganti layar dengan spinner
+      await fetchCart(silent: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui keranjang: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busyItems.remove(key));
     }
-
-    // Clamp ke rentang valid
-    int desired = qty;
-    if (desired < minBuy) desired = minBuy;
-    if (desired > stock) desired = stock;
-
-    if (desired != qty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Jumlah $name disesuaikan ke $desired (min $minBuy, stok $stock).')),
-      );
-    }
-
-    await cartRepo.updateCartItemQuantity(
-      userId: currentUser!.uid,
-      storeId: store.storeId,
-      productId: item.id,
-      quantity: desired,
-    );
-    await fetchCart();
   }
 
   @override
   Widget build(BuildContext context) {
     // Ambil hanya storeId yang dicentang
-    final selectedStoreIds = widget.storeChecked.entries
-        .where((e) => e.value == true)
-        .map((e) => e.key)
-        .toList();
+    final selectedStoreIds =
+        widget.storeChecked.entries.where((e) => e.value == true).map((e) => e.key).toList();
 
     // Dapatkan StoreCart yang dicentang
-    final selectedStores = storeCarts
-        .where((store) => selectedStoreIds.contains(store.storeId))
-        .toList();
+    final selectedStores =
+        storeCarts.where((store) => selectedStoreIds.contains(store.storeId)).toList();
 
-    // Karena desainmu satu checkout = satu toko, ambil hanya satu
+    // Satu checkout = satu toko
     final selectedStore = selectedStores.isNotEmpty ? selectedStores.first : null;
     final isCheckoutEnabled = selectedStore != null;
 
     return FocusDetector(
-      onFocusGained: () => fetchCart(),
+      onFocusGained: () => fetchCart(), // refresh penuh saat kembali ke tab
       child: Stack(
         children: [
           if (isLoading)
@@ -164,11 +185,7 @@ class _CartTabMineState extends State<CartTabMine> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.shopping_cart_outlined,
-                    size: 110,
-                    color: Colors.grey[350],
-                  ),
+                  Icon(Icons.shopping_cart_outlined, size: 110, color: Colors.grey[350]),
                   const SizedBox(height: 30),
                   Text(
                     "Keranjang Anda masih kosong",
@@ -181,10 +198,7 @@ class _CartTabMineState extends State<CartTabMine> {
                   const SizedBox(height: 8),
                   Text(
                     "Yuk, mulai tambahkan produk ke keranjang!",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 15,
-                      color: Colors.grey[500],
-                    ),
+                    style: GoogleFonts.dmSans(fontSize: 15, color: Colors.grey[500]),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -218,15 +232,14 @@ class _CartTabMineState extends State<CartTabMine> {
               child: ElevatedButton(
                 onPressed: () async {
                   if (currentUser == null) return;
-                  // Ambil alamat utama user
-                  final address = await AddressService().getPrimaryAddressOnce(currentUser!.uid);
+                  final address =
+                      await AddressService().getPrimaryAddressOnce(currentUser!.uid);
                   if (address == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Alamat utama belum tersedia.")),
                     );
                     return;
                   }
-                  // Navigasi ke halaman checkout, pass data yg sesuai + NAMA TOKO
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -241,8 +254,8 @@ class _CartTabMineState extends State<CartTabMine> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-                  backgroundColor: const Color(0xFF1C55C0), // ← biru sama seperti "Pesan Sekarang"
-                  foregroundColor: Colors.white,            // ← teks putih
+                  backgroundColor: const Color(0xFF1C55C0),
+                  foregroundColor: Colors.white,
                   elevation: 0,
                 ),
                 child: Text(
@@ -250,7 +263,7 @@ class _CartTabMineState extends State<CartTabMine> {
                   style: GoogleFonts.dmSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,                    // ← pastikan putih
+                    color: Colors.white,
                   ),
                 ),
               ),

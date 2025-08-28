@@ -68,6 +68,7 @@ dependencies:
   pdf: ^3.11.3
   printing: ^5.14.2
   path: ^1.9.1
+  device_info_plus: ^11.5.0
   
 
 dev_dependencies:

@@ -1,22 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.abce.mart">
 
-    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
         android:name="${applicationName}"
-        android:label="ABC e‑Mart"
+        android:label="ABC e-Mart"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
 
-        <!-- (Opsional) API Key Google Maps jika dipakai -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDBdLKjiFM1Hg41D4NtN295IKeR3m7S8X8" />
@@ -63,5 +69,4 @@
             <data android:mimeType="text/plain" />
         </intent>
     </queries>
-
 </manifest>
