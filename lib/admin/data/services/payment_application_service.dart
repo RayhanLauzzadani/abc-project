@@ -16,7 +16,7 @@ class PaymentApplicationService {
   Future<({String url, int bytes, String name})> uploadProof({
     required File file,
     required String filenameHint,
-    String? ownerId, // opsional: kalau null, ambil uid admin
+    String? ownerId, // opsional: kalau null, pakai uid admin sebagai folder
   }) async {
     final who = ownerId ?? (_auth.currentUser?.uid ?? 'unknown');
     final ts  = DateTime.now().millisecondsSinceEpoch;
@@ -30,6 +30,30 @@ class PaymentApplicationService {
     );
     final url = await ref.getDownloadURL();
     return (url: url, bytes: bytes, name: name);
+  }
+
+  // ------------------------
+  // Helpers: push notif ke SELLER (users/{uid}/notifications)
+  // ------------------------
+  Future<void> _pushSellerNotif({
+    required String ownerId,
+    required String title,
+    required String body,
+    required String type, // 'seller_withdraw_approved' | 'seller_withdraw_rejected'
+    required String paymentAppId,
+  }) async {
+    await _fs
+        .collection('users')
+        .doc(ownerId)
+        .collection('notifications')
+        .add({
+      'title': title,
+      'body': body,
+      'timestamp': FieldValue.serverTimestamp(),
+      'isRead': false,
+      'type': type,
+      'paymentAppId': paymentAppId,
+    });
   }
 
   /// ===== ADMIN: APPROVE TOPUP =====
@@ -52,7 +76,7 @@ class PaymentApplicationService {
 
       final userRef = _fs.collection('users').doc(buyerId);
 
-      // + Tambahkan saldo di users/{uid}/wallet.available
+      // + Tambahkan saldo
       tx.update(userRef, {
         'wallet.available': FieldValue.increment(amount),
         'wallet.updatedAt': FieldValue.serverTimestamp(),
@@ -66,6 +90,9 @@ class PaymentApplicationService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
+
+    // (Opsional) kirim notif ke buyer kalau kamu punya halaman buyer notif topup.
+    // Tidak membuat admin_notifications di sini.
   }
 
   Future<void> rejectTopUpApplication({
@@ -88,6 +115,8 @@ class PaymentApplicationService {
       'verifiedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // (Opsional) kirim notif ke buyer. Jangan ke admin_notifications.
   }
 
   /// ===== ADMIN: APPROVE WITHDRAWAL =====
@@ -98,6 +127,9 @@ class PaymentApplicationService {
     final adminUid = _auth.currentUser?.uid;
     if (adminUid == null) throw Exception('Admin belum login');
 
+    String? ownerId;
+    int amount = 0;
+
     await _fs.runTransaction((tx) async {
       final appRef  = _fs.collection('paymentApplications').doc(applicationId);
       final appSnap = await tx.get(appRef);
@@ -107,19 +139,19 @@ class PaymentApplicationService {
       if ((data['type'] as String?) != 'withdrawal') throw Exception('Tipe ajuan bukan withdrawal');
       if ((data['status'] as String?) != 'pending')    throw Exception('Ajuan sudah diproses');
 
-      final ownerId = data['ownerId'] as String?;
-      final amount  = (data['amount'] as num?)?.toInt() ?? 0;
+      ownerId = data['ownerId'] as String?;
+      amount  = (data['amount'] as num?)?.toInt() ?? 0;
       if (ownerId == null) throw Exception('ownerId kosong');
 
       final userRef = _fs.collection('users').doc(ownerId);
 
-      // - Kurangi saldo di users/{uid}/wallet.available
+      // - Kurangi saldo
       tx.update(userRef, {
         'wallet.available': FieldValue.increment(-amount),
         'wallet.updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Update status + simpan bukti transfer admin (opsional)
+      // Update status + bukti transfer
       final update = <String, dynamic>{
         'status': 'approved',
         'verifiedBy': adminUid,
@@ -135,6 +167,15 @@ class PaymentApplicationService {
       }
       tx.update(appRef, update);
     });
+
+    // >>> Kirim NOTIF ke SELLER, bukan ke admin_notifications!
+    await _pushSellerNotif(
+      ownerId: ownerId!,
+      title: 'Pencairan Dana Disetujui',
+      body: 'Ajuan pencairan telah diverifikasi.',
+      type: 'seller_withdraw_approved',
+      paymentAppId: applicationId,
+    );
   }
 
   Future<void> rejectWithdrawalApplication({
@@ -144,11 +185,15 @@ class PaymentApplicationService {
     final adminUid = _auth.currentUser?.uid;
     if (adminUid == null) throw Exception('Admin belum login');
 
+    String? ownerId;
+
     final appRef  = _fs.collection('paymentApplications').doc(applicationId);
     final appSnap = await appRef.get();
     if (!appSnap.exists) throw Exception('Ajuan tidak ditemukan');
     final data = appSnap.data() as Map<String, dynamic>;
     if ((data['type'] as String?) != 'withdrawal') throw Exception('Tipe bukan withdrawal');
+
+    ownerId = data['ownerId'] as String?;
 
     await appRef.update({
       'status': 'rejected',
@@ -157,5 +202,16 @@ class PaymentApplicationService {
       'verifiedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // >>> Kirim NOTIF ke SELLER, bukan ke admin_notifications!
+    if (ownerId != null && ownerId!.isNotEmpty) {
+      await _pushSellerNotif(
+        ownerId: ownerId!,
+        title: 'Pencairan Dana Ditolak',
+        body: reason.isNotEmpty ? reason : 'Ajuan pencairan ditolak.',
+        type: 'seller_withdraw_rejected',
+        paymentAppId: applicationId,
+      );
+    }
   }
 }

@@ -3,19 +3,67 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+// CHAT detail
 import 'package:abc_e_mart/seller/features/chat/chat_detail_page.dart';
+// Riwayat withdraw
+import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
 
 class NotificationPageSeller extends StatelessWidget {
   const NotificationPageSeller({super.key});
 
+  /// Jenis notif seller dari subcollection users/{uid}/notifications
   static const Set<String> sellerTypes = {
+    // existing
     'product_approved',
     'product_rejected',
     'store_approved',
     'store_rejected',
     'ad_approved',
-    // 'chat_message', // Dihandle via chatNotifications
+
+    // wallet (terima semua varian yang pernah dipakai)
+    'withdrawal_approved',
+    'withdrawal_rejected',
+    'seller_withdraw_approved',
+    'seller_withdraw_rejected',
+    'wallet_withdraw_approved',   // <— kompatibilitas data lama
+    'wallet_withdraw_rejected',   // <— kompatibilitas data lama
   };
+
+  // longgarkan: selama mengandung 'withdraw' kita anggap notif penarikan
+  bool _isWithdrawType(String type) => type.contains('withdraw');
+
+  Color _bgColorFor(String type) {
+    if (type.contains('rejected')) return Colors.red.shade50;
+    if (type.contains('approved')) return Colors.green.shade50;
+    if (_isWithdrawType(type)) return Colors.indigo.shade50;
+    if (type == 'chat_message') return Colors.blue.shade50;
+    return Colors.grey.shade100;
+  }
+
+  Color _iconBgFor(String type) {
+    if (type.contains('rejected')) return Colors.red.shade100;
+    if (type.contains('approved')) return Colors.green.shade100;
+    if (_isWithdrawType(type)) return Colors.indigo.shade100;
+    if (type == 'chat_message') return Colors.blue.shade100;
+    return Colors.grey.shade300;
+  }
+
+  Color _iconColorFor(String type) {
+    if (type.contains('rejected')) return Colors.red;
+    if (type.contains('approved')) return Colors.green.shade800;
+    if (_isWithdrawType(type)) return const Color(0xFF1C55C0);
+    if (type == 'chat_message') return Colors.blue;
+    return Colors.grey;
+  }
+
+  IconData _iconFor(String type) {
+    if (type.contains('rejected')) return Icons.close_rounded;
+    if (type.contains('approved')) return Icons.check_rounded;
+    if (_isWithdrawType(type)) return Icons.account_balance_wallet_rounded;
+    if (type == 'chat_message') return Icons.chat_bubble_rounded;
+    return Icons.notifications_none_rounded;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +74,6 @@ class NotificationPageSeller extends StatelessWidget {
       );
     }
 
-    // 1. Stream notif selain chat
     final userNotifStream = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
@@ -34,7 +81,6 @@ class NotificationPageSeller extends StatelessWidget {
         .orderBy('timestamp', descending: true)
         .snapshots();
 
-    // 2. Stream chat notif dari root
     final chatNotifStream = FirebaseFirestore.instance
         .collection('chatNotifications')
         .where('receiverId', isEqualTo: user.uid)
@@ -81,47 +127,46 @@ class NotificationPageSeller extends StatelessWidget {
           return StreamBuilder<QuerySnapshot>(
             stream: chatNotifStream,
             builder: (context, chatSnap) {
-              // Loading state
               if (userSnap.connectionState == ConnectionState.waiting ||
                   chatSnap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              // Kumpulkan semua notif
               final List<Map<String, dynamic>> allNotifs = [];
 
-              // Ambil notif regular
               if (userSnap.hasData) {
                 for (var doc in userSnap.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  // Filter hanya seller notif
-                  final type = data['type']?.toString() ?? '';
+                  final type = (data['type']?.toString() ?? '').toLowerCase();
                   if (sellerTypes.contains(type)) {
                     allNotifs.add({
                       ...data,
                       '_id': doc.id,
-                      '_source': 'user', // Penanda
+                      '_source': 'user',
                     });
                   }
                 }
               }
 
-              // Ambil notif chat
               if (chatSnap.hasData) {
                 for (var doc in chatSnap.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
                   allNotifs.add({
                     ...data,
                     '_id': doc.id,
-                    '_source': 'chat', // Penanda
+                    '_source': 'chat',
                   });
                 }
               }
 
-              // Urutkan descending
-              allNotifs.sort((a, b) =>
-                (b['timestamp'] as Timestamp).compareTo(a['timestamp'] as Timestamp)
-              );
+              allNotifs.sort((a, b) {
+                final ta = a['timestamp'];
+                final tb = b['timestamp'];
+                if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+                if (tb is Timestamp) return 1;
+                if (ta is Timestamp) return -1;
+                return 0;
+              });
 
               if (allNotifs.isEmpty) {
                 return Center(
@@ -142,50 +187,17 @@ class NotificationPageSeller extends StatelessWidget {
                 itemCount: allNotifs.length,
                 itemBuilder: (context, index) {
                   final data = allNotifs[index];
-                  final type = data['type'] ?? '';
+                  final type = (data['type'] ?? '').toString().toLowerCase();
                   final isChat = type == 'chat_message';
-                  final isRejected = type.contains('rejected');
-                  final isApproved = type.contains('approved');
-
-                  // Color & Icon
-                  final bgColor = isRejected
-                    ? Colors.red.shade50
-                    : isApproved
-                    ? Colors.green.shade50
-                    : isChat
-                    ? Colors.blue.shade50
-                    : Colors.grey.shade100;
-
-                  final iconBg = isRejected
-                    ? Colors.red.shade100
-                    : isApproved
-                    ? Colors.green.shade100
-                    : isChat
-                    ? Colors.blue.shade100
-                    : Colors.grey.shade300;
-
-                  final iconColor = isRejected
-                    ? Colors.red
-                    : isApproved
-                    ? Colors.green.shade800
-                    : isChat
-                    ? Colors.blue
-                    : Colors.grey;
-
-                  final iconData = isRejected
-                    ? Icons.close_rounded
-                    : isApproved
-                    ? Icons.check_rounded
-                    : isChat
-                    ? Icons.chat_bubble_rounded
-                    : Icons.notifications_none_rounded;
+                  final bgColor = _bgColorFor(type);
+                  final iconBg = _iconBgFor(type);
+                  final iconColor = _iconColorFor(type);
+                  final iconData = _iconFor(type);
 
                   return GestureDetector(
                     onTap: () async {
-                      // Mark as read
                       if (data['isRead'] != true) {
                         if (data['_source'] == 'user') {
-                          // Update ke subcollection
                           await FirebaseFirestore.instance
                               .collection('users')
                               .doc(user.uid)
@@ -200,30 +212,20 @@ class NotificationPageSeller extends StatelessWidget {
                         }
                       }
 
-                      // Handle navigation
-                      if (isRejected || isApproved) {
-                        showDialog(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            title: Text(
-                              data['title'] ?? '-',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            content: Text(
-                              data['body'] ?? '-',
-                              style: const TextStyle(fontSize: 15),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('OK'),
-                              ),
-                            ],
+                      if (_isWithdrawType(type)) {
+                        // ignore: use_build_context_synchronously
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const WithdrawHistoryPageSeller(),
                           ),
                         );
-                      } else if (isChat) {
+                        return;
+                      }
+
+                      if (isChat) {
                         final chatId = data['chatId'];
-                        if (chatId != null) {
+                        if (chatId != null && chatId.toString().isNotEmpty) {
                           final chatDoc = await FirebaseFirestore.instance
                               .collection('chats')
                               .doc(chatId)
@@ -233,6 +235,7 @@ class NotificationPageSeller extends StatelessWidget {
                           if (chatData != null) {
                             final buyerId = chatData['buyerId'] ?? '';
                             final buyerName = chatData['buyerName'] ?? 'Pembeli';
+                            // ignore: use_build_context_synchronously
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -244,12 +247,34 @@ class NotificationPageSeller extends StatelessWidget {
                               ),
                             );
                           } else {
+                            // ignore: use_build_context_synchronously
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text("Data chat tidak ditemukan.")),
                             );
                           }
                         }
+                        return;
                       }
+
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: Text(
+                            data['title'] ?? '-',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          content: Text(
+                            data['body'] ?? '-',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
                     },
                     child: Container(
                       decoration: BoxDecoration(
@@ -290,7 +315,6 @@ class NotificationPageSeller extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Title + New Badge
                                 Row(
                                   children: [
                                     Expanded(
@@ -321,19 +345,20 @@ class NotificationPageSeller extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                // Date
                                 Text(
-                                  data['timestamp'] != null
-                                      ? DateFormat('dd MMM, yyyy | HH:mm').format(
-                                          (data['timestamp'] as Timestamp).toDate())
-                                      : '-',
+                                  () {
+                                    final ts = data['timestamp'];
+                                    if (ts is Timestamp) {
+                                      return DateFormat('dd MMM, yyyy | HH:mm').format(ts.toDate());
+                                    }
+                                    return '-';
+                                  }(),
                                   style: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 12,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                // Message
                                 Text(
                                   data['body'] ?? '-',
                                   style: const TextStyle(fontSize: 14),

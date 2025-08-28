@@ -4,14 +4,36 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/ad.dart';
 
 class AdService {
-  static final _adsApplicationCol = FirebaseFirestore.instance.collection('adsApplication');
+  static final _adsApplicationCol =
+      FirebaseFirestore.instance.collection('adsApplication');
 
   /// Upload image/file ke Cloud Storage, return url-nya.
+  /// Catatan:
+  /// - 'folder' diisi dari pemanggil, contoh:
+  ///   - Banner:           ads/<uid>/banner
+  ///   - Bukti pembayaran: payment_proofs/<uid>
+  /// - Menyetel contentType agar lolos rules isImage()/isProofImage().
   static Future<String> uploadImageToStorage(File file, String folder) async {
-    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+    // Tentukan ekstensi & contentType sederhana dari nama file
+    final ext = file.path.split('.').last.toLowerCase();
+    final contentType = <String, String>{
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+    }[ext] ?? 'image/jpeg';
+
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}.${ext.isNotEmpty ? ext : 'jpg'}';
+
     final ref = FirebaseStorage.instance.ref().child('$folder/$fileName');
-    final uploadTask = await ref.putFile(file);
-    final url = await uploadTask.ref.getDownloadURL();
+
+    // PENTING: set metadata supaya request.resource.contentType = image/*
+    final metadata = SettableMetadata(contentType: contentType);
+
+    final snapshot = await ref.putFile(file, metadata);
+    final url = await snapshot.ref.getDownloadURL();
     return url;
   }
 
@@ -27,13 +49,16 @@ class AdService {
   }
 
   /// Ambil semua pengajuan iklan (by sellerId)
-  static Future<List<AdApplication>> getApplicationsBySeller(String sellerId) async {
+  static Future<List<AdApplication>> getApplicationsBySeller(
+      String sellerId) async {
     final snapshot = await _adsApplicationCol
         .where('sellerId', isEqualTo: sellerId)
         .orderBy('createdAt', descending: true)
         .get();
 
-    return snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList();
+    return snapshot.docs
+        .map((doc) => AdApplication.fromFirestore(doc))
+        .toList();
   }
 
   /// Ambil SEMUA pengajuan iklan (untuk admin, bisa filter status, store, dsb)
@@ -55,7 +80,9 @@ class AdService {
     }
 
     final snapshot = await query.get();
-    return snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList();
+    return snapshot.docs
+        .map((doc) => AdApplication.fromFirestore(doc))
+        .toList();
   }
 
   /// Ambil detail pengajuan (by id)
@@ -82,7 +109,8 @@ class AdService {
   }
 
   /// Update data pengajuan (optional)
-  static Future<void> updateAdApplication(String id, Map<String, dynamic> data) async {
+  static Future<void> updateAdApplication(
+      String id, Map<String, dynamic> data) async {
     await _adsApplicationCol.doc(id).update({
       ...data,
       'updatedAt': Timestamp.now(),
@@ -90,12 +118,14 @@ class AdService {
   }
 
   /// Listen real-time data (by sellerId)
-  static Stream<List<AdApplication>> listenApplicationsBySeller(String sellerId) {
+  static Stream<List<AdApplication>> listenApplicationsBySeller(
+      String sellerId) {
     return _adsApplicationCol
         .where('sellerId', isEqualTo: sellerId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList());
   }
 
   /// Listen real-time semua pengajuan (ADMIN)
@@ -104,19 +134,18 @@ class AdService {
     if (status != null && status.isNotEmpty) {
       query = query.where('status', isEqualTo: status);
     }
-    return query.snapshots().map(
-          (snapshot) => snapshot.docs
-              .map((doc) => AdApplication.fromFirestore(doc))
-              .toList(),
-        );
+    return query.snapshots().map((snapshot) =>
+        snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList());
   }
 
   /// Listen real-time by store (opsional buat dashboard admin)
-  static Stream<List<AdApplication>> listenApplicationsByStore(String storeId) {
+  static Stream<List<AdApplication>> listenApplicationsByStore(
+      String storeId) {
     return _adsApplicationCol
         .where('storeId', isEqualTo: storeId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => AdApplication.fromFirestore(doc)).toList());
   }
 }
