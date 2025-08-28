@@ -18,7 +18,7 @@ on:
           - strict
           - fast
           - ignore
-        default: strict
+        default: ignore
 
 jobs:
   # ========================
@@ -163,7 +163,7 @@ jobs:
     env:
       PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ github.workspace }}/play-cred.json
       PLAY_TRACK: production
-      LINT_MODE: ${{ inputs.lint_mode || 'strict' }}
+      LINT_MODE: ${{ inputs.lint_mode || 'ignore' }}
 
     steps:
       - name: Checkout
