@@ -7,6 +7,7 @@ import 'package:abc_e_mart/buyer/data/repositories/rating_repository.dart';
 import 'package:abc_e_mart/buyer/widgets/success_rating_popup.dart';
 
 class GiveStoreRatingPage extends StatefulWidget {
+  final String orderId;
   final String storeId;
   final String storeName;
   final String storeAddress;
@@ -14,6 +15,7 @@ class GiveStoreRatingPage extends StatefulWidget {
 
   const GiveStoreRatingPage({
     super.key,
+    required this.orderId,
     required this.storeId,
     required this.storeName,
     required this.storeAddress,
@@ -38,7 +40,6 @@ class _GiveStoreRatingPageState extends State<GiveStoreRatingPage> {
     final user = FirebaseAuth.instance.currentUser;
     final userId = user?.uid ?? 'dummyUser';
 
-    // Fetch name & photoUrl user
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
     final userData = userDoc.data() ?? {};
     final userName = userData['name'] ?? 'Pengguna';
@@ -46,6 +47,7 @@ class _GiveStoreRatingPageState extends State<GiveStoreRatingPage> {
 
     final rating = RatingModel(
       id: '',
+      orderId: widget.orderId,
       storeId: widget.storeId,
       userId: userId,
       userName: userName,
@@ -54,6 +56,7 @@ class _GiveStoreRatingPageState extends State<GiveStoreRatingPage> {
       review: _review,
       createdAt: DateTime.now(),
     );
+
     await RatingService.addRating(rating);
 
     setState(() => _loading = false);
@@ -67,8 +70,8 @@ class _GiveStoreRatingPageState extends State<GiveStoreRatingPage> {
       ),
     );
     Future.delayed(const Duration(milliseconds: 1500), () {
-      Navigator.of(context).pop(); // Close dialog
-      Navigator.of(context).maybePop(); // Back to previous page
+      Navigator.of(context).pop();     // tutup dialog
+      Navigator.of(context).maybePop(); // kembali
     });
   }
 

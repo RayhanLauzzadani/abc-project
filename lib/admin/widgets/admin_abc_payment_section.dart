@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class AdminAbcPaymentSection extends StatelessWidget {
   final List<AdminAbcPaymentData> items;
@@ -110,11 +109,12 @@ class AdminAbcPaymentSection extends StatelessWidget {
 enum AbcPaymentType { withdraw, topup }
 
 class AdminAbcPaymentData {
-  final String name;          // Nippon Mart / Rayhanmuzaki
-  final bool isSeller;        // true = Penjual, false = Pembeli
-  final AbcPaymentType type;  // withdraw / topup
-  final int amount;           // nominal dalam rupiah
+  final String name;
+  final bool isSeller;
+  final AbcPaymentType type;
+  final int amount;
   final DateTime createdAt;
+  final String? applicationId;
 
   const AdminAbcPaymentData({
     required this.name,
@@ -122,7 +122,60 @@ class AdminAbcPaymentData {
     required this.type,
     required this.amount,
     required this.createdAt,
+    this.applicationId,
   });
+}
+
+/// === Badge yang sama dengan halaman Ajuan Payment ===
+class _PaymentBadge extends StatelessWidget {
+  final AbcPaymentType type;
+  const _PaymentBadge({required this.type});
+
+  Color get _main =>
+      type == AbcPaymentType.withdraw ? const Color(0xFF1C55C0) : const Color(0xFFF4C21B);
+  IconData get _arrow =>
+      type == AbcPaymentType.withdraw ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: _main,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: _main.withOpacity(0.25),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Icon(Icons.account_balance_wallet_rounded, size: 24, color: Colors.white),
+          ),
+        ),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: const Color(0xFFEAEAEA)),
+            ),
+            child: Icon(_arrow, size: 14, color: _main),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AbcPaymentCard extends StatelessWidget {
@@ -132,19 +185,12 @@ class _AbcPaymentCard extends StatelessWidget {
 
   String _formatRupiah(int v) =>
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(v);
-
   String _formatDate(DateTime dt) => DateFormat('dd/MM/yyyy, h:mm a').format(dt);
 
   @override
   Widget build(BuildContext context) {
-    final isWithdraw = data.type == AbcPaymentType.withdraw;
-
-    // warna bulatan & warna ikon
-    final Color tone = isWithdraw ? const Color(0xFF2056D3) : const Color(0xFFFFC107);
-    final Color iconColor = isWithdraw ? Colors.white : Colors.black;
-
     final role = data.isSeller ? "Penjual" : "Pembeli";
-    final action = isWithdraw ? "Tarik Saldo" : "Isi Saldo";
+    final action = data.type == AbcPaymentType.withdraw ? "Tarik Saldo" : "Isi Saldo";
 
     return Container(
       width: double.infinity,
@@ -158,54 +204,34 @@ class _AbcPaymentCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // baris atas: ikon + (nama & amount satu baris) + subtitle
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Bulatan penuh + ikon SVG
-                Container(
-                  width: 56,  
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: tone,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: SvgPicture.asset(
-                    'assets/icons/banknote-arrow-down.svg',
-                    width: 28,
-                    height: 28,
-                    color: iconColor,
-                  ),
-                ),
-                const SizedBox(width: 14),
-
-                // Konten teks
+                _PaymentBadge(type: data.type),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Padding(
-                    // sedikit turun supaya tidak sejajar banget dengan tepi atas bulatan
                     padding: const EdgeInsets.only(top: 2),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Nama & nominal — selalu sejajar
+                        // Nama & nominal sejajar baseline
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.baseline,
                           textBaseline: TextBaseline.alphabetic,
                           children: [
-                            // Padding kanan kecil supaya "..." muncul sedikit lebih awal
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.only(right: 10), // ← gap “…” vs harga
+                                padding: const EdgeInsets.only(right: 10),
                                 child: Text(
                                   data.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.dmSans(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 16,
                                     color: const Color(0xFF373E3C),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),
@@ -213,7 +239,7 @@ class _AbcPaymentCard extends StatelessWidget {
                               _formatRupiah(data.amount),
                               style: GoogleFonts.dmSans(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 16,
+                                fontSize: 14, // <-- samakan dengan halaman Ajuan
                                 color: const Color(0xFF373E3C),
                               ),
                             ),
@@ -223,9 +249,8 @@ class _AbcPaymentCard extends StatelessWidget {
                         Text(
                           "$role : $action",
                           style: GoogleFonts.dmSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF373E3C),
+                            fontSize: 12, // <-- samakan
+                            color: const Color(0xFF6A6A6A), // <-- samakan
                           ),
                         ),
                       ],
@@ -235,17 +260,17 @@ class _AbcPaymentCard extends StatelessWidget {
               ],
             ),
 
-            // Footer (diturunkan tapi tidak terlalu jauh)
-            const SizedBox(height: 24), 
+            const SizedBox(height: 18), // <-- samakan jarak ke footer
 
+            // Footer: tanggal kiri — detail kanan
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   _formatDate(data.createdAt),
                   style: GoogleFonts.dmSans(
-                    fontSize: 12.5,
-                    color: const Color.fromARGB(255, 103, 103, 103),
+                    fontSize: 12, // <-- samakan
+                    color: const Color(0xFF9A9A9A), // <-- samakan
                   ),
                 ),
                 GestureDetector(
@@ -255,13 +280,14 @@ class _AbcPaymentCard extends StatelessWidget {
                       Text(
                         "Detail Ajuan",
                         style: GoogleFonts.dmSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: const Color(0xFF1867C2),
+                          fontSize: 12, // <-- samakan
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1C55C0), // <-- samakan
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.chevron_right, size: 18, color: Color(0xFF1C55C0)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 16, color: Color(0xFF1C55C0)), // <-- samakan
                     ],
                   ),
                 ),

@@ -65,6 +65,8 @@ dependencies:
   image_gallery_saver_plus: ^4.0.1
   cloud_functions: ^5.6.1
   auto_size_text: ^3.0.0
+  pdf: ^3.11.3
+  printing: ^5.14.2
   
 
 dev_dependencies:

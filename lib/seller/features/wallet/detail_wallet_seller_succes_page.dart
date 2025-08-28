@@ -13,17 +13,25 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
   /// true = Pemasukan, false = Penarikan Saldo
   final bool isIncome;
   final String counterpartyName; // contoh: "Pesanan #WPN001" / "Ke Rekening BCA ***2341"
+
+  /// Catatan:
+  /// - Untuk PEMASUKAN: amount = total pemasukan.
+  /// - Untuk PENARIKAN: amount = JUMLAH YANG DIPILIH seller (requested amount).
   final int amount;
+
   final DateTime createdAt;
 
-  /// untuk PEMASUKAN (opsional): daftar item pesanan
-  final List<LineItem>? items;
+  /// ====== OPSIONAL untuk PEMASUKAN ======
+  final List<LineItem>? items;             // daftar item
+  final int? shippingFeeOverride;          // override ongkir bila perlu
 
-  /// untuk PEMASUKAN (opsional): override ongkir bila perlu
-  final int? shippingFeeOverride;
-
-  /// untuk PENARIKAN: biaya admin (default 1000)
-  final int? adminFee;
+  /// ====== OPSIONAL untuk PENARIKAN ======
+  final int? adminFee;                     // biaya admin
+  final int? received;                     // total bersih diterima
+  final String? proofUrl;                  // bukti pencairan admin
+  final String? proofName;
+  final int? proofBytes;
+  final int? tax;
 
   const DetailWalletSellerSuccessPage({
     super.key,
@@ -34,6 +42,11 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
     this.items,
     this.shippingFeeOverride,
     this.adminFee,
+    this.received,
+    this.proofUrl,
+    this.proofName,
+    this.proofBytes,
+    this.tax,
   });
 
   String _rp(int v) {
@@ -51,19 +64,27 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
     return '${two(d.day)}/${two(d.month)}/${d.year}, ${two(d.hour)}:${two(d.minute)}';
   }
 
+  String _humanSize(int? b) {
+    if (b == null) return '—';
+    if (b >= 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(b / 1024).toStringAsFixed(0)} KB';
+  }
+
   @override
   Widget build(BuildContext context) {
     final sign = isIncome ? '+' : '-';
     final amountColor = isIncome ? const Color(0xFF18A558) : const Color(0xFF373E3C);
 
-    // ===== hitung untuk pemasukan (mirip buyer payment)
+    // ===== perhitungan pemasukan
     final list = items ?? const <LineItem>[];
     final subtotal = list.fold<int>(0, (a, e) => a + e.price * e.qty);
-    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal));
+    final taxValue = tax ?? 0;  // <-- baru
+    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal - taxValue));
 
-    // ===== hitung untuk penarikan (mirip buyer topup, tapi arah kebalikan)
-    final admin = adminFee ?? 1000;
-    final saldoDitarik = (amount - admin);
+    // ===== perhitungan penarikan (diperbaiki)
+    final requested = amount;               // nominal yang dipilih seller
+    final fee = adminFee ?? 1000;
+    final totalReceived = (received ?? (requested - fee)).clamp(0, requested);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -115,6 +136,7 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
+          // Angka besar: untuk withdraw tetap -requested
           Center(
             child: Text(
               '$sign${_rp(amount)}',
@@ -148,7 +170,7 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
             ),
           ),
 
-          // Rincian pesanan (hanya untuk pemasukan & bila ada item)
+          // Rincian pesanan (hanya income & ada item)
           if (isIncome && list.isNotEmpty) ...[
             const SizedBox(height: 18),
             _sectionTitle('Rincian Pesanan'),
@@ -196,7 +218,7 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
 
           // Ringkasan
           const SizedBox(height: 18),
-          _sectionTitle(isIncome ? 'Ringkasan Pemasukan' : 'Ringkasan Penarikan'),
+          _sectionTitle(isIncome ? 'Ringkasan Pemasukan' : 'Ringkasan Penarikan Saldo'),
           const SizedBox(height: 8),
 
           if (isIncome) ...[
@@ -206,23 +228,83 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
                   _twoCols('Subtotal', _rp(subtotal), muted: true),
                   const SizedBox(height: 10),
                   _twoCols('Biaya Pengiriman', _rp(shipping), muted: true),
+                  if (taxValue > 0) ...[
+                    const SizedBox(height: 10),
+                    _twoCols('Pajak', _rp(taxValue), muted: true), // <-- baru
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 10),
             _grayCard(child: _twoCols('Total Pemasukan', _rp(amount), bold: true)),
           ] else ...[
+            // ===== Rincian penarikan (sesuai referensi)
             _grayCard(
               child: Column(
                 children: [
-                  _twoCols('Saldo Ditarik', _rp(saldoDitarik), muted: true),
+                  _twoCols('Saldo Ditarik', _rp(requested), muted: true),
                   const SizedBox(height: 10),
-                  _twoCols('Biaya Admin', _rp(admin), muted: true),
+                  _twoCols('Biaya Admin', _rp(fee), muted: true),
                 ],
               ),
             ),
             const SizedBox(height: 10),
-            _grayCard(child: _twoCols('Total Diterima', _rp(amount), bold: true)),
+            _grayCard(child: _twoCols('Total Diterima', _rp(totalReceived), bold: true)),
+
+            // Bukti pencairan saldo (opsional)
+            if (proofUrl != null && proofUrl!.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              _sectionTitle('Bukti Pencairan Saldo'),
+              const SizedBox(height: 8),
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => Dialog(
+                      child: InteractiveViewer(
+                        child: Image.network(proofUrl!, fit: BoxFit.contain),
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F8FB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFEDEFF5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.insert_drive_file_rounded,
+                          size: 18, color: Color(0xFF808080)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          proofName ?? 'bukti_pencairan.jpg',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF232323),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _humanSize(proofBytes),
+                        style: GoogleFonts.dmSans(fontSize: 11, color: const Color(0xFF9A9A9A)),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF808080)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),

@@ -35,12 +35,56 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // Helper: convert role dynamic ke List<String>
+  // --- Helpers --------------------------------------------------------------
+
+  // Pastikan role selalu berupa List<String>
   List<String> _roleToList(dynamic role) {
     if (role is String) return [role];
     if (role is List) return role.cast<String>();
     return ['buyer'];
   }
+
+  // Wallet default untuk self-heal
+  Map<String, dynamic> _defaultWallet() => {
+        'available': 0,
+        'onHold': 0,
+        'currency': 'IDR',
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+  // Self-heal doc user: normalisasi role, inject wallet, set lastLogin & isOnline
+  Future<void> _selfHealUserDoc(
+      DocumentReference<Map<String, dynamic>> userDocRef,
+      Map<String, dynamic> data,
+      {bool ensureBuyerRole = false}) async {
+    final updates = <String, dynamic>{
+      'lastLogin': FieldValue.serverTimestamp(),
+      'isOnline': true,
+    };
+
+    // Role normalisasi → List<String>
+    if (data['role'] == null || data['role'] is! List) {
+      updates['role'] = _roleToList(data['role']);
+    } else if (ensureBuyerRole) {
+      // Untuk login Google: pastikan buyer ada
+      final roles = _roleToList(data['role']);
+      if (!roles.contains('buyer')) {
+        roles.add('buyer');
+        updates['role'] = roles;
+      }
+    }
+
+    // Inject wallet jika belum ada
+    if (data['wallet'] == null) {
+      updates['wallet'] = _defaultWallet();
+    }
+
+    if (updates.isNotEmpty) {
+      await userDocRef.set(updates, SetOptions(merge: true));
+    }
+  }
+
+  // --- Email/Password login -------------------------------------------------
 
   Future<void> _handleLogin() async {
     setState(() {
@@ -69,47 +113,43 @@ class _LoginPageState extends State<LoginPage> {
 
       final user = credential.user;
       if (user != null) {
-        // Ambil data user di Firestore berdasarkan UID
-        final userDocRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid);
-
+        final userDocRef =
+            FirebaseFirestore.instance.collection('users').doc(user.uid);
         final userDoc = await userDocRef.get();
 
-        if (userDoc.exists) {
-          final data = userDoc.data()!;
-          final isActive = data['isActive'] ?? true;
-
-          // Cek role
-          final role = _roleToList(data['role']);
-
-          await userDocRef.set({
-            'isOnline': true,
-          }, SetOptions(merge: true));
-
-
-          if (!isActive) {
-            setState(() {
-              _errorText = "Akun Anda tidak aktif. Hubungi admin.";
-              _isLoading = false;
-            });
-            return;
-          }
-
-          if (role.contains('admin')) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomePageAdmin()),
-            );
-          } else {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomePage()),
-            );
-          }
-        } else {
+        if (!userDoc.exists) {
+          // Tetap pertahankan perilaku lama: tampilkan pesan jika doc tidak ada.
           setState(() {
             _errorText = "Data user tidak ditemukan di database.";
             _isLoading = false;
           });
+          return;
+        }
+
+        final data = userDoc.data()!;
+        final isActive = data['isActive'] ?? true;
+        final roles = _roleToList(data['role']);
+
+        // ✅ SELF-HEAL: role -> List, wallet inject, lastLogin & isOnline
+        await _selfHealUserDoc(userDocRef, data);
+
+        if (!isActive) {
+          setState(() {
+            _errorText = "Akun Anda tidak aktif. Hubungi admin.";
+            _isLoading = false;
+          });
+          return;
+        }
+
+        // Arahkan berdasarkan role
+        if (roles.contains('admin')) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomePageAdmin()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          );
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -133,18 +173,23 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // --- Google login ---------------------------------------------------------
+
   Future<void> _handleGoogleLogin() async {
     setState(() => _isLoading = true);
     FocusScope.of(context).unfocus();
+
     try {
       final userCredential = await GoogleAuthService.signInWithGoogle();
       if (userCredential != null && mounted) {
         final user = userCredential.user;
         if (user != null) {
-          // Pastikan data user sudah ada di Firestore, jika belum, buat baru
-          final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+          final userDoc =
+              FirebaseFirestore.instance.collection('users').doc(user.uid);
           final snapshot = await userDoc.get();
+
           if (!snapshot.exists) {
+            // Buat dokumen user baru (termasuk wallet)
             await userDoc.set({
               'uid': user.uid,
               'email': user.email,
@@ -154,19 +199,19 @@ class _LoginPageState extends State<LoginPage> {
               'isActive': true,
               'isOnline': true,
               'lastLogin': FieldValue.serverTimestamp(),
+              'wallet': _defaultWallet(),
             }, SetOptions(merge: true));
           } else {
-            // Update lastLogin setiap login Google
-            await userDoc.update({'lastLogin': FieldValue.serverTimestamp()});
-            // Pastikan role-nya List, tambahkan buyer kalau belum ada
+            // ✅ SELF-HEAL untuk user lama (nomor 2)
             final data = snapshot.data()!;
-            List<String> roles = _roleToList(data['role']);
-            if (!roles.contains('buyer')) roles.add('buyer');
-            await userDoc.update({'role': roles});
+            await _selfHealUserDoc(
+              userDoc,
+              data,
+              ensureBuyerRole: true, // pastikan 'buyer' ada
+            );
           }
         }
 
-        // Untuk Google, selalu Buyer
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomePage()),
         );
@@ -180,8 +225,11 @@ class _LoginPageState extends State<LoginPage> {
         SnackBar(content: Text("Gagal login dengan Google: $e")),
       );
     }
+
     setState(() => _isLoading = false);
   }
+
+  // --- UI -------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -229,9 +277,7 @@ class _LoginPageState extends State<LoginPage> {
                   focusNode: emailFocusNode,
                   nextFocusNode: passwordFocusNode,
                   enabled: !_isLoading,
-                  onFieldSubmitted: (_) {
-                    passwordFocusNode.requestFocus();
-                  },
+                  onFieldSubmitted: (_) => passwordFocusNode.requestFocus(),
                 ),
                 const SizedBox(height: 16),
 
@@ -248,7 +294,9 @@ class _LoginPageState extends State<LoginPage> {
                   enabled: !_isLoading,
                   onFieldSubmitted: (_) => _handleLogin(),
                   suffixIcon: Tooltip(
-                    message: _obscurePassword ? "Tampilkan Password" : "Sembunyikan Password",
+                    message: _obscurePassword
+                        ? "Tampilkan Password"
+                        : "Sembunyikan Password",
                     child: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -258,9 +306,8 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       onPressed: _isLoading
                           ? null
-                          : () {
-                              setState(() => _obscurePassword = !_obscurePassword);
-                            },
+                          : () => setState(
+                              () => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                 ),
@@ -279,9 +326,8 @@ class _LoginPageState extends State<LoginPage> {
                   child: TextButton(
                     onPressed: _isLoading
                         ? null
-                        : () {
-                            Navigator.of(context).push(_createRouteToForgotPassword());
-                          },
+                        : () => Navigator.of(context)
+                            .push(_createRouteToForgotPassword()),
                     style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     child: Text(
                       "Lupa Password?",
@@ -381,9 +427,9 @@ class _LoginPageState extends State<LoginPage> {
                   child: GestureDetector(
                     onTap: _isLoading
                         ? null
-                        : () {
-                            Navigator.of(context).push(_createRouteToSignUp());
-                          },
+                        : () => Navigator.of(context).push(
+                              _createRouteToSignUp(),
+                            ),
                     child: RichText(
                       text: TextSpan(
                         style: GoogleFonts.dmSans(

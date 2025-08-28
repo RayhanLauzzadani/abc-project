@@ -4,9 +4,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
 import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_detail_page.dart';
-
 import 'package:abc_e_mart/seller/data/models/ad.dart';
 import 'package:abc_e_mart/seller/data/services/ad_service.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class AdminAdApprovalCard extends StatelessWidget {
   final String title;
@@ -135,110 +135,161 @@ class _AdminAdApprovalPageState extends State<AdminAdApprovalPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Title
-        Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, top: 31),
-          child: Text(
-            "Persetujuan Iklan",
-            style: GoogleFonts.dmSans(
-              fontWeight: FontWeight.bold,
-              fontSize: 24,
-              color: Colors.black87,
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 31),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              "Persetujuan Iklan",
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+                color: const Color(0xFF373E3C),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 23),
-        // === Search Bar (use widget global) ===
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: AdminSearchBar(
-            controller: _searchController,
-            onChanged: (val) => setState(() => _searchText = val),
+          const SizedBox(height: 23),
+
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: AdminSearchBar(
+              controller: _searchController,
+              onChanged: (val) => setState(() => _searchText = val),
+            ),
           ),
-        ),
-        const SizedBox(height: 18),
-        // === Card List ===
-        Expanded(
-          child: StreamBuilder<List<AdApplication>>(
-            stream: AdService.listenAllApplications(status: "Menunggu"), // Hanya yg pending
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(
-                  child: Text(
-                    "Tidak ada pengajuan iklan.",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 15,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                );
-              }
-              final ads = snapshot.data!;
-              // Filter by search
-              final filteredAds = ads.where((ad) {
+          const SizedBox(height: 16),
+
+          // === LIST ===
+          Expanded(
+            child: StreamBuilder<List<AdApplication>>(
+              stream: AdService.listenAllApplications(status: "Menunggu"),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return _emptyAdSubmissions(); // ⬅️ pakai empty state megaphone
+                }
+
+                final ads = snapshot.data!;
                 final search = _searchText.trim().toLowerCase();
-                return search.isEmpty ||
-                    (ad.judul.toLowerCase().contains(search)) ||
-                    (ad.storeName.toLowerCase().contains(search));
-              }).toList();
+                final filteredAds = ads.where((ad) =>
+                  search.isEmpty ||
+                  ad.judul.toLowerCase().contains(search) ||
+                  ad.storeName.toLowerCase().contains(search)
+                ).toList();
 
-              if (filteredAds.isEmpty) {
-                return Center(
-                  child: Text(
-                    "Tidak ada pengajuan ditemukan.",
-                    style: GoogleFonts.dmSans(
-                      fontSize: 15,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                );
-              }
+                if (filteredAds.isEmpty) {
+                  return _emptySearchResult();
+                }
 
-              return ListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: filteredAds.length,
-                itemBuilder: (context, idx) {
-                  final ad = filteredAds[idx];
-                  // Format period string: "3 Hari • 21 Juli – 23 Juli 2025"
-                  final durasi = ad.durasiSelesai.difference(ad.durasiMulai).inDays + 1;
-                  final period = "$durasi Hari • "
-                      "${DateFormat('d MMMM', 'id_ID').format(ad.durasiMulai)}"
-                      " – "
-                      "${DateFormat('d MMMM yyyy', 'id_ID').format(ad.durasiSelesai)}";
-                  // Format date string
-                  final tanggalAjukan = DateFormat('dd/MM/yyyy, HH:mm').format(ad.createdAt);
+                return ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  itemCount: filteredAds.length,
+                  itemBuilder: (context, idx) {
+                    final ad = filteredAds[idx];
+                    final durasi = ad.durasiSelesai.difference(ad.durasiMulai).inDays + 1;
+                    final period = "$durasi Hari • "
+                        "${DateFormat('d MMMM', 'id_ID').format(ad.durasiMulai)} – "
+                        "${DateFormat('d MMMM yyyy', 'id_ID').format(ad.durasiSelesai)}";
+                    final tanggalAjukan = DateFormat('dd/MM/yyyy, HH:mm').format(ad.createdAt);
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AdminAdApprovalCard(
-                      title: ad.judul,
-                      storeName: ad.storeName,
-                      period: period,
-                      date: tanggalAjukan,
-                      onDetail: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AdminAdApprovalDetailPage(
-                              ad: ad,
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: AdminAdApprovalCard(
+                        title: ad.judul,
+                        storeName: ad.storeName,
+                        period: period,
+                        date: tanggalAjukan,
+                        onDetail: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AdminAdApprovalDetailPage(ad: ad),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              );
-            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
+
+Widget _emptyAdSubmissions() {
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.only(top: 64),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.megaphone, size: 54, color: const Color(0xFFE2E7EF)),
+          const SizedBox(height: 16),
+          Text(
+            "Belum ada pengajuan iklan",
+            style: GoogleFonts.dmSans(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: const Color(0xFF373E3C),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Semua pengajuan iklan akan tampil di sini\njika ada ajuan baru dari penjual.",
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: const Color(0xFF9A9A9A),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _emptySearchResult() {
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.only(top: 64),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.search, size: 48, color: const Color(0xFFE2E7EF)),
+          const SizedBox(height: 12),
+          Text(
+            "Tidak ada hasil sesuai pencarian.",
+            style: GoogleFonts.dmSans(
+              fontSize: 16,
+              color: const Color(0xFF9A9A9A),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Coba gunakan kata kunci lain.",
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: const Color(0xFFB1B1B1),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+

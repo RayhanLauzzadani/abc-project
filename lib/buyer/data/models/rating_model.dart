@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RatingModel {
   final String id;
+  final String orderId;
   final String storeId;
   final String userId;
   final String userName;
@@ -12,6 +13,7 @@ class RatingModel {
 
   RatingModel({
     required this.id,
+    required this.orderId,
     required this.storeId,
     required this.userId,
     required this.userName,
@@ -24,6 +26,7 @@ class RatingModel {
   factory RatingModel.fromMap(Map<String, dynamic> map, String id) {
     return RatingModel(
       id: id,
+      orderId: map['orderId'] ?? '',
       storeId: map['storeId'] ?? '',
       userId: map['userId'] ?? '',
       userName: map['userName'] ?? '',
@@ -36,6 +39,7 @@ class RatingModel {
 
   Map<String, dynamic> toMap() {
     return {
+      'orderId': orderId,
       'storeId': storeId,
       'userId': userId,
       'userName': userName,

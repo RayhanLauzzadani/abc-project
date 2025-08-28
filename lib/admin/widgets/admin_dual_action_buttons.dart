@@ -7,24 +7,28 @@ class AdminDualActionButtons extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onAccept;
 
+  /// Bila true, tinggi tombol dan padding dibuat lebih ramping.
+  final bool compact;
+
   const AdminDualActionButtons({
     super.key,
     this.rejectText = "Tolak",
     this.acceptText = "Terima",
     required this.onReject,
     required this.onAccept,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Responsive: 2 tombol sama lebar dengan clamp supaya tetap bagus di semua device
     final screenWidth = MediaQuery.of(context).size.width;
     final buttonWidth = ((screenWidth - 64) / 2).clamp(120.0, 350.0);
+    final vertical = compact ? 10.0 : 14.0;
+    final fontSize = compact ? 16.0 : 18.0;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Button Tolak
         SizedBox(
           width: buttonWidth,
           child: OutlinedButton(
@@ -36,17 +40,16 @@ class AdminDualActionButtons extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(32),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: vertical),
               textStyle: GoogleFonts.dmSans(
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: fontSize,
               ),
             ),
             child: Text(rejectText),
           ),
         ),
         const SizedBox(width: 20),
-        // Button Terima
         SizedBox(
           width: buttonWidth,
           child: ElevatedButton(
@@ -58,10 +61,10 @@ class AdminDualActionButtons extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(32),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: vertical),
               textStyle: GoogleFonts.dmSans(
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: fontSize,
               ),
             ),
             child: Text(acceptText),

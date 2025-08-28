@@ -5,6 +5,7 @@ import 'package:abc_e_mart/admin/data/models/admin_store_data.dart';
 import 'package:abc_e_mart/admin/widgets/admin_search_bar.dart';
 import 'package:abc_e_mart/admin/features/approval/store/widgets/admin_store_approval_card.dart';
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class AdminStoreApprovalPage extends StatefulWidget {
   const AdminStoreApprovalPage({super.key});
@@ -61,15 +62,7 @@ class _AdminStoreApprovalPageState extends State<AdminStoreApprovalPage> {
                       return const Center(child: CircularProgressIndicator());
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          "Belum ada pengajuan toko yang masuk.",
-                          style: TextStyle(
-                            color: Color(0xFF9A9A9A),
-                            fontSize: 16,
-                          ),
-                        ),
-                      );
+                      return _emptyStoreSubmissions();
                     }
 
                     // Convert ke model
@@ -89,22 +82,39 @@ class _AdminStoreApprovalPageState extends State<AdminStoreApprovalPage> {
                     // Kondisi kosong setelah search
                     if (filteredData.isEmpty) {
                       if (_searchQuery.isEmpty) {
-                        return const Center(
-                          child: Text(
-                            "Belum ada pengajuan toko yang masuk.",
-                            style: TextStyle(
-                              color: Color(0xFF9A9A9A),
-                              fontSize: 16,
-                            ),
-                          ),
-                        );
+                        return _emptyStoreSubmissions();
                       } else {
-                        return const Center(
-                          child: Text(
-                            "Tidak ada hasil sesuai pencarian.",
-                            style: TextStyle(
-                              color: Color(0xFF9A9A9A),
-                              fontSize: 16,
+                        // Varian saat hasil pencarian kosong
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 64),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  LucideIcons.search,
+                                  size: 48,
+                                  color: const Color(0xFFE2E7EF),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "Tidak ada hasil sesuai pencarian.",
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    color: const Color(0xFF9A9A9A),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  "Coba gunakan kata kunci lain.",
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    color: const Color(0xFFB1B1B1),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -144,4 +154,41 @@ class _AdminStoreApprovalPageState extends State<AdminStoreApprovalPage> {
       ),
     );
   }
+}
+
+Widget _emptyStoreSubmissions() {
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.only(top: 64),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            LucideIcons.store,     // icon lucide
+            size: 54,
+            color: const Color(0xFFE2E7EF),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "Belum ada pengajuan toko",
+            style: GoogleFonts.dmSans(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: const Color(0xFF373E3C),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Semua pengajuan toko akan tampil di sini\njika ada toko baru dari penjual.",
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: const Color(0xFF9A9A9A),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
 }

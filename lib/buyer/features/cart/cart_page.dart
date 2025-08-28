@@ -5,7 +5,8 @@ import 'cart_tab_inprogress.dart';
 import 'cart_tab_history.dart';
 
 class CartPage extends StatefulWidget {
-  const CartPage({super.key});
+  final int initialTabIndex;
+  const CartPage({super.key, this.initialTabIndex = 0});
 
   @override
   State<CartPage> createState() => _CartPageState();
@@ -19,7 +20,8 @@ class _CartPageState extends State<CartPage> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    selectedIndex = widget.initialTabIndex.clamp(0, 2);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: selectedIndex);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
         setState(() => selectedIndex = _tabController.index);
@@ -143,9 +145,9 @@ class _AnimatedCartTabBar extends StatelessWidget {
         if (selectedIndex == 0) {
           underlineLeft = tabLefts[0];
         } else if (selectedIndex == 1) {
-          underlineLeft = tabLefts[1] - 4.5;
+          underlineLeft = tabLefts[1] - 5;
         } else {
-          underlineLeft = tabLefts[2] - 8;
+          underlineLeft = tabLefts[2] - 9;
         }
         final underlineWidth = textPainters[selectedIndex].width;
 
