@@ -7,4 +7,5 @@ export {
   cancelOrder,
   acceptOrder,
   autoCancelUnacceptedOrders,
+  autoCancelUnshippedOrders,
 } from "./wallet_escrow";

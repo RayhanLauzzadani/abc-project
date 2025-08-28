@@ -128,6 +128,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
             final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
             final autoCancelAtTs = data['autoCancelAt'] as Timestamp?;
+            final shipByAtTs = data['shipByAt'] as Timestamp?; // ← deadline kirim (48 jam) dari server
             final buyerId = (data['buyerId'] ?? '') as String;
 
             final status =
@@ -152,6 +153,9 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             final DateTime? acceptDeadline =
                 autoCancelAtTs != null ? autoCancelAtTs.toDate() : createdAt?.add(const Duration(days: 1));
 
+            // Deadline kirim pesanan (48 jam setelah ACCEPTED)
+            final DateTime? shipDeadline = shipByAtTs?.toDate();
+
             // Ambil nama buyer kalau ada buyerId
             if (buyerId.isEmpty) {
               return _buildOrderContent(
@@ -170,6 +174,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 orderDocId: orderDocId,
                 status: status,
                 acceptDeadline: acceptDeadline,
+                shipDeadline: shipDeadline, // ← baru
               );
             }
 
@@ -193,6 +198,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   orderDocId: orderDocId,
                   status: status,
                   acceptDeadline: acceptDeadline,
+                  shipDeadline: shipDeadline, // ← baru
                 );
               },
             );
@@ -280,6 +286,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     required String orderDocId,  // doc.id asli
     required String status,
     required DateTime? acceptDeadline,
+    required DateTime? shipDeadline, // ← baru
   }) {
     final isLong = addressText.length > 60;
 
@@ -338,13 +345,26 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282)),
                 ),
 
-                // ====== Banner countdown: tampil hanya saat status = PLACED ======
+                // ====== Banner countdown: terima order (status PLACED) ======
                 if (status == 'PLACED' && acceptDeadline != null) ...[
                   const SizedBox(height: 10),
                   _countdownBanner(
                     title: 'Terima pesanan sebelum',
                     deadline: acceptDeadline,
                     caption: 'Jika melewati batas, pesanan otomatis dibatalkan oleh sistem.',
+                    tone: _BannerTone.warning,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // ====== Banner countdown: kirim order (status ACCEPTED) ======
+                if (status == 'ACCEPTED' && shipDeadline != null) ...[
+                  const SizedBox(height: 10),
+                  _countdownBanner(
+                    title: 'Kirim pesanan sebelum',
+                    deadline: shipDeadline,
+                    caption:
+                        'Pesanan harus dikirim dalam waktu 2 hari setelah diterima. Jika melewati batas, pesanan dibatalkan otomatis oleh sistem.',
                     tone: _BannerTone.warning,
                   ),
                   const SizedBox(height: 10),
@@ -634,7 +654,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     return '$d/$m/$y, $hour12:$min $ampm';
   }
 
-  // ======== Countdown Banner (seller accept deadline) ========
+  // ======== Countdown Banner (reusable) ========
   Widget _countdownBanner({
     required String title,
     required DateTime deadline,

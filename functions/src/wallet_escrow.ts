@@ -1,4 +1,3 @@
-// functions/src/wallet_escrow.ts
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { Transaction } from "firebase-admin/firestore";
@@ -16,6 +15,7 @@ const db = admin.firestore();
 const NOW = admin.firestore.FieldValue.serverTimestamp();
 const REGION = "asia-southeast2";
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const TWO_DAYS_MS = 2 * ONE_DAY_MS;
 
 // ---------- helpers ----------
 const asInt = (v: unknown, def = 0) =>
@@ -70,8 +70,8 @@ async function cancelOrderCore(
     const status = String(order.status || "PLACED").toUpperCase();
     const payStatus = String(order.payment?.status || "");
 
-    // Only cancel when still PLACED and funds are ESCROWED
-    if (status !== "PLACED" || payStatus !== "ESCROWED") return;
+    // ⬇️ IZINKAN cancel pada PLACED atau ACCEPTED selama dana masih ESCROWED
+    if (!["PLACED", "ACCEPTED"].includes(status) || payStatus !== "ESCROWED") return;
 
     const total = asInt(order.amounts?.total);
     if (total <= 0) return;
@@ -84,7 +84,7 @@ async function cancelOrderCore(
     // 1) release hold -> back to buyer.available
     t.update(buyerRef, {
       "wallet.onHold": Math.max(0, asInt(bWallet.onHold) - total),
-      "wallet.available": asInt(bWallet.available) + total,
+      "wallet.available": asInt(buyerSnap.get("wallet")?.available ?? 0) + total,
       "wallet.updatedAt": NOW,
     });
 
@@ -110,6 +110,9 @@ async function cancelOrderCore(
       },
       updatedAt: NOW,
       ...(order.stockDeducted ? { stockDeducted: false } : {}),
+      // bersihkan countdown field bila ada
+      autoCancelAt: admin.firestore.FieldValue.delete(),
+      shipByAt: admin.firestore.FieldValue.delete(),
     });
 
     // 4) buyer refund transaction
@@ -201,7 +204,7 @@ export const placeOrder = onCall(
     const orderRef = db.collection("orders").doc();
     const buyerTxRef = buyerRef.collection("transactions").doc();
 
-    // hitung auto-cancel deadline (server time)
+    // hitung auto-cancel deadline (server time) untuk tahap "PLACED"
     const autoCancelAt = admin.firestore.Timestamp.fromMillis(
       Date.now() + ONE_DAY_MS
     );
@@ -250,7 +253,7 @@ export const placeOrder = onCall(
         },
         createdAt: NOW,
         updatedAt: NOW,
-        autoCancelAt, // <—— deadline auto-cancel 24 jam
+        autoCancelAt, // deadline auto-cancel 24 jam (PLACED)
         idempotencyKey: (idempotencyKey as string) ?? null,
         invoiceId, // simpan invoice
       });
@@ -349,6 +352,9 @@ export const completeOrder = onCall(
         "payment.status": "SETTLED",
         "shippingAddress.status": "COMPLETED",
         updatedAt: NOW,
+        // bersihkan countdown field
+        autoCancelAt: admin.firestore.FieldValue.delete(),
+        shipByAt: admin.firestore.FieldValue.delete(),
       });
 
       // 4) transaksi ringkas
@@ -469,12 +475,16 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
       t.update(prodRefs[i], { stock: admin.firestore.FieldValue.increment(-qty) });
     }
 
-    // update order
+    // set deadline kirim 2 hari dari sekarang
+    const shipByAt = admin.firestore.Timestamp.fromMillis(Date.now() + TWO_DAYS_MS);
+
+    // update order ke ACCEPTED + set shipByAt, stop autoCancelAt
     t.update(orderRef, {
       status: "ACCEPTED",
       stockDeducted: true,
       updatedAt: NOW,
-      autoCancelAt: admin.firestore.FieldValue.delete(), // stop countdown
+      autoCancelAt: admin.firestore.FieldValue.delete(), // stop countdown (PLACED)
+      shipByAt, // ⬅️ deadline kirim 48 jam
       "shippingAddress.status": "ACCEPTED",
     });
   });
@@ -509,13 +519,51 @@ export const autoCancelUnacceptedOrders = functions
           });
           processed++;
         } catch (e) {
-          console.error("auto-cancel failed for", doc.id, e);
+          console.error("auto-cancel (PLACED) failed for", doc.id, e);
         }
       }
 
       if (snap.size < 300) break; // done
     }
 
-    console.log(`autoCancel processed: ${processed}`);
+    console.log(`autoCancel (PLACED) processed: ${processed}`);
+    return null;
+  });
+
+// --- 7) Scheduler BARU: auto-cancel after 48h if ACCEPTED but not SHIPPED
+export const autoCancelUnshippedOrders = functions
+  .region(REGION)
+  .pubsub.schedule("every 15 minutes")
+  .timeZone("Asia/Jakarta")
+  .onRun(async () => {
+    const nowTs = admin.firestore.Timestamp.now();
+
+    const q = db
+      .collection("orders")
+      .where("status", "==", "ACCEPTED")
+      .where("shipByAt", "<=", nowTs)
+      .limit(300);
+
+    let processed = 0;
+    while (true) {
+      const snap = await q.get();
+      if (snap.empty) break;
+
+      for (const doc of snap.docs) {
+        try {
+          await cancelOrderCore(doc.id, {
+            reason: "Timeout: seller did not ship within 48h",
+            by: "SYSTEM",
+          });
+          processed++;
+        } catch (e) {
+          console.error("auto-cancel (ACCEPTED) failed for", doc.id, e);
+        }
+      }
+
+      if (snap.size < 300) break; // done
+    }
+
+    console.log(`autoCancel (ACCEPTED/unshipped) processed: ${processed}`);
     return null;
   });
