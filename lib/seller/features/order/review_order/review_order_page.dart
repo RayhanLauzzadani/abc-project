@@ -1,9 +1,13 @@
+// lib/seller/features/order/review_order/review_order_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'order_accepted_popup.dart';
 import 'order_delivered_popup.dart';
+
+/// Palet tone untuk banner countdown
+enum _BannerTone { info, success, warning }
 
 class ReviewOrderPage extends StatefulWidget {
   final String orderId;
@@ -40,7 +44,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     }
   }
 
-  // ❗️UBAH: tolak pesanan harus memanggil cancelOrder agar dana buyer dikembalikan
+  // ❗️Menolak pesanan harus memanggil cancelOrder agar dana buyer dikembalikan
   Future<void> _rejectOrder() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -90,7 +94,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   Future<void> _shipOrder() async {
     await _updateStatus('SHIPPED'); // aman: tidak menyentuh saldo
     if (!mounted) return;
-   await showDialog(
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const OrderDeliveredPopup(),
@@ -118,6 +122,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
             final data = snap.data!.data()!;
             final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+            final autoCancelAtTs = data['autoCancelAt'] as Timestamp?;
             final buyerId = (data['buyerId'] ?? '') as String;
             final status = ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
@@ -131,11 +136,16 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             final addressText = (shipAddr['address'] ?? '-') as String;
             final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
+            // Deadline menerima pesanan (24 jam): pakai autoCancelAt jika ada, fallback createdAt + 1 hari
+            final DateTime? acceptDeadline = autoCancelAtTs != null
+                ? autoCancelAtTs.toDate()
+                : createdAt?.add(const Duration(days: 1));
+
             // ambil nama buyer (opsional; kalau gagal tetap tampil '-')
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: buyerId.isEmpty
-                ? null
-                : FirebaseFirestore.instance.collection('users').doc(buyerId).snapshots(),
+                  ? null
+                  : FirebaseFirestore.instance.collection('users').doc(buyerId).snapshots(),
               builder: (context, userSnap) {
                 final buyerName = (userSnap.data?.data()?['name'] ?? '-') as String;
 
@@ -160,7 +170,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                                 child: Container(
                                   width: 40, height: 40,
                                   decoration: const BoxDecoration(
-                                    color: Color(0xFF2056D3), shape: BoxShape.circle),
+                                      color: Color(0xFF2056D3), shape: BoxShape.circle),
                                   child: const Icon(Icons.arrow_back_ios_new_rounded,
                                       color: Colors.white, size: 20),
                                 ),
@@ -187,7 +197,9 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                                 style: GoogleFonts.dmSans(
                                     fontWeight: FontWeight.bold, fontSize: 17)),
                             const SizedBox(height: 2),
-                            Text(buyerName, style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
+                            Text(buyerName,
+                                style: GoogleFonts.dmSans(
+                                    fontSize: 15.5, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 12),
                             const Divider(color: Color(0xFFE6E6E6)),
                             const SizedBox(height: 8),
@@ -197,8 +209,23 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                             const SizedBox(height: 2),
                             Text(
                               createdAt != null ? _fmtDateTime(createdAt) : '-',
-                              style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282)),
+                              style: GoogleFonts.dmSans(
+                                  fontSize: 13.5, color: Color(0xFF828282)),
                             ),
+
+                            // ====== Banner countdown: tampil hanya saat status = PLACED ======
+                            if (status == 'PLACED' && acceptDeadline != null) ...[
+                              const SizedBox(height: 10),
+                              _countdownBanner(
+                                title: 'Terima pesanan sebelum',
+                                deadline: acceptDeadline,
+                                caption:
+                                    'Jika melewati batas, pesanan otomatis dibatalkan oleh sistem.',
+                                tone: _BannerTone.warning,
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+
                             const SizedBox(height: 13),
                             Text('Alamat Pengiriman',
                                 style: GoogleFonts.dmSans(
@@ -210,8 +237,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                                 final cut = body.substring(0, 60);
                                 return Wrap(
                                   children: [
-                                    Text('$cut... ',
-                                        style: GoogleFonts.dmSans(fontSize: 13.5)),
+                                    Text('$cut... ', style: GoogleFonts.dmSans(fontSize: 13.5)),
                                     GestureDetector(
                                       onTap: () => setState(() => _showFullAddress = true),
                                       child: Text('Lihat Selengkapnya',
@@ -264,7 +290,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                                     borderRadius: BorderRadius.circular(13),
                                     child: img != null && img.isNotEmpty
                                         ? Image.network(
-                                            img, width: 56, height: 56, fit: BoxFit.cover,
+                                            img,
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
                                             errorBuilder: (_, __, ___) => _imgFallback(),
                                           )
                                         : _imgFallback(),
@@ -277,7 +306,8 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                                         Text((it['name'] ?? '-') as String,
                                             style: GoogleFonts.dmSans(
                                                 fontWeight: FontWeight.bold, fontSize: 14.7)),
-                                        if (((it['variant'] ?? it['note'] ?? '') as String).isNotEmpty)
+                                        if (((it['variant'] ?? it['note'] ?? '') as String)
+                                            .isNotEmpty)
                                           Padding(
                                             padding: const EdgeInsets.only(top: 2.5),
                                             child: Text(
@@ -535,7 +565,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   }
 
   static String _fmtDateTime(DateTime dt) {
-    // 05/07/2025, 8:00 PM (gaya contoh)
+    // 05/07/2025, 8:00 PM
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
     final y = dt.year.toString();
@@ -543,6 +573,127 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     final min = dt.minute.toString().padLeft(2, '0');
     return '$d/$m/$y, $hour12:$min $ampm';
+  }
+
+  // ======== Countdown Banner (seller accept deadline) ========
+  Widget _countdownBanner({
+    required String title,
+    required DateTime deadline,
+    String? caption,
+    _BannerTone tone = _BannerTone.info,
+  }) {
+    final Color bg, border, textColor, iconBg;
+    switch (tone) {
+      case _BannerTone.success:
+        bg = const Color(0xFFF1FFF6);
+        border = const Color(0xFF28A745);
+        textColor = const Color(0xFF166534);
+        iconBg = const Color(0xFFE8FFF0);
+        break;
+      case _BannerTone.warning:
+        bg = const Color(0xFFFFFBF1);
+        border = const Color(0xFFEAB600);
+        textColor = const Color(0xFF6B4E00);
+        iconBg = const Color(0xFFFFF3C4);
+        break;
+      case _BannerTone.info:
+      default:
+        bg = const Color(0xFFF1F7FF);
+        border = const Color(0xFF1976D2);
+        textColor = const Color(0xFF0C3C78);
+        iconBg = const Color(0xFFE7F1FF);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFF666666)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: StreamBuilder<DateTime>(
+              stream: Stream<DateTime>.periodic(
+                const Duration(seconds: 1),
+                (_) => DateTime.now(),
+              ),
+              builder: (_, tick) {
+                final now = tick.data ?? DateTime.now();
+                final remaining = deadline.difference(now);
+                final over = remaining.isNegative;
+                final text = over ? 'Waktu habis' : _fmtRemaining(remaining);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$title ${_fmtDateTime(deadline)}',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.2,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: border, width: 1.1),
+                          ),
+                          child: Text(
+                            over ? 'Akan dibatalkan oleh sistem' : 'Sisa waktu: $text',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.2,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (caption != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        caption,
+                        style: GoogleFonts.dmSans(fontSize: 12, color: textColor),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _fmtRemaining(Duration d) {
+    var secs = d.inSeconds;
+    if (secs < 0) secs = 0;
+    final days = secs ~/ 86400;
+    secs %= 86400;
+    final hrs = secs ~/ 3600;
+    secs %= 3600;
+    final mins = secs ~/ 60;
+    secs %= 60;
+    if (days > 0) return '${days}h ${hrs}j ${mins}m ${secs}s';
+    if (hrs > 0) return '${hrs}j ${mins}m ${secs}s';
+    if (mins > 0) return '${mins}m ${secs}s';
+    return '${secs}s';
   }
 }
 

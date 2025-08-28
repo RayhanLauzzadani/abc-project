@@ -65,7 +65,7 @@ dependencies:
   image_gallery_saver_plus: ^4.0.1
   cloud_functions: ^5.6.1
   auto_size_text: ^3.0.0
-  
+  device_info_plus: ^11.5.0
 
 dev_dependencies:
   flutter_test:

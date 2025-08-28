@@ -1,3 +1,4 @@
+// functions/src/wallet_escrow.ts
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import { Transaction } from "firebase-admin/firestore";
@@ -14,6 +15,7 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 const NOW = admin.firestore.FieldValue.serverTimestamp();
 const REGION = "asia-southeast2";
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 // ---------- helpers ----------
 const asInt = (v: unknown, def = 0) =>
@@ -21,6 +23,79 @@ const asInt = (v: unknown, def = 0) =>
 
 const httpsError = (code: FunctionsErrorCode, message: string) =>
   new HttpsError(code, message);
+
+type CancelBy = "SELLER" | "BUYER" | "SYSTEM";
+
+/** Reusable core to cancel + refund an order safely (idempotent). */
+async function cancelOrderCore(
+  orderId: string,
+  opts: { reason: string; by: CancelBy }
+) {
+  const orderRef = db.collection("orders").doc(orderId);
+
+  await db.runTransaction(async (t) => {
+    const orderSnap = await t.get(orderRef);
+    if (!orderSnap.exists) return; // idempotent
+
+    const order = orderSnap.data()!;
+    const status = String(order.status || "PLACED").toUpperCase();
+    const payStatus = String(order.payment?.status || "");
+
+    // Only cancel when still PLACED and funds are ESCROWED
+    if (status !== "PLACED" || payStatus !== "ESCROWED") return;
+
+    const total = asInt(order.amounts?.total);
+    if (total <= 0) return;
+
+    const buyerId: string = String(order.buyerId || "");
+    const buyerRef = db.collection("users").doc(buyerId);
+    const buyerSnap = await t.get(buyerRef);
+    const bWallet = buyerSnap.get("wallet") ?? { available: 0, onHold: 0 };
+
+    // 1) release hold -> back to buyer.available
+    t.update(buyerRef, {
+      "wallet.onHold": Math.max(0, asInt(bWallet.onHold) - total),
+      "wallet.available": asInt(bWallet.available) + total,
+      "wallet.updatedAt": NOW,
+    });
+
+    // 2) return stock if it was deducted on ACCEPTED
+    if (order.stockDeducted) {
+      const items: any[] = order.items || [];
+      for (const it of items) {
+        const ref = db.collection("products").doc(String(it.productId));
+        const qty = asInt(it.qty);
+        t.update(ref, { stock: admin.firestore.FieldValue.increment(qty) });
+      }
+    }
+
+    // 3) update order
+    t.update(orderRef, {
+      status: "CANCELED",
+      "payment.status": "REFUNDED",
+      "shippingAddress.status": "CANCELED",
+      cancel: {
+        at: NOW,
+        reason: opts.reason || null,
+        by: opts.by,
+      },
+      updatedAt: NOW,
+      ...(order.stockDeducted ? { stockDeducted: false } : {}),
+    });
+
+    // 4) buyer refund transaction
+    const buyerTxRef = buyerRef.collection("transactions").doc();
+    t.set(buyerTxRef, {
+      type: "REFUND",
+      direction: "IN",
+      amount: total,
+      status: "SUCCESS",
+      orderId,
+      title: "Pengembalian",
+      createdAt: NOW,
+    });
+  });
+}
 
 // ---------- 1) init wallet saat user baru (v1 auth trigger) ----------
 export const initWalletOnSignup = functions
@@ -91,6 +166,11 @@ export const placeOrder = onCall(
     const orderRef = db.collection("orders").doc();
     const buyerTxRef = buyerRef.collection("transactions").doc();
 
+    // compute auto-cancel deadline (server time)
+    const autoCancelAt = admin.firestore.Timestamp.fromMillis(
+      Date.now() + ONE_DAY_MS
+    );
+
     await db.runTransaction(async (t: Transaction) => {
       const buyerSnap = await t.get(buyerRef);
       const wallet = buyerSnap.get("wallet") ?? { available: 0, onHold: 0 };
@@ -128,9 +208,11 @@ export const placeOrder = onCall(
         shippingAddress: {
           label: (shippingAddress as any)?.label ?? "-",
           address: (shippingAddress as any)?.address ?? "-",
+          status: "PLACED",
         },
         createdAt: NOW,
         updatedAt: NOW,
+        autoCancelAt, // <—— deadline untuk auto-cancel 24 jam
         idempotencyKey: (idempotencyKey as string) ?? null,
       });
 
@@ -204,19 +286,18 @@ export const completeOrder = onCall(
         "wallet.updatedAt": NOW,
       });
 
+      // 2b) metrik produk & toko
       const items: any[] = order.items || [];
-        for (const it of items) {
-          const ref = db.collection("products").doc(String(it.productId));
-          const qty = asInt(it.qty);
-          t.update(ref, { sold: admin.firestore.FieldValue.increment(qty) });
-        }
-      
+      for (const it of items) {
+        const ref = db.collection("products").doc(String(it.productId));
+        const qty = asInt(it.qty);
+        t.update(ref, { sold: admin.firestore.FieldValue.increment(qty) });
+      }
+
       const storeIdStr = String(order.storeId || "");
       if (storeIdStr) {
-        // jumlahkan total qty semua item di pesanan
         const totalQty = items.reduce((sum, it) => sum + asInt(it.qty), 0);
         const storeRef = db.collection("stores").doc(storeIdStr);
-
         t.update(storeRef, {
           totalSales: admin.firestore.FieldValue.increment(totalQty),
           lastSaleAt: NOW,
@@ -227,6 +308,7 @@ export const completeOrder = onCall(
       t.update(orderRef, {
         status: "COMPLETED",
         "payment.status": "SETTLED",
+        "shippingAddress.status": "COMPLETED",
         updatedAt: NOW,
       });
 
@@ -273,74 +355,25 @@ export const cancelOrder = onCall(
     const reason: string = req.data?.reason ?? "";
     if (!orderId) throw httpsError("invalid-argument", "orderId wajib.");
 
-    const orderRef = db.collection("orders").doc(orderId);
+    const snap = await db.collection("orders").doc(orderId).get();
+    if (!snap.exists) throw httpsError("not-found", "Order tidak ditemukan.");
 
-    await db.runTransaction(async (t: Transaction) => {
-      const orderSnap = await t.get(orderRef);
-      if (!orderSnap.exists) throw httpsError("not-found", "Order tidak ditemukan.");
-      const order = orderSnap.data()!;
+    const buyerId: string = snap.get("buyerId") ?? "";
+    const sellerId: string = snap.get("sellerId") ?? "";
+    if (![buyerId, sellerId].includes(uid)) {
+      throw httpsError("permission-denied", "Tidak berhak membatalkan pesanan ini.");
+    }
 
-      const buyerId: string = order.buyerId ?? "";
-      const sellerId: string = order.sellerId ?? "";
-      if (![buyerId, sellerId].includes(uid)) {
-        throw httpsError("permission-denied", "Tidak berhak membatalkan pesanan ini.");
-      }
-      if ((order.payment?.status ?? "") !== "ESCROWED") {
-        throw httpsError("failed-precondition", "Pesanan tidak bisa direfund.");
-      }
-
-      const total = asInt(order.amounts?.total);
-      if (total <= 0) throw httpsError("internal", "Nominal pesanan tidak valid.");
-
-      const buyerRef = db.collection("users").doc(buyerId);
-      const buyerSnap = await t.get(buyerRef);
-      const bWallet = buyerSnap.get("wallet") ?? { available: 0, onHold: 0 };
-
-      // 1) lepas hold -> kembali ke available buyer
-      t.update(buyerRef, {
-        "wallet.onHold": Math.max(0, asInt(bWallet.onHold) - total),
-        "wallet.available": asInt(bWallet.available) + total,
-        "wallet.updatedAt": NOW,
-      });
-
-      // 2) update order
-      const stockDeducted = !!order.stockDeducted;
-      if (stockDeducted) {
-        const items: any[] = order.items || [];
-        for (const it of items) {
-          const ref = db.collection("products").doc(String(it.productId));
-          const qty = asInt(it.qty);
-          t.update(ref, { stock: admin.firestore.FieldValue.increment(qty) });
-        }
-      }
-
-      t.update(orderRef, {
-        status: "CANCELED",
-        "payment.status": "REFUNDED",
-        "cancel.reason": reason || null,
-        "cancel.at": NOW,
-        updatedAt: NOW,
-        ...(stockDeducted ? { stockDeducted: false } : {}),
-      });
-
-      // 3) transaksi buyer
-      const buyerTxRef = buyerRef.collection("transactions").doc();
-      t.set(buyerTxRef, {
-        type: "REFUND",
-        direction: "IN",
-        amount: total,
-        status: "SUCCESS",
-        orderId,
-        title: "Pengembalian",
-        createdAt: NOW,
-      });
+    await cancelOrderCore(orderId, {
+      reason,
+      by: uid === sellerId ? "SELLER" : "BUYER",
     });
 
     return { ok: true };
   }
 );
 
-// --- NEW: acceptOrder (potong stok + ubah status ke ACCEPTED)
+// --- 5) acceptOrder (potong stok + ubah status ke ACCEPTED)
 export const acceptOrder = onCall({ region: REGION }, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw httpsError("unauthenticated", "Login diperlukan.");
@@ -357,12 +390,12 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
     const status: string = (order.status || "PLACED").toUpperCase();
 
     if (status !== "PLACED") {
-      // idempoten: kalau sudah ACCEPTED/SHIPPED/COMPLETED, biarkan
-      if (["ACCEPTED","SHIPPED","DELIVERED","COMPLETED","SUCCESS"].includes(status)) return;
+      // idempotent: if already beyond PLACED, silently allow
+      if (["ACCEPTED", "SHIPPED", "DELIVERED", "COMPLETED", "SUCCESS"].includes(status)) return;
       throw httpsError("failed-precondition", `Tidak bisa diterima pada status ${status}.`);
     }
 
-    // hanya seller pemilik yang boleh menerima
+    // only owner seller
     if (String(order.sellerId || "") !== uid) {
       throw httpsError("permission-denied", "Bukan seller pemilik pesanan.");
     }
@@ -370,7 +403,7 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
     const items: any[] = order.items || [];
     if (!items.length) throw httpsError("failed-precondition", "Item kosong.");
 
-    // cek stok semua produk
+    // check stock
     const prodRefs = items.map((it) => db.collection("products").doc(String(it.productId)));
     const prodSnaps = await Promise.all(prodRefs.map((r) => t.get(r)));
 
@@ -383,11 +416,14 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
       const qty = asInt(it.qty);
       if (qty <= 0) throw httpsError("failed-precondition", "Qty tidak valid.");
       if (stock < qty) {
-        throw httpsError("failed-precondition", `Stok ${data.name || it.productId} tidak cukup (tersisa ${stock}).`);
+        throw httpsError(
+          "failed-precondition",
+          `Stok ${data.name || it.productId} tidak cukup (tersisa ${stock}).`
+        );
       }
     }
 
-    // potong stok (pakai increment(-qty))
+    // deduct stock
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const qty = asInt(it.qty);
@@ -399,10 +435,48 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
       status: "ACCEPTED",
       stockDeducted: true,
       updatedAt: NOW,
+      autoCancelAt: admin.firestore.FieldValue.delete(), // stop countdown (opsional)
+      "shippingAddress.status": "ACCEPTED",
     });
   });
 
   return { ok: true };
 });
 
+// --- 6) Scheduler: auto-cancel after 24h if still PLACED
+export const autoCancelUnacceptedOrders = functions
+  .region(REGION)
+  .pubsub.schedule("every 15 minutes")
+  .timeZone("Asia/Jakarta")
+  .onRun(async () => {
+    const nowTs = admin.firestore.Timestamp.now();
 
+    const q = db
+      .collection("orders")
+      .where("status", "==", "PLACED")
+      .where("autoCancelAt", "<=", nowTs)
+      .limit(300);
+
+    let processed = 0;
+    while (true) {
+      const snap = await q.get();
+      if (snap.empty) break;
+
+      for (const doc of snap.docs) {
+        try {
+          await cancelOrderCore(doc.id, {
+            reason: "Timeout: seller did not accept within 24h",
+            by: "SYSTEM",
+          });
+          processed++;
+        } catch (e) {
+          console.error("auto-cancel failed for", doc.id, e);
+        }
+      }
+
+      if (snap.size < 300) break; // done
+    }
+
+    console.log(`autoCancel processed: ${processed}`);
+    return null;
+  });

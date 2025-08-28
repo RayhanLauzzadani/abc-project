@@ -222,34 +222,61 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
 
   Future<void> _saveQrisToGallery() async {
     try {
-      if (Platform.isAndroid) {
-        final p = await Permission.storage.request();
-        if (!p.isGranted) {
+      final bytes = await rootBundle.load(widget.qrisAssetPath);
+      final name = 'QRIS_${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      // 1) Coba simpan TANPA izin dulu (Android 10+ akan sukses).
+      dynamic result = await ImageGallerySaverPlus.saveImage(
+        bytes.buffer.asUint8List(),
+        quality: 100,
+        name: name,
+      );
+      bool ok = _saveResultOk(result);
+
+      // 2) Kalau gagal, baru minta izin sesuai platform lalu retry.
+      if (!ok && Platform.isAndroid) {
+        final status = await Permission.storage.request();
+        if (status.isPermanentlyDenied) {
+          await _showOpenSettingsDialog(
+            title: 'Izin Dibutuhkan',
+            message: 'Aktifkan izin Penyimpanan agar bisa menyimpan QR ke galeri.',
+          );
+          return;
+        }
+        if (!status.isGranted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Izin penyimpanan dibutuhkan untuk mengunduh.', style: GoogleFonts.dmSans())),
           );
           return;
         }
-      } else if (Platform.isIOS) {
-        final p = await Permission.photosAddOnly.request();
-        if (!p.isGranted) {
+        result = await ImageGallerySaverPlus.saveImage(
+          bytes.buffer.asUint8List(),
+          quality: 100,
+          name: name,
+        );
+        ok = _saveResultOk(result);
+      } else if (!ok && Platform.isIOS) {
+        final st = await Permission.photosAddOnly.request();
+        if (st.isPermanentlyDenied) {
+          await _showOpenSettingsDialog(
+            title: 'Akses Foto Dibutuhkan',
+            message: 'Aktifkan akses Foto (Add Only) agar bisa menyimpan QR ke Galeri.',
+          );
+          return;
+        }
+        if (!st.isGranted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Izin Foto dibutuhkan untuk menyimpan.', style: GoogleFonts.dmSans())),
           );
           return;
         }
+        result = await ImageGallerySaverPlus.saveImage(
+          bytes.buffer.asUint8List(),
+          quality: 100,
+          name: name,
+        );
+        ok = _saveResultOk(result);
       }
-
-      final bytes = await rootBundle.load(widget.qrisAssetPath);
-      final name = 'QRIS_${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}';
-      final result = await ImageGallerySaverPlus.saveImage(
-        bytes.buffer.asUint8List(),
-        quality: 100,
-        name: name,
-      );
-
-      bool ok = false;
-      if (result is Map) ok = (result['isSuccess'] == true) || (result['filePath'] != null);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? 'QR berhasil disimpan ke galeri.' : 'Gagal menyimpan QR.', style: GoogleFonts.dmSans())),
@@ -259,6 +286,39 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
         SnackBar(content: Text('Gagal menyimpan: $e', style: GoogleFonts.dmSans())),
       );
     }
+  }
+
+  bool _saveResultOk(dynamic result) {
+    if (result is Map) {
+      final isSuccess = result['isSuccess'] == true || result['isSuccess'] == 'true';
+      final filePath = result['filePath'] ?? result['fileUri'] ?? result['savedFilePath'];
+      return isSuccess || (filePath != null && filePath.toString().isNotEmpty);
+    }
+    return result != null;
+  }
+
+  Future<void> _showOpenSettingsDialog({required String title, required String message}) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+        content: Text(message, style: GoogleFonts.dmSans()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.dmSans()),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: Text('Buka Pengaturan', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<T?> _withLoading<T>(Future<T> Function() block) async {
