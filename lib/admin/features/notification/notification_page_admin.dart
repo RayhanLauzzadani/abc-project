@@ -17,17 +17,19 @@ class NotificationPageAdmin extends StatelessWidget {
     final lowerType = (type ?? '').toLowerCase();
     final lowerTitle = (title ?? '').toLowerCase();
 
-    // ---- Payment: Topup
+    // ---- Payment: Topup (oranye)
     if (lowerType.startsWith('wallet_topup') || lowerTitle.contains('isi saldo')) {
       return {
         "svg": null,
         "iconData": Icons.account_balance_wallet_rounded,
         "iconColor": const Color(0xFFF4C21B),
-        "bgColor": const Color(0x33F4C21B),
+        "bgColor": const Color(0x33F4C21B), // 20% opac
       };
     }
-    // ---- Payment: Withdraw (pengajuan)
-    if (lowerType.startsWith('seller_withdraw') ||
+
+    // ---- Payment: Withdraw (biru/indigo)
+    if (lowerType.startsWith('wallet_withdraw') || // <- tambah ini
+        lowerType.startsWith('seller_withdraw') || // kompat lama
         lowerTitle.contains('tarik saldo') ||
         lowerTitle.contains('pencairan')) {
       return {
@@ -88,12 +90,13 @@ class NotificationPageAdmin extends StatelessWidget {
     final String? shopAppId = data['shopApplicationId'] as String?;
     final String? paymentAppId = data['paymentAppId'] as String?;
 
-    // 1) Payment → buka detail approval payment (hanya untuk pengajuan, bukan keputusan)
+    // 1) Payment → buka detail approval payment (hanya pengajuan)
     if (paymentAppId != null && paymentAppId.isNotEmpty) {
       PaymentRequestType requestType;
       if (type.startsWith('wallet_topup') || title.toLowerCase().contains('isi saldo')) {
         requestType = PaymentRequestType.topUp;
-      } else if (type.startsWith('seller_withdraw') ||
+      } else if (type.startsWith('wallet_withdraw') || // <- tambahkan
+          type.startsWith('seller_withdraw') ||
           title.toLowerCase().contains('tarik saldo') ||
           title.toLowerCase().contains('pencairan')) {
         requestType = PaymentRequestType.withdrawal;
@@ -131,17 +134,21 @@ class NotificationPageAdmin extends StatelessWidget {
   }
 
   // ====== FILTER UTAMA ADMIN ======
-  // - buang notifikasi hasil keputusan yang harusnya ke seller/buyer
+  // Buang notifikasi hasil keputusan (approved/rejected) – hanya tampilkan pengajuan.
   bool _visibleForAdmin(Map<String, dynamic> m) {
     final t = (m['type'] ?? '').toString().toLowerCase().trim();
     final title = (m['title'] ?? '').toString().toLowerCase();
 
-    // hasil keputusan (apa pun koleksinya) → jangan tampil di admin
+    // hasil keputusan → jangan tampil di admin
     const blockedTypes = {
       'withdrawal_approved',
       'withdrawal_rejected',
       'seller_withdraw_approved',
       'seller_withdraw_rejected',
+      'wallet_withdraw_approved',
+      'wallet_withdraw_rejected',
+      'wallet_withdrawal_approved',
+      'wallet_withdrawal_rejected',
       'wallet_topup_approved',
       'wallet_topup_rejected',
     };
@@ -152,8 +159,7 @@ class NotificationPageAdmin extends StatelessWidget {
 
     if (blockedTypes.contains(t) || looksLikeDecision) return false;
 
-    // sisanya tampilkan
-    return true;
+    return true; // sisanya tampilkan (termasuk wallet_topup_submitted & wallet_withdraw_submitted)
   }
 
   @override
@@ -238,8 +244,6 @@ class NotificationPageAdmin extends StatelessWidget {
                     );
                   }
 
-                  // ⬇ Filter kuat: singkirkan keputusan (approved/rejected),
-                  //    baik via type maupun pola title.
                   final docs = snapshot.data!.docs.where((d) {
                     final m = d.data() as Map<String, dynamic>;
                     return _visibleForAdmin(m);
