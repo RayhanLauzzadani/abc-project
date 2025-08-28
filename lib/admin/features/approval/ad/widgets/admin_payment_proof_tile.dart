@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path/path.dart' as p;
 
 /// Cek file adalah gambar dari url/nama
-bool isImage(String fileNameOrUrl) {
+bool isImageFile(String fileNameOrUrl) {
   final ext = p.extension(fileNameOrUrl).replaceFirst('.', '').toLowerCase();
   return ['jpg', 'jpeg', 'png', 'webp'].contains(ext);
 }
@@ -36,10 +36,10 @@ class PaymentProofTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _isImage = isImage(filePath);
+    final isImagePreview = isImageFile(filePath);
 
     Widget thumb;
-    if (_isImage) {
+    if (isImagePreview) {
       if (filePath.startsWith('http')) {
         thumb = ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -89,7 +89,7 @@ class PaymentProofTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: Color(0xFFE5E7EB)),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(

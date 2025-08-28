@@ -19,7 +19,7 @@ class SellerOrderTabHistory extends StatelessWidget {
     if (s == 'CANCELED' || s == 'CANCELLED' || s == 'REJECTED') {
       return (cards.OrderStatus.canceled, 'Dibatalkan');
     }
-    // fallback – seharusnya tidak sering terjadi di tab riwayat
+    // fallback
     return (cards.OrderStatus.inProgress, '—');
   }
 
@@ -33,13 +33,12 @@ class SellerOrderTabHistory extends StatelessWidget {
       );
     }
 
-    // Tampilkan pesanan yang sudah berakhir (selesai ATAU batal)
     final endStatuses = ['COMPLETED', 'SUCCESS', 'CANCELED', 'CANCELLED', 'REJECTED'];
 
     final stream = FirebaseFirestore.instance
         .collection('orders')
         .where('sellerId', isEqualTo: uid)
-        .where('status', whereIn: endStatuses) // <-- di sini kuncinya
+        .where('status', whereIn: endStatuses)
         .orderBy('updatedAt', descending: true)
         .snapshots();
 
@@ -87,10 +86,11 @@ class SellerOrderTabHistory extends StatelessWidget {
             final orderDateTime = ts is Timestamp ? ts.toDate() : null;
 
             final buyerId = (data['buyerId'] ?? '') as String;
-
-            // Ambil status dari top-level, fallback ke shippingAddress.status jika perlu
             final rawStatus = (data['status'] ?? data['shippingAddress']?['status']) as String?;
             final (badgeStatus, badgeText) = _mapStatus(rawStatus);
+
+            // >>> ambil invoiceId untuk ditampilkan
+            final String? rawInvoice = (data['invoiceId'] as String?)?.trim();
 
             return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               future: buyerId.isEmpty
@@ -101,13 +101,14 @@ class SellerOrderTabHistory extends StatelessWidget {
 
                 return cards.CartAndOrderListCard(
                   storeName: buyerName,
-                  orderId: orderId,
+                  orderId: orderId,                 // untuk navigasi
+                  displayId: rawInvoice,            // <<< tampilkan #invoice jika ada
                   productImage: firstImage,
                   itemCount: itemCount,
                   totalPrice: totalPrice,
                   orderDateTime: orderDateTime,
-                  status: badgeStatus,     // <-- hijau utk selesai, merah utk batal
-                  statusText: badgeText,   // <-- "Selesai" / "Dibatalkan"
+                  status: badgeStatus,
+                  statusText: badgeText,
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => DetailOrderPage(orderId: orderId)),

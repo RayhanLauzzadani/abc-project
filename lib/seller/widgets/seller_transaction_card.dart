@@ -3,18 +3,30 @@ import 'package:abc_e_mart/seller/data/models/seller_transaction_card_data.dart'
 
 class SellerTransactionCard extends StatelessWidget {
   final SellerTransactionCardData data;
-  const SellerTransactionCard({Key? key, required this.data}) : super(key: key);
+
+  /// Optional: kalau diisi, pakai ini. Kalau null, fallback ke `data.onDetail`.
+  final VoidCallback? onDetail;
+
+  const SellerTransactionCard({
+    Key? key,
+    required this.data,
+    this.onDetail,
+  }) : super(key: key);
 
   Color get statusColor {
     switch (data.status) {
       case 'Sukses':
         return const Color(0xFF29B057);
+      case 'Tertahan':
+        return const Color(0xFFFFB800);
       case 'Gagal':
         return const Color(0xFFFF6161);
       default:
         return const Color(0xFFD1D5DB);
     }
   }
+
+  VoidCallback? get _resolvedOnDetail => onDetail ?? data.onDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +65,10 @@ class SellerTransactionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 11),
+
+          // dua item pertama + "Lainnya ..."
           ..._buildItemList(data.items),
+
           const Divider(color: Color(0xFFE5E7EB), height: 20),
           Row(
             children: [
@@ -68,9 +83,9 @@ class SellerTransactionCard extends StatelessWidget {
                 ),
               ),
               InkWell(
-                onTap: data.onDetail,
-                child: Row(
-                  children: const [
+                onTap: _resolvedOnDetail, // <-- aman: bisa onDetail param, bisa dari data.onDetail
+                child: const Row(
+                  children: [
                     Text(
                       'Detail Transaksi',
                       style: TextStyle(
@@ -96,8 +111,9 @@ class SellerTransactionCard extends StatelessWidget {
   }
 
   List<Widget> _buildItemList(List<TransactionCardItem> items) {
-    List<Widget> widgets = [];
-    int displayCount = items.length > 2 ? 2 : items.length;
+    final widgets = <Widget>[];
+    final displayCount = items.length > 2 ? 2 : items.length;
+
     for (int i = 0; i < displayCount; i++) {
       final item = items[i];
       widgets.add(
@@ -142,6 +158,7 @@ class SellerTransactionCard extends StatelessWidget {
         ),
       );
     }
+
     if (items.length > 2) {
       widgets.add(
         const Padding(
@@ -157,10 +174,9 @@ class SellerTransactionCard extends StatelessWidget {
   }
 
   String _formatCurrency(int amount) {
-    // Custom simple formatter, ganti ke intl jika mau
     return amount.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]}.',
+      (m) => '${m[1]}.',
     );
   }
 }
@@ -179,23 +195,13 @@ class _StatusBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color, width: 1),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            status,
-            style: TextStyle(
-              fontWeight: FontWeight.w500, // medium
-              fontSize: 10, // revised from 12
-              color: color,
-            ),
-          ),
-        ],
+      child: Text(
+        status,
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 10,
+          color: color,
+        ),
       ),
     );
   }

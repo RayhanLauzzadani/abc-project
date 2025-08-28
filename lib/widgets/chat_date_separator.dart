@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class ChatDateSeparator extends StatelessWidget {
   final DateTime date;
 
-  const ChatDateSeparator({Key? key, required this.date}) : super(key: key);
+  const ChatDateSeparator({super.key, required this.date});
 
   String _getLabel(DateTime d) {
     final now = DateTime.now();

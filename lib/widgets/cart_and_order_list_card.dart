@@ -10,7 +10,8 @@ enum OrderStatus {
 
 class CartAndOrderListCard extends StatelessWidget {
   final String storeName;
-  final String orderId;
+  final String orderId;           // Firestore doc.id (untuk navigasi/query)
+  final String? displayId;        // ID yang ditampilkan (mis. invoiceId)
   final String productImage;
   final int itemCount;
   final int totalPrice;
@@ -24,9 +25,10 @@ class CartAndOrderListCard extends StatelessWidget {
   final IconData? actionIconOverride;
 
   const CartAndOrderListCard({
-    Key? key,
+    super.key,
     required this.storeName,
     required this.orderId,
+    this.displayId,                 // NEW
     required this.productImage,
     required this.itemCount,
     required this.totalPrice,
@@ -38,24 +40,40 @@ class CartAndOrderListCard extends StatelessWidget {
     this.showStatusBadge = true,
     this.actionTextOverride,
     this.actionIconOverride,
-  }) : super(key: key);
+  });
 
-   Widget _buildProductImage(String path) {
+  Widget _buildProductImage(String path) {
     final isUrl = path.startsWith('http');
     final img = isUrl
         ? Image.network(
             path,
-            width: 60, height: 60, fit: BoxFit.cover,
+            width: 60,
+            height: 60,
+            fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 28, color: Colors.grey),
           )
         : Image.asset(
             path,
-            width: 60, height: 60, fit: BoxFit.cover,
+            width: 60,
+            height: 60,
+            fit: BoxFit.cover,
           );
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: img,
     );
+  }
+
+  static String _rupiah(int v) {
+    // Simple thousand separator with dots
+    final s = v.toString();
+    final b = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final fromRight = s.length - i;
+      b.write(s[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    return b.toString();
   }
 
   @override
@@ -92,9 +110,12 @@ class CartAndOrderListCard extends StatelessWidget {
         break;
     }
 
-    final String actionText = actionTextOverride ??
-      (status == OrderStatus.inProgress ? "Lacak Pesanan" : "Detail Pesanan");
+    final String actionText =
+        actionTextOverride ?? (status == OrderStatus.inProgress ? "Lacak Pesanan" : "Detail Pesanan");
     final IconData actionIcon = actionIconOverride ?? Icons.chevron_right_rounded;
+
+    // Pakai displayId kalau ada (invoiceId), fallback ke orderId
+    final shownId = (displayId != null && displayId!.isNotEmpty) ? displayId! : orderId;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -105,13 +126,10 @@ class CartAndOrderListCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFDDDDDD),
-            width: 1.7,
-          ),
+          border: Border.all(color: const Color(0xFFDDDDDD), width: 1.7),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: const Color.fromRGBO(0, 0, 0, 0.02),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -124,14 +142,12 @@ class CartAndOrderListCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Gambar produk
                 _buildProductImage(productImage),
                 const SizedBox(width: 15),
-                // Kolom info + badge pakai Stack
                 Expanded(
                   child: Stack(
                     children: [
-                      // Info Column
+                      // Info
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -146,7 +162,7 @@ class CartAndOrderListCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "#$orderId",
+                            "#$shownId",
                             style: GoogleFonts.dmSans(
                               fontSize: 12.2,
                               color: const Color(0xFF444444),
@@ -167,69 +183,69 @@ class CartAndOrderListCard extends StatelessWidget {
                       ),
                       // Badge
                       if (showStatusBadge)
-                      Positioned(
-                        right: 0,
-                        top: 4,
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 88, maxWidth: 116, minHeight: 18, maxHeight: 20,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: statusBgColor,
-                            borderRadius: BorderRadius.circular(50),
-                            border: Border.all(
-                              color: statusBorderColor,
-                              width: 1.25,
+                        Positioned(
+                          right: 0,
+                          top: 4,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 88,
+                              maxWidth: 116,
+                              minHeight: 18,
+                              maxHeight: 20,
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 4.0,
-                                height: 4.0,
-                                margin: const EdgeInsets.only(right: 4),
-                                decoration: BoxDecoration(
-                                  color: statusTextColor,
-                                  shape: BoxShape.circle,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: statusBgColor,
+                              borderRadius: BorderRadius.circular(50),
+                              border: Border.all(color: statusBorderColor, width: 1.25),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 4.0,
+                                  height: 4.0,
+                                  margin: const EdgeInsets.only(right: 4),
+                                  decoration: BoxDecoration(
+                                    color: statusTextColor,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                              ),
-                              Flexible(
-                                child: Center(
-                                  child: Text(
-                                    label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.dmSans(
-                                      fontWeight: FontWeight.w600,
-                                      color: statusTextColor,
-                                      fontSize: 11.5,
-                                      letterSpacing: 0.02,
+                                Flexible(
+                                  child: Center(
+                                    child: Text(
+                                      label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.dmSans(
+                                        fontWeight: FontWeight.w600,
+                                        color: statusTextColor,
+                                        fontSize: 11.5,
+                                        letterSpacing: 0.02,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
               ],
             ),
-            // BOTTOM ROW: Harga, item, aksi kanan
+            // ROW BAWAH: harga, item, aksi
             Padding(
               padding: const EdgeInsets.only(left: 0, top: 11, right: 2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    "Rp ${totalPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => "${m[1]}.")}",
+                    "Rp ${_rupiah(totalPrice)}",
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w700,
                       fontSize: 13.2,
@@ -267,7 +283,7 @@ class CartAndOrderListCard extends StatelessWidget {
                           actionIcon,
                           color: const Color(0xFFB2B2B2),
                           size: 19,
-                        )
+                        ),
                       ],
                     ),
                   ),

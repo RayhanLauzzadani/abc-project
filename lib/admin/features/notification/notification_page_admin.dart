@@ -60,7 +60,7 @@ class NotificationPageAdmin extends StatelessWidget {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.07),
+                    color: const Color.fromRGBO(0, 0, 0, 0.07),
                     blurRadius: 16,
                     offset: const Offset(0, 2),
                   ),
@@ -165,7 +165,7 @@ class NotificationPageAdmin extends StatelessWidget {
                             borderRadius: BorderRadius.circular(18),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: const Color.fromRGBO(0, 0, 0, 0.05),
                                 blurRadius: 7,
                                 offset: const Offset(0, 2),
                               ),

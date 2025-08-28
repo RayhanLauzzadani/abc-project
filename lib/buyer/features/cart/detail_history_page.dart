@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/features/cart/give_store_rating_page.dart';
 
+// GANTI path ini sesuai struktur proyekmu bila berbeda
+import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
+
 enum OrderStatus { selesai, dibatalkan, dikirim, menunggu }
 
 class DetailHistoryPage extends StatefulWidget {
@@ -34,68 +37,83 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
             }
             if (!snap.hasData || !snap.data!.exists) {
               return Center(
-                child: Text('Pesanan tidak ditemukan', style: GoogleFonts.dmSans()),
+                child: Text(
+                  'Pesanan tidak ditemukan',
+                  style: GoogleFonts.dmSans(),
+                ),
               );
             }
 
             final data = snap.data!.data()!;
-            final orderId = snap.data!.id;
+            final realOrderId = snap.data!.id;
+            final invoiceRaw = (data['invoiceId'] as String?)?.trim();
+            final displayId = (invoiceRaw != null && invoiceRaw.isNotEmpty)
+                ? invoiceRaw
+                : realOrderId;
 
             // status (fallback ke shippingAddress.status kalau ada)
-            final statusStr = ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+            final statusStr =
+                ((data['status'] ??
+                            data['shippingAddress']?['status'] ??
+                            'PLACED')
+                        as String)
+                    .toUpperCase();
             final orderStatus = _statusFrom(statusStr);
 
-            // waktu buat
-            final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+            // waktu (pakai updatedAt bila ada, fallback createdAt)
+            final ts = (data['updatedAt'] ?? data['createdAt']);
+            final createdAt = ts is Timestamp ? ts.toDate() : null;
 
             // info toko
             final storeId = (data['storeId'] ?? '') as String;
             final storeName = (data['storeName'] ?? '-') as String;
 
             // alamat kirim
-            final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+            final ship =
+                (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
             final addressLabel = (ship['label'] ?? '-') as String;
-            final addressText = (ship['address'] ?? '-') as String;
+            final addressText =
+                (ship['addressText'] ?? ship['address'] ?? '-') as String;
             final shippingAddress = '$addressLabel, $addressText';
 
             // items
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
 
-            // amounts: dukung 'amounts' dan (kalau dulu typo) 'mounts'
-            final amounts = (data['amounts'] ??
-                data['mounts'] ??
-                <String, dynamic>{}) as Map<String, dynamic>;
+            // amounts (dukung 'amounts' & typo 'mounts')
+            final amounts =
+                (data['amounts'] ?? data['mounts'] ?? <String, dynamic>{})
+                    as Map<String, dynamic>;
             final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
             final shippingFee = ((amounts['shipping'] as num?) ?? 0).toInt();
             final taxFee = ((amounts['tax'] as num?) ?? 0).toInt();
-            final totalFee = ((amounts['total'] as num?) ??
-                    (subtotal + shippingFee + taxFee))
-                .toInt();
+            final totalFee =
+                ((amounts['total'] as num?) ??
+                        (subtotal + shippingFee + taxFee))
+                    .toInt();
 
             // metode bayar
             final method =
                 ((data['payment']?['method'] ?? 'abc_payment') as String)
                     .toUpperCase();
-            final methodText =
-                method == 'ABC_PAYMENT' ? 'ABC Payment' : method;
+            final methodText = method == 'ABC_PAYMENT' ? 'ABC Payment' : method;
 
             final addressThreshold = 60;
-            final bool isLongAddress = shippingAddress.length > addressThreshold;
+            final bool isLongAddress =
+                shippingAddress.length > addressThreshold;
             final bool showNota = orderStatus != OrderStatus.dibatalkan;
-            final bool buyerRated =
-                (data['buyerRated'] == true) || (data['rated'] == true);
 
-            final alreadyRated = (data['buyerRated'] ?? false) as bool;
+            final alreadyRated =
+                (data['buyerRated'] ?? data['rated'] ?? false) as bool;
             final bool showReviewButton =
-              orderStatus == OrderStatus.selesai && !alreadyRated;   
-                
-            // stream info toko buat logo & alamat toko (untuk halaman rating)
+                orderStatus == OrderStatus.selesai && !alreadyRated;
+
+            // stream info toko buat logo & alamat/phone toko (untuk rating & PDF)
             final storeStream = storeId.isEmpty
                 ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
                 : FirebaseFirestore.instance
-                    .collection('stores')
-                    .doc(storeId)
-                    .snapshots();
+                      .collection('stores')
+                      .doc(storeId)
+                      .snapshots();
 
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: storeStream,
@@ -103,7 +121,12 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                 final store = storeSnap.data?.data() ?? {};
                 final storeLogo = (store['logoUrl'] ?? '') as String? ?? '';
                 final storeAddress =
-                    (store['address'] ?? '-') as String? ?? '-';
+                    (data['storeAddress'] ?? store['address'] ?? '-')
+                        as String? ??
+                    '-';
+                final storePhone =
+                    (data['storePhone'] ?? store['phone'] ?? '-') as String? ??
+                    '-';
 
                 return Stack(
                   children: [
@@ -118,7 +141,11 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                             child: Container(
                               color: Colors.white,
                               padding: const EdgeInsets.only(
-                                  left: 16, right: 16, top: 20, bottom: 6),
+                                left: 16,
+                                right: 16,
+                                top: 20,
+                                bottom: 6,
+                              ),
                               alignment: Alignment.centerLeft,
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -133,9 +160,10 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                         shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
-                                          Icons.arrow_back_ios_new_rounded,
-                                          color: Colors.white,
-                                          size: 20),
+                                        Icons.arrow_back_ios_new_rounded,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 15),
@@ -157,7 +185,9 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 10),
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
@@ -169,7 +199,8 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                           width: 54,
                                           height: 54,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => _storePh(),
+                                          errorBuilder: (_, __, ___) =>
+                                              _storePh(),
                                         )
                                       : _storePh(),
                                 ),
@@ -189,7 +220,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        '#$orderId',
+                                        '#$displayId', // ← pakai invoiceId bila ada
                                         style: GoogleFonts.dmSans(
                                           fontSize: 13.3,
                                           color: const Color(0xFF888888),
@@ -211,22 +242,28 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 8),
+                              horizontal: 18,
+                              vertical: 8,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Tanggal & Waktu',
-                                    style: GoogleFonts.dmSans(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14)),
+                                Text(
+                                  'Tanggal & Waktu',
+                                  style: GoogleFonts.dmSans(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
                                 const SizedBox(height: 2),
                                 Text(
                                   createdAt != null
                                       ? _fmtDateTime(createdAt)
                                       : '-',
                                   style: GoogleFonts.dmSans(
-                                      fontSize: 13.5,
-                                      color: const Color(0xFF828282)),
+                                    fontSize: 13.5,
+                                    color: const Color(0xFF828282),
+                                  ),
                                 ),
                               ],
                             ),
@@ -237,25 +274,33 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 8),
+                              horizontal: 18,
+                              vertical: 8,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Alamat Pengiriman',
-                                    style: GoogleFonts.dmSans(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14)),
+                                Text(
+                                  'Alamat Pengiriman',
+                                  style: GoogleFonts.dmSans(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
                                 const SizedBox(height: 2),
                                 Builder(
                                   builder: (context) {
                                     final textStyle = GoogleFonts.dmSans(
-                                        fontSize: 13.5,
-                                        color: const Color(0xFF232323));
+                                      fontSize: 13.5,
+                                      color: const Color(0xFF232323),
+                                    );
                                     if (isLongAddress && !_showFullAddress) {
                                       final displayText =
                                           shippingAddress.substring(
-                                                  0, addressThreshold) +
-                                              '... ';
+                                            0,
+                                            addressThreshold,
+                                          ) +
+                                          '... ';
                                       return Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -271,19 +316,23 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                                         PlaceholderAlignment
                                                             .middle,
                                                     child: GestureDetector(
-                                                      onTap: () => setState(() =>
-                                                          _showFullAddress =
-                                                              true),
+                                                      onTap: () => setState(
+                                                        () => _showFullAddress =
+                                                            true,
+                                                      ),
                                                       child: Text(
                                                         'Lihat Selengkapnya',
                                                         style:
                                                             GoogleFonts.dmSans(
-                                                          fontSize: 13,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: const Color(
-                                                              0xFF2056D3),
-                                                        ),
+                                                              fontSize: 13,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              color:
+                                                                  const Color(
+                                                                    0xFF2056D3,
+                                                                  ),
+                                                            ),
                                                       ),
                                                     ),
                                                   ),
@@ -300,22 +349,27 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(shippingAddress,
-                                              style: textStyle),
+                                          Text(
+                                            shippingAddress,
+                                            style: textStyle,
+                                          ),
                                           if (isLongAddress && _showFullAddress)
                                             GestureDetector(
-                                              onTap: () => setState(() =>
-                                                  _showFullAddress = false),
+                                              onTap: () => setState(
+                                                () => _showFullAddress = false,
+                                              ),
                                               child: Padding(
-                                                padding:
-                                                    const EdgeInsets.only(top: 1),
+                                                padding: const EdgeInsets.only(
+                                                  top: 1,
+                                                ),
                                                 child: Text(
                                                   'Tutup',
                                                   style: GoogleFonts.dmSans(
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.w600,
                                                     color: const Color(
-                                                        0xFF2056D3),
+                                                      0xFF2056D3,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -335,20 +389,23 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         // Produk
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 18),
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
                             child: Column(
                               children: items.map((it) {
-                                final img = (it['imageUrl'] ?? it['image']) as String?; // fallback
+                                final img =
+                                    (it['imageUrl'] ?? it['image'])
+                                        as String?; // fallback
                                 final name = (it['name'] ?? '-') as String;
                                 final note =
-                                    (it['variant'] ?? it['note'] ?? '') as String;
-                                final price =
-                                    ((it['price'] as num?) ?? 0).toInt();
+                                    (it['variant'] ?? it['note'] ?? '')
+                                        as String;
+                                final price = ((it['price'] as num?) ?? 0)
+                                    .toInt();
                                 final qty = ((it['qty'] as num?) ?? 0).toInt();
                                 return Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8.5,
+                                  ),
                                   child: Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
@@ -372,31 +429,40 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text(name,
-                                                style: GoogleFonts.dmSans(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 14.7)),
+                                            Text(
+                                              name,
+                                              style: GoogleFonts.dmSans(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14.7,
+                                              ),
+                                            ),
                                             if (note.isNotEmpty)
                                               Padding(
-                                                padding:
-                                                    const EdgeInsets.only(top: 2.5),
+                                                padding: const EdgeInsets.only(
+                                                  top: 2.5,
+                                                ),
                                                 child: Text(
                                                   note,
                                                   style: GoogleFonts.dmSans(
-                                                      fontSize: 12.5,
-                                                      color: const Color(
-                                                          0xFF888888)),
+                                                    fontSize: 12.5,
+                                                    color: const Color(
+                                                      0xFF888888,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 4),
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
                                               child: Text(
                                                 'Rp ${_rupiah(price)}',
                                                 style: GoogleFonts.dmSans(
-                                                    fontSize: 13.5,
-                                                    color: const Color(
-                                                        0xFF232323)),
+                                                  fontSize: 13.5,
+                                                  color: const Color(
+                                                    0xFF232323,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -404,12 +470,16 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                       ),
                                       Padding(
                                         padding: const EdgeInsets.only(
-                                            left: 9, top: 3),
-                                        child: Text('x$qty',
-                                            style: GoogleFonts.dmSans(
-                                                fontSize: 13.5,
-                                                color:
-                                                    const Color(0xFF444444))),
+                                          left: 9,
+                                          top: 3,
+                                        ),
+                                        child: Text(
+                                          'x$qty',
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 13.5,
+                                            color: const Color(0xFF444444),
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -425,8 +495,9 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         if (showNota)
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 18),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                              ),
                               child: Container(
                                 margin: const EdgeInsets.only(bottom: 11),
                                 padding: const EdgeInsets.all(13),
@@ -439,30 +510,91 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        Text('Nota Pesanan',
-                                            style: GoogleFonts.dmSans(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 13.3,
-                                              color: const Color(0xFF222222),
-                                            )),
+                                        Text(
+                                          'Nota Pesanan',
+                                          style: GoogleFonts.dmSans(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13.3,
+                                            color: const Color(0xFF222222),
+                                          ),
+                                        ),
                                         const Spacer(),
+                                        // === Tombol Lihat Nota ===
                                         TextButton(
-                                          onPressed: () {},
+                                          onPressed: () async {
+                                            // pastikan buyerName tersedia; ambil dari order atau users/{buyerId}
+                                            String buyerName =
+                                                (data['buyerName'] ?? '')
+                                                    as String? ??
+                                                '';
+                                            if (buyerName.trim().isEmpty) {
+                                              final buyerId =
+                                                  (data['buyerId'] ?? '')
+                                                      as String? ??
+                                                  '';
+                                              if (buyerId.isNotEmpty) {
+                                                try {
+                                                  final userSnap =
+                                                      await FirebaseFirestore
+                                                          .instance
+                                                          .collection('users')
+                                                          .doc(buyerId)
+                                                          .get();
+                                                  buyerName =
+                                                      (userSnap.data()?['name'] ??
+                                                              '-')
+                                                          as String? ??
+                                                      '-';
+                                                } catch (_) {
+                                                  buyerName = '-';
+                                                }
+                                              } else {
+                                                buyerName = '-';
+                                              }
+                                            }
+
+                                            final txMap = _mapOrderToTransaction(
+                                              displayInvoiceId:
+                                                  displayId, // tampil di header detail/PDF
+                                              data: data,
+                                              storeName: storeName,
+                                              storePhone:
+                                                  storePhone, // ➕ phone toko
+                                              storeAddress:
+                                                  storeAddress, // ➕ alamat toko
+                                              buyerName:
+                                                  buyerName, // ➕ nama pembeli (recipient)
+                                            );
+
+                                            if (!mounted) return;
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    TransactionDetailPage(
+                                                      transaction: txMap,
+                                                    ),
+                                              ),
+                                            );
+                                          },
                                           style: TextButton.styleFrom(
                                             padding: EdgeInsets.zero,
                                             minimumSize: const Size(0, 20),
-                                            tapTargetSize:
-                                                MaterialTapTargetSize.shrinkWrap,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
                                             visualDensity:
                                                 VisualDensity.compact,
                                           ),
                                           child: Row(
                                             children: [
-                                              Text('Lihat',
-                                                  style: GoogleFonts.dmSans(
-                                                      fontSize: 13.5,
-                                                      color: const Color(
-                                                          0xFF2056D3))),
+                                              Text(
+                                                'Lihat',
+                                                style: GoogleFonts.dmSans(
+                                                  fontSize: 13.5,
+                                                  color: const Color(
+                                                    0xFF2056D3,
+                                                  ),
+                                                ),
+                                              ),
                                               const Icon(
                                                 Icons.receipt_long_rounded,
                                                 color: Color(0xFF2056D3),
@@ -478,15 +610,21 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.center,
                                       children: [
-                                        Text('Metode Pembayaran',
-                                            style: GoogleFonts.dmSans(
-                                                fontSize: 13,
-                                                color: Color(0xFF828282))),
+                                        Text(
+                                          'Metode Pembayaran',
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 13,
+                                            color: Color(0xFF828282),
+                                          ),
+                                        ),
                                         const Spacer(),
-                                        Text(methodText,
-                                            style: GoogleFonts.dmSans(
-                                                fontSize: 13.2,
-                                                fontWeight: FontWeight.w600)),
+                                        Text(
+                                          methodText,
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 13.2,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                         const SizedBox(width: 8),
                                         Image.asset(
                                           'assets/images/paymentlogo.png',
@@ -504,8 +642,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                         // Ringkasan biaya
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 18),
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
                             child: Column(
                               children: [
                                 Container(
@@ -514,21 +651,30 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                     borderRadius: BorderRadius.circular(13),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 18, vertical: 13),
+                                    horizontal: 18,
+                                    vertical: 13,
+                                  ),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      _buildFeeRow('Subtotal', subtotal,
-                                          bold: true),
+                                      _buildFeeRow(
+                                        'Subtotal',
+                                        subtotal,
+                                        bold: true,
+                                      ),
                                       const SizedBox(height: 3),
                                       _buildFeeRow(
-                                          'Biaya Pengiriman', shippingFee,
-                                          bold: true),
+                                        'Biaya Pengiriman',
+                                        shippingFee,
+                                        bold: true,
+                                      ),
                                       const SizedBox(height: 3),
                                       _buildFeeRow(
-                                          'Pajak & Biaya Lainnya', taxFee,
-                                          bold: true),
+                                        'Pajak & Biaya Lainnya',
+                                        taxFee,
+                                        bold: true,
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -539,22 +685,28 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                     borderRadius: BorderRadius.circular(13),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 18, vertical: 15),
+                                    horizontal: 18,
+                                    vertical: 15,
+                                  ),
                                   child: Row(
                                     children: [
-                                      Text('Total',
-                                          style: GoogleFonts.dmSans(
-                                              fontSize: 16.3,
-                                              fontWeight: FontWeight.bold,
-                                              color:
-                                                  const Color(0xFF232323))),
+                                      Text(
+                                        'Total',
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 16.3,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF232323),
+                                        ),
+                                      ),
                                       const Spacer(),
-                                      Text('Rp ${_rupiah(totalFee)}',
-                                          style: GoogleFonts.dmSans(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16.5,
-                                              color:
-                                                  const Color(0xFF232323))),
+                                      Text(
+                                        'Rp ${_rupiah(totalFee)}',
+                                        style: GoogleFonts.dmSans(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16.5,
+                                          color: const Color(0xFF232323),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -583,13 +735,15 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               textStyle: GoogleFonts.dmSans(
-                                  fontWeight: FontWeight.bold, fontSize: 16),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => GiveStoreRatingPage(
-                                    orderId: orderId,
+                                    orderId: realOrderId,
                                     storeId: storeId,
                                     storeName: storeName,
                                     storeAddress: storeAddress,
@@ -612,8 +766,114 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
     );
   }
 
+  // ---------- mapper untuk TransactionDetailPage ----------
+  Map<String, dynamic> _mapOrderToTransaction({
+    required String displayInvoiceId, // invoiceId bila ada; fallback doc.id
+    required Map<String, dynamic> data,
+    required String storeName,
+    String? storePhone, // ➕ untuk PDF
+    String? storeAddress, // ➕ untuk PDF
+    String? buyerName, // ➕ untuk penerima
+  }) {
+    final rawStatus =
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED')
+                as String)
+            .toUpperCase();
+
+    // Label status khusus buyer (Selesai/Dibatalkan)
+    final uiStatus =
+        (rawStatus == 'COMPLETED' ||
+            rawStatus == 'DELIVERED' ||
+            rawStatus == 'SUCCESS' ||
+            rawStatus == 'SETTLED')
+        ? 'Selesai'
+        : (rawStatus == 'CANCELLED' ||
+              rawStatus == 'CANCELED' ||
+              rawStatus == 'REJECTED' ||
+              rawStatus == 'FAILED')
+        ? 'Dibatalkan'
+        : 'Tertahan';
+
+    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+    final amts = (data['amounts'] as Map<String, dynamic>?) ?? {};
+    final subtotal = ((amts['subtotal'] as num?) ?? 0).toInt();
+    final shipping = ((amts['shipping'] as num?) ?? 0).toInt();
+    final tax = ((amts['tax'] as num?) ?? 0).toInt();
+    final total = ((amts['total'] as num?) ?? (subtotal + shipping + tax))
+        .toInt();
+
+    // tanggal untuk header/PDF: updatedAt fallback createdAt
+    final ts = (data['updatedAt'] ?? data['createdAt']);
+    final date = ts is Timestamp ? ts.toDate() : null;
+
+    final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+    final addressLabel = (ship['label'] ?? '-') as String;
+    final addressText =
+        (ship['addressText'] ?? ship['address'] ?? '-') as String;
+    final phone = (ship['phone'] ?? '-') as String;
+
+    final method = ((data['payment']?['method'] ?? 'abc_payment') as String)
+        .toUpperCase();
+
+    // meta toko (order > store doc > '-')
+    final storePhoneFinal = (data['storePhone'] ?? storePhone ?? '-') as String;
+    final storeAddressFinal =
+        (data['storeAddress'] ?? storeAddress ?? '-') as String;
+
+    // nama pembeli (order.buyerName > arg buyerName > '-')
+    final buyerNameFinal = (data['buyerName'] ?? buyerName ?? '-') as String;
+
+    return {
+      // identitas
+      'invoiceId': displayInvoiceId,
+      'status': uiStatus,
+      'date': date,
+
+      // info toko (top-level & nested untuk kompatibilitas)
+      'storeName': storeName,
+      'storePhone': storePhoneFinal,
+      'storeAddress': storeAddressFinal,
+      'store': {
+        'name': storeName,
+        'phone': storePhoneFinal,
+        'address': storeAddressFinal,
+      },
+
+      // info pembeli & pengiriman
+      'buyerName': buyerNameFinal,
+      'shipping': {
+        // ✅ recipient = nama pembeli (bukan label “Rumah”)
+        'recipient': buyerNameFinal,
+        'addressLabel': addressLabel,
+        'addressText': addressText,
+        'phone': phone,
+      },
+
+      // pembayaran & amounts
+      'paymentMethod': method,
+      'amounts': {
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total,
+      },
+
+      // baris item
+      'items': items
+          .map(
+            (it) => {
+              'name': (it['name'] ?? '-') as String,
+              'qty': ((it['qty'] as num?) ?? 0).toInt(),
+              'price': ((it['price'] as num?) ?? 0).toInt(),
+              'variant': (it['variant'] ?? it['note'] ?? '') as String,
+            },
+          )
+          .toList(),
+    };
+  }
+
   // ---------- helpers ----------
-    static OrderStatus _statusFrom(String s) {
+  static OrderStatus _statusFrom(String s) {
     switch (s) {
       case 'COMPLETED':
       case 'SUCCESS':
@@ -638,7 +898,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     final min = dt.minute.toString().padLeft(2, '0');
     return '$d/$m/$y, $h12:$min $ampm';
-    // kalau mau lokal indo, silakan ganti formatter
+    // (optional) pakai format Indo kalau mau
   }
 
   static String _rupiah(int v) {
@@ -708,12 +968,11 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
   }
 
   Widget _imgPh() => Container(
-        width: 56,
-        height: 56,
-        color: Colors.grey[200],
-        child:
-            const Icon(Icons.fastfood_rounded, size: 34, color: Colors.grey),
-      );
+    width: 56,
+    height: 56,
+    color: Colors.grey[200],
+    child: const Icon(Icons.fastfood_rounded, size: 34, color: Colors.grey),
+  );
 
   Widget _buildFeeRow(String title, int amount, {bool bold = false}) {
     return Padding(
@@ -743,11 +1002,11 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
   }
 
   Widget _storePh() => Container(
-        width: 54,
-        height: 54,
-        color: Colors.grey[300],
-        child: const Icon(Icons.store, color: Colors.white, size: 28),
-      );
+    width: 54,
+    height: 54,
+    color: Colors.grey[300],
+    child: const Icon(Icons.store, color: Colors.white, size: 28),
+  );
 }
 
 // Sticky header delegate (tetap)
@@ -769,8 +1028,13 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => maxHeight;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => child;
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => child;
 
   @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      false;
 }

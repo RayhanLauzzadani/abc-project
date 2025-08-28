@@ -297,7 +297,7 @@ class NotificationPage extends StatelessWidget {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
+                            color: const Color.fromRGBO(0, 0, 0, 0.03),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),

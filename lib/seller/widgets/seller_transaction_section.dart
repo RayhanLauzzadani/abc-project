@@ -39,8 +39,8 @@ class SellerTransactionSection extends StatelessWidget {
               ),
               InkWell(
                 onTap: onSeeAll,
-                child: Row(
-                  children: const [
+                child: const Row(
+                  children: [
                     Text(
                       'Lainnya',
                       style: TextStyle(
@@ -50,7 +50,11 @@ class SellerTransactionSection extends StatelessWidget {
                       ),
                     ),
                     SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFF777777)),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Color(0xFF777777),
+                    ),
                   ],
                 ),
               ),
@@ -65,19 +69,23 @@ class SellerTransactionSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          ...transactions
-              .asMap()
-              .entries
-              .map((entry) {
-                final isLast = entry.key == transactions.length - 1;
-                return Column(
-                  children: [
-                    SellerTransactionCard(data: entry.value),
-                    if (!isLast) const SizedBox(height: 15),
-                  ],
-                );
-              })
-              .toList(),
+
+          // CUKUP render kartu + pass-through onDetail dari data
+          ...transactions.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final t = entry.value;
+            final isLast = idx == transactions.length - 1;
+
+            return Column(
+              children: [
+                SellerTransactionCard(
+                  data: t,
+                  onDetail: t.onDetail, // <-- langsung pakai callback dari HomePageSeller
+                ),
+                if (!isLast) const SizedBox(height: 15),
+              ],
+            );
+          }).toList(),
         ],
       ),
     );

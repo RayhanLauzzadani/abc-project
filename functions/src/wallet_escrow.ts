@@ -26,6 +26,35 @@ const httpsError = (code: FunctionsErrorCode, message: string) =>
 
 type CancelBy = "SELLER" | "BUYER" | "SYSTEM";
 
+// ---------- (NEW) invoice helpers ----------
+// INV-YYYYMMDD-XXXXXX (X = A..Z / 2..9 tanpa karakter yang mirip)
+function generateInvoiceId(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear().toString();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let rand = "";
+  for (let i = 0; i < 6; i++) {
+    rand += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+  }
+  return `INV-${yyyy}${mm}${dd}-${rand}`;
+}
+
+// pastikan unik di koleksi orders (3x percobaan, lalu fallback timestamp)
+async function generateUniqueInvoiceId(): Promise<string> {
+  for (let i = 0; i < 3; i++) {
+    const candidate = generateInvoiceId();
+    const snap = await db
+      .collection("orders")
+      .where("invoiceId", "==", candidate)
+      .limit(1)
+      .get();
+    if (snap.empty) return candidate;
+  }
+  return `INV-${Date.now()}`;
+}
+
 /** Reusable core to cancel + refund an order safely (idempotent). */
 async function cancelOrderCore(
   orderId: string,
@@ -158,7 +187,13 @@ export const placeOrder = onCall(
         .limit(1)
         .get();
       if (!dup.empty) {
-        return { ok: true, orderId: dup.docs[0].id, idempotent: true };
+        const d = dup.docs[0].data();
+        return {
+          ok: true,
+          orderId: dup.docs[0].id,
+          idempotent: true,
+          invoiceId: d.invoiceId ?? null, // kembalikan invoiceId jika sudah ada
+        };
       }
     }
 
@@ -166,10 +201,13 @@ export const placeOrder = onCall(
     const orderRef = db.collection("orders").doc();
     const buyerTxRef = buyerRef.collection("transactions").doc();
 
-    // compute auto-cancel deadline (server time)
+    // hitung auto-cancel deadline (server time)
     const autoCancelAt = admin.firestore.Timestamp.fromMillis(
       Date.now() + ONE_DAY_MS
     );
+
+    // generate invoice unik (di luar transaksi)
+    const invoiceId = await generateUniqueInvoiceId();
 
     await db.runTransaction(async (t: Transaction) => {
       const buyerSnap = await t.get(buyerRef);
@@ -212,8 +250,9 @@ export const placeOrder = onCall(
         },
         createdAt: NOW,
         updatedAt: NOW,
-        autoCancelAt, // <—— deadline untuk auto-cancel 24 jam
+        autoCancelAt, // <—— deadline auto-cancel 24 jam
         idempotencyKey: (idempotencyKey as string) ?? null,
+        invoiceId, // simpan invoice
       });
 
       // 3) catat transaksi buyer (ESCROWED)
@@ -230,7 +269,7 @@ export const placeOrder = onCall(
       });
     });
 
-    return { ok: true, orderId: orderRef.id };
+    return { ok: true, orderId: orderRef.id, invoiceId };
   }
 );
 
@@ -435,7 +474,7 @@ export const acceptOrder = onCall({ region: REGION }, async (req) => {
       status: "ACCEPTED",
       stockDeducted: true,
       updatedAt: NOW,
-      autoCancelAt: admin.firestore.FieldValue.delete(), // stop countdown (opsional)
+      autoCancelAt: admin.firestore.FieldValue.delete(), // stop countdown
       "shippingAddress.status": "ACCEPTED",
     });
   });

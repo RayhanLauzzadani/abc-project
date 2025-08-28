@@ -79,35 +79,52 @@ class CartTabInProgress extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           itemCount: docs.length,
           itemBuilder: (context, i) {
-            final data = docs[i].data();
-            final orderId = docs[i].id;
+            final doc = docs[i];
+            final data = doc.data();
+
+            // doc.id asli buat navigasi
+            final String realOrderId = doc.id;
+
+            // invoiceId untuk ditampilkan (#...), fallback ke doc.id jika kosong
+            final String displayedId = (() {
+              final raw = (data['invoiceId'] as String?)?.trim();
+              if (raw != null && raw.isNotEmpty) return raw;
+              return realOrderId;
+            })();
+
             final storeName = (data['storeName'] ?? '') as String;
+
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-            final firstImage =
-                items.isNotEmpty ? (items.first['imageUrl'] ?? '') as String : '';
+            final firstImage = items.isNotEmpty
+                ? (items.first['imageUrl'] ?? '') as String
+                : '';
             final itemCount = items.fold<int>(
               0,
-              (acc, it) => acc + ((it['qty'] as num?)?.toInt() ?? 0), // ⬅ fix num→int
+              (acc, it) => acc + ((it['qty'] as num?)?.toInt() ?? 0),
             );
+
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
             final totalPrice = ((amounts['total'] as num?) ?? 0).toInt();
+
             final ts = data['createdAt'];
             final orderDateTime = ts is Timestamp ? ts.toDate() : DateTime.now();
+
             final statusStr = (data['status'] ?? 'PLACED') as String;
 
             return CartAndOrderListCard(
               storeName: storeName,
-              orderId: orderId,
+              orderId: displayedId, // ⟵ yang tampil setelah '#'
               productImage: firstImage,
               itemCount: itemCount,
               totalPrice: totalPrice,
               orderDateTime: orderDateTime,
               status: _mapOrderStatus(statusStr),
               onTap: () {
+                // ⟵ navigasi tetap pakai doc.id asli
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => OrderTrackingPage(orderId: orderId),
+                    builder: (_) => OrderTrackingPage(orderId: realOrderId),
                   ),
                 );
               },

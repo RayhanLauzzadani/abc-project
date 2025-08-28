@@ -5,10 +5,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../widgets/cart_and_order_list_card.dart';
-import 'track_order/track_order_page.dart'; // ⬅ halaman lacak seller
+import 'track_order/track_order_page.dart'; // Pastikan path & nama classnya sesuai
 
 class SellerOrderTabDelivered extends StatelessWidget {
   const SellerOrderTabDelivered({super.key});
+
+  // Map Firestore status -> kartu + teks badge
+  (OrderStatus, String) _mapStatus(String? raw) {
+    final s = (raw ?? '').toUpperCase();
+    if (s == 'DELIVERED') return (OrderStatus.delivered, 'Terkirim');
+    if (s == 'SHIPPED')   return (OrderStatus.inProgress, 'Dikirim');
+    if (s == 'COMPLETED' || s == 'SUCCESS') return (OrderStatus.success, 'Selesai');
+    return (OrderStatus.inProgress, 'Dalam Proses');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,12 +28,12 @@ class SellerOrderTabDelivered extends StatelessWidget {
       );
     }
 
-    // Pesanan yang sudah dikirim untuk seller ini
+    // Pesanan yang sudah dikirim / terkirim untuk seller ini
     final stream = FirebaseFirestore.instance
         .collection('orders')
         .where('sellerId', isEqualTo: uid)
-        .where('status', whereIn: ['SHIPPED']) // bisa tambahkan 'DELIVERED' jika perlu
-        .orderBy('updatedAt', descending: true) // mungkin perlu index komposit
+        .where('status', whereIn: ['SHIPPED', 'DELIVERED']) // tambahkan DELIVERED juga
+        .orderBy('updatedAt', descending: true)
         .snapshots();
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -65,42 +74,65 @@ class SellerOrderTabDelivered extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           itemCount: docs.length,
           itemBuilder: (context, i) {
-            final data = docs[i].data();
-            final orderId = docs[i].id;
+            final doc = docs[i];
+            final data = doc.data();
+
+            // ID asli dokumen (untuk navigasi / query)
+            final realOrderId = doc.id;
+
+            // Tampilkan invoiceId jika ada, fallback doc.id
+            final rawInvoice = (data['invoiceId'] as String?)?.trim();
+            final displayId = (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : realOrderId;
 
             final storeName = (data['storeName'] ?? '-') as String;
+
+            // Items ringkas (gambar & total qty)
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-            final firstImage = items.isNotEmpty ? (items.first['imageUrl'] ?? '') as String : '';
-            final itemCount = items.fold<int>(0, (a, it) => a + ((it['qty'] as num?)?.toInt() ?? 0));
+            final firstImage = items.isNotEmpty
+                ? ((items.first['imageUrl'] ?? items.first['image'] ?? '') as String)
+                : '';
+            final itemCount = items.fold<int>(
+              0,
+              (a, it) => a + ((it['qty'] as num?)?.toInt() ?? 0),
+            );
+
+            // Amounts / total
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
             final totalPrice = ((amounts['total'] as num?) ?? 0).toInt();
+
+            // Tanggal update (fallback ke createdAt)
             final ts = data['updatedAt'] ?? data['createdAt'];
             final orderDateTime = ts is Timestamp ? ts.toDate() : DateTime.now();
 
+            // Status & badge
+            final statusStr = (data['status'] ?? 'SHIPPED') as String;
+            final (cardStatus, badgeText) = _mapStatus(statusStr);
+
             return CartAndOrderListCard(
               storeName: storeName,
-              orderId: orderId,
+              orderId: realOrderId,    // untuk navigasi
+              displayId: displayId,    // untuk tampilan (#INV…)
               productImage: firstImage,
               itemCount: itemCount,
               totalPrice: totalPrice,
               orderDateTime: orderDateTime,
-              status: OrderStatus.inProgress,
+              status: cardStatus,
+              statusText: badgeText,   // “Dikirim” / “Terkirim”
+              showStatusBadge: true,
+              actionTextOverride: "Lacak Pesanan",
+              actionIconOverride: Icons.chevron_right_rounded,
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => TrackOrderPageSeller(orderId: orderId)),
+                  MaterialPageRoute(builder: (_) => TrackOrderPageSeller(orderId: realOrderId)),
                 );
               },
               onActionTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => TrackOrderPageSeller(orderId: orderId)),
+                  MaterialPageRoute(builder: (_) => TrackOrderPageSeller(orderId: realOrderId)),
                 );
               },
-              statusText: "Dalam Proses",
-              actionTextOverride: "Lacak Pesanan",
-              actionIconOverride: Icons.chevron_right_rounded,
-              showStatusBadge: true,
             );
           },
         );
