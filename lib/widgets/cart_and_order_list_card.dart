@@ -25,7 +25,7 @@ class CartAndOrderListCard extends StatelessWidget {
   final IconData? actionIconOverride;
 
   const CartAndOrderListCard({
-    Key? key,
+    super.key,
     required this.storeName,
     required this.orderId,
     this.displayId,                 // NEW
@@ -40,7 +40,7 @@ class CartAndOrderListCard extends StatelessWidget {
     this.showStatusBadge = true,
     this.actionTextOverride,
     this.actionIconOverride,
-  }) : super(key: key);
+  });
 
   Widget _buildProductImage(String path) {
     final isUrl = path.startsWith('http');
@@ -129,7 +129,7 @@ class CartAndOrderListCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFDDDDDD), width: 1.7),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: const Color.fromRGBO(0, 0, 0, 0.02),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),

@@ -67,6 +67,7 @@ dependencies:
   auto_size_text: ^3.0.0
   pdf: ^3.11.3
   printing: ^5.14.2
+  path: ^1.9.1
   
 
 dev_dependencies:

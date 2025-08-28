@@ -332,7 +332,7 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.09), blurRadius: 8, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.09), blurRadius: 8, offset: const Offset(0, 2))],
           ),
           padding: const EdgeInsets.only(bottom: 13, top: 13, left: 16),
           child: SafeArea(

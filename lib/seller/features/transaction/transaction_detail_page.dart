@@ -17,12 +17,11 @@ class TransactionDetailPage extends StatelessWidget {
   final String? orderId;
 
   const TransactionDetailPage({
-    Key? key,
+    super.key,
     this.transaction,
     this.orderId,
-  })  : assert(transaction != null || orderId != null,
-            'Harus isi transaction atau orderId'),
-        super(key: key);
+  }) : assert(transaction != null || orderId != null,
+            'Harus isi transaction atau orderId');
 
   // ---------- BUILD ----------
   @override
@@ -914,8 +913,7 @@ class TransactionDetailPage extends StatelessWidget {
 class _StatusBubble extends StatelessWidget {
   final String status;
   final Color color;
-  const _StatusBubble({Key? key, required this.status, required this.color})
-      : super(key: key);
+  const _StatusBubble({super.key, required this.status, required this.color});
 
   @override
   Widget build(BuildContext context) {
