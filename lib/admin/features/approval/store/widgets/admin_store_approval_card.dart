@@ -8,7 +8,7 @@ class AdminStoreApprovalCard extends StatelessWidget {
   final VoidCallback? onDetail;
   final bool isNetworkImage;
   const AdminStoreApprovalCard({
-    super.key,
+  super.key,
     required this.data,
     this.onDetail,
     this.isNetworkImage = false,

@@ -186,7 +186,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.07),
+                  color: const Color.fromRGBO(0, 0, 0, 0.07),
                   blurRadius: 16,
                   offset: const Offset(0, 2),
                 ),

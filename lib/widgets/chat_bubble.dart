@@ -10,14 +10,14 @@ class ChatBubble extends StatelessWidget {
   final bool isEdited;
 
   const ChatBubble({
-    Key? key,
+    super.key,
     required this.text,
     required this.time,
     required this.isMe,
     this.isRead = false,
     this.onLongPress,
     this.isEdited = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
