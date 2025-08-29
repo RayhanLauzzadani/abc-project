@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../widgets/search_bar.dart' as custom;
@@ -35,11 +36,11 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   int selectedCategory = 0;
+  bool _isExiting = false;
 
   @override
   void initState() {
     super.initState();
-    // ... existing code ...
     _selectedIndex = widget.initialIndex;
   }
 
@@ -57,31 +58,50 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Widget> get _pages => [
-    _HomeMainContent(
-      onCategorySelected: _gotoCatalogWithCategory,
-    ),
-    CatalogPage(
-      selectedCategory: selectedCategory,
-      onCategoryChanged: (cat) {
-        setState(() {
-          selectedCategory = cat;
-        });
-      },
-    ),
-    const CartPage(),
-    const ChatListPage(),
-    const ProfilePage(),
-  ];
+        _HomeMainContent(
+          onCategorySelected: _gotoCatalogWithCategory,
+        ),
+        CatalogPage(
+          selectedCategory: selectedCategory,
+          onCategoryChanged: (cat) {
+            setState(() {
+              selectedCategory = cat;
+            });
+          },
+        ),
+        const CartPage(),
+        const ChatListPage(),
+        const ProfilePage(),
+      ];
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
         if (_selectedIndex != 0) {
           setState(() => _selectedIndex = 0);
-          return false;
+          return;
         }
-        return true;
+        if (_isExiting) return;
+        _isExiting = true;
+        final ok = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Keluar Aplikasi?'),
+                content: const Text('Anda yakin ingin menutup aplikasi?'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Keluar')),
+                ],
+              ),
+            ) ??
+            false;
+        _isExiting = false;
+        if (ok && mounted) {
+          SystemNavigator.pop();
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -92,7 +112,6 @@ class _HomePageState extends State<HomePage> {
           currentIndex: _selectedIndex,
           onTap: (index) {
             setState(() {
-              // Jika pindah ke Katalog, reset kategori ke 'Semua'
               if (index == 1 && _selectedIndex != 1) {
                 _resetCatalogCategory();
               }
@@ -164,7 +183,7 @@ class _HomeMainContentState extends State<_HomeMainContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _HomeAddressHeader(),
+                  const _HomeAddressHeader(),
                   const SizedBox(height: 20),
                   SizedBox(
                     height: _HomeMainContent.searchBarHeight,
@@ -208,7 +227,7 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        const SnackBar(
                           content: Text('Produk tidak ditemukan atau sudah dihapus.'),
                         ),
                       );
@@ -241,7 +260,6 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                         .snapshots(),
                     builder: (context, snap) {
                       if (snap.connectionState == ConnectionState.waiting) {
-                        // loading tipis: tetap render kartu dengan 0 biar UI stabil
                         return ABCPaymentCard(
                           balance: 0,
                           primaryLabel: 'Isi Saldo',
@@ -257,7 +275,6 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                       }
                       final data = snap.data?.data();
                       final wallet = (data?['wallet'] as Map<String, dynamic>?) ?? {};
-                      // aman untuk num/double/int
                       final available = (wallet['available'] is num)
                           ? (wallet['available'] as num).toInt()
                           : 0;
@@ -737,8 +754,7 @@ class _HomeAddressHeader extends StatelessWidget {
   }
 }
 
-class _StickyHeaderWithSearchBarDelegate
-    extends SliverPersistentHeaderDelegate {
+class _StickyHeaderWithSearchBarDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   final double height;
   _StickyHeaderWithSearchBarDelegate({

@@ -1,5 +1,6 @@
 import 'package:abc_e_mart/buyer/widgets/logout_confirmation_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/admin/widgets/admin_home_header.dart';
@@ -31,6 +32,7 @@ class HomePageAdmin extends StatefulWidget {
 
 class _HomePageAdminState extends State<HomePageAdmin> {
   int _currentIndex = 0;
+  bool _isExiting = false;
 
   @override
   void initState() {
@@ -81,7 +83,6 @@ class _HomePageAdminState extends State<HomePageAdmin> {
   }
 
   Future<void> _logout() async {
-    // Hanya trigger, dialog akan dipanggil dari AdminHomeHeader via callback
     final result = await showDialog(
       context: context,
       barrierDismissible: true,
@@ -104,18 +105,15 @@ class _HomePageAdminState extends State<HomePageAdmin> {
       final m = d.data();
       final typeStr = (m['type'] as String? ?? '').toLowerCase();
       final isWithdraw = typeStr == 'withdrawal';
-      final submittedAt =
-          (m['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final submittedAt = (m['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
       if (isWithdraw) {
         // Tampilkan nama toko
         String name = 'Penjual';
         final storeId = m['storeId'] as String?;
         if (storeId != null && storeId.isNotEmpty) {
-          final st = await FirebaseFirestore.instance
-              .collection('stores')
-              .doc(storeId)
-              .get();
+          final st =
+              await FirebaseFirestore.instance.collection('stores').doc(storeId).get();
           name = (st.data()?['name'] as String?) ?? name;
         }
         final amount = (m['amount'] as num?)?.toInt() ?? 0; // nominal diajukan
@@ -132,13 +130,11 @@ class _HomePageAdminState extends State<HomePageAdmin> {
         String name = (m['buyerEmail'] as String?) ?? 'Pembeli';
         final buyerId = m['buyerId'] as String?;
         if (buyerId != null && buyerId.isNotEmpty) {
-          final u = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(buyerId)
-              .get();
+          final u =
+              await FirebaseFirestore.instance.collection('users').doc(buyerId).get();
           name = (u.data()?['displayName'] as String?) ??
-                (u.data()?['name'] as String?) ??
-                name;
+              (u.data()?['name'] as String?) ??
+              name;
         }
         final amount = (m['amount'] as num?)?.toInt() ?? 0; // jumlah isi saldo
         return AdminAbcPaymentData(
@@ -222,12 +218,14 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                         int tokoTerdaftar = 0;
                         if (shopSnapshot.hasData) {
                           final docs = shopSnapshot.data!.docs;
-                          tokoBaru = docs.where((doc) =>
-                              (doc['status'] ?? '').toString().toLowerCase() == 'pending'
-                          ).length;
-                          tokoTerdaftar = docs.where((doc) =>
-                              (doc['status'] ?? '').toString().toLowerCase() == 'approved'
-                          ).length;
+                          tokoBaru = docs
+                              .where((doc) =>
+                                  (doc['status'] ?? '').toString().toLowerCase() == 'pending')
+                              .length;
+                          tokoTerdaftar = docs
+                              .where((doc) =>
+                                  (doc['status'] ?? '').toString().toLowerCase() == 'approved')
+                              .length;
                         }
                         return StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
@@ -239,11 +237,13 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             if (prodSnapshot.hasData) {
                               final prods = prodSnapshot.data!.docs;
                               produkBaru = prods.where((doc) {
-                                final status = (doc['status'] ?? '').toString().toLowerCase();
+                                final status =
+                                    (doc['status'] ?? '').toString().toLowerCase();
                                 return status == 'menunggu' || status == 'pending';
                               }).length;
                               produkDisetujui = prods.where((doc) {
-                                final status = (doc['status'] ?? '').toString().toLowerCase();
+                                final status =
+                                    (doc['status'] ?? '').toString().toLowerCase();
                                 return status == 'sukses' || status == 'approved';
                               }).length;
                             }
@@ -257,12 +257,16 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                                 int iklanDisetujui = 0;
                                 if (adSnap.hasData) {
                                   final ads = adSnap.data!.docs;
-                                  iklanBaru = ads.where((doc) =>
-                                    (doc['status'] ?? '').toString().toLowerCase() == 'menunggu'
-                                  ).length;
-                                  iklanDisetujui = ads.where((doc) =>
-                                    (doc['status'] ?? '').toString().toLowerCase() == 'disetujui'
-                                  ).length;
+                                  iklanBaru = ads
+                                      .where((doc) =>
+                                          (doc['status'] ?? '').toString().toLowerCase() ==
+                                          'menunggu')
+                                      .length;
+                                  iklanDisetujui = ads
+                                      .where((doc) =>
+                                          (doc['status'] ?? '').toString().toLowerCase() ==
+                                          'disetujui')
+                                      .length;
                                 }
                                 return AdminSummaryCard(
                                   tokoBaru: tokoBaru,
@@ -472,7 +476,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
 
                   const SizedBox(height: 20),
 
-                  // ====== IKLAN SECTION: REALTIME dari Firestore (Menunggu) ======
+                  // ====== IKLAN SECTION: REALTIME (Menunggu) ======
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: StreamBuilder<QuerySnapshot>(
@@ -521,7 +525,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                             detailPeriod: period,
                             date: tglAjukan,
                             docId: doc.id,
-                            ad: ad, // <--- PENTING
+                            ad: ad, // penting
                           );
                         }).toList();
 
@@ -554,16 +558,40 @@ class _HomePageAdminState extends State<HomePageAdmin> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: mainBody,
-      bottomNavigationBar: AdminBottomNavbar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        if (_isExiting) return;
+        _isExiting = true;
+        final ok = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Keluar Aplikasi?'),
+                content: const Text('Anda yakin ingin menutup aplikasi?'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Keluar')),
+                ],
+              ),
+            ) ??
+            false;
+        _isExiting = false;
+        if (ok && mounted) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: mainBody,
+        bottomNavigationBar: AdminBottomNavbar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+        ),
       ),
     );
   }

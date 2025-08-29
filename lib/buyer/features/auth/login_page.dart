@@ -54,9 +54,10 @@ class _LoginPageState extends State<LoginPage> {
 
   // Self-heal doc user: normalisasi role, inject wallet, set lastLogin & isOnline
   Future<void> _selfHealUserDoc(
-      DocumentReference<Map<String, dynamic>> userDocRef,
-      Map<String, dynamic> data,
-      {bool ensureBuyerRole = false}) async {
+    DocumentReference<Map<String, dynamic>> userDocRef,
+    Map<String, dynamic> data, {
+    bool ensureBuyerRole = false,
+  }) async {
     final updates = <String, dynamic>{
       'lastLogin': FieldValue.serverTimestamp(),
       'isOnline': true,
@@ -118,7 +119,6 @@ class _LoginPageState extends State<LoginPage> {
         final userDoc = await userDocRef.get();
 
         if (!userDoc.exists) {
-          // Tetap pertahankan perilaku lama: tampilkan pesan jika doc tidak ada.
           setState(() {
             _errorText = "Data user tidak ditemukan di database.";
             _isLoading = false;
@@ -130,8 +130,9 @@ class _LoginPageState extends State<LoginPage> {
         final isActive = data['isActive'] ?? true;
         final roles = _roleToList(data['role']);
 
-        // ✅ SELF-HEAL: role -> List, wallet inject, lastLogin & isOnline
+        // ✅ SELF-HEAL
         await _selfHealUserDoc(userDocRef, data);
+        if (!mounted) return;
 
         if (!isActive) {
           setState(() {
@@ -143,10 +144,12 @@ class _LoginPageState extends State<LoginPage> {
 
         // Arahkan berdasarkan role
         if (roles.contains('admin')) {
+          if (!mounted) return;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomePageAdmin()),
           );
         } else {
+          if (!mounted) return;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomePage()),
           );
@@ -202,16 +205,17 @@ class _LoginPageState extends State<LoginPage> {
               'wallet': _defaultWallet(),
             }, SetOptions(merge: true));
           } else {
-            // ✅ SELF-HEAL untuk user lama (nomor 2)
+            // ✅ SELF-HEAL untuk user lama
             final data = snapshot.data()!;
             await _selfHealUserDoc(
               userDoc,
               data,
-              ensureBuyerRole: true, // pastikan 'buyer' ada
+              ensureBuyerRole: true,
             );
           }
         }
 
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomePage()),
         );

@@ -7,6 +7,7 @@ class SellerSummaryCard extends StatelessWidget {
   final int pesananDikirim;
   final int pesananSelesai;
   final int pesananBatal;
+  // Tetap ada untuk kompatibilitas, tapi tidak dipakai lagi:
   final String saldo;
   final String saldoTertahan;
 
@@ -89,18 +90,6 @@ class SellerSummaryCard extends StatelessWidget {
                       value: pesananBatal.toString(),
                       width: cardWidth,
                     ),
-                    _SummaryItem(
-                      title: "Jumlah Saldo",
-                      value: saldo,
-                      isCurrency: true,
-                      width: cardWidth,
-                    ),
-                    _SummaryItem(
-                      title: "Saldo Tertahan",
-                      value: saldoTertahan,
-                      isCurrency: true,
-                      width: cardWidth,
-                    ),
                   ];
 
                   return Wrap(spacing: gap, runSpacing: gap, children: items);
@@ -130,7 +119,7 @@ class _SummaryItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double cardHeight = 73;
-    final double circleDiameter = cardHeight * 2; // Besar agar kelihatan menonjol dari bawah
+    final double circleDiameter = cardHeight * 2;
 
     return SizedBox(
       width: width,
@@ -139,7 +128,6 @@ class _SummaryItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(13),
         child: Stack(
           children: [
-            // Setengah lingkaran, pusat tepat di bawah tengah card
             Positioned(
               left: (width - circleDiameter) / 2,
               bottom: -(circleDiameter / 2 - cardHeight / 2),
@@ -211,12 +199,10 @@ class _HalfCirclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
     final rect = Rect.fromLTWH(100, 50, size.width, size.height);
-
-    // Mulai dari kiri (pi radian, 180°), sweep ke kanan 180°
     canvas.drawArc(
       rect,
-      math.pi,   // start dari kiri
-      math.pi / 2,   // sweep 180° ke kanan (bagian atas setengah lingkaran)
+      math.pi,
+      math.pi / 2,
       true,
       paint,
     );

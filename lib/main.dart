@@ -4,27 +4,25 @@ import 'firebase_options.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-// Tambahkan import ini:
+// Intl (locale id)
 import 'package:intl/date_symbol_data_local.dart';
 
-// Import Provider dan page utama
+// Provider
 import 'seller/providers/seller_registration_provider.dart';
 
+// Pages & gate
 import 'buyer/features/home/splash_screen.dart';
 import 'buyer/features/auth/login_page.dart';
 import 'buyer/features/home/home_page_buyer.dart';
 import 'seller/features/registration/registration_welcome_page.dart';
-// import 'package:abc_e_mart/admin/features/home/home_page_admin.dart';
-// import page lain jika ingin tambahkan ke routes
+// import 'admin/features/home/home_page_admin.dart'; // tidak wajib di-import di sini
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  // ======== Tambahkan baris berikut =============
   await initializeDateFormatting('id', null);
-  // ==============================================
   runApp(const MyApp());
 }
 
@@ -36,7 +34,6 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SellerRegistrationProvider()),
-        // Provider lain bisa ditambah di sini
       ],
       child: MaterialApp(
         title: 'ABC e-Mart',
@@ -45,13 +42,12 @@ class MyApp extends StatelessWidget {
           textTheme: GoogleFonts.dmSansTextTheme(),
           scaffoldBackgroundColor: Colors.white,
         ),
-        home: const SplashScreen(),
-        // home: const HomePageAdmin(),
+        // Gunakan gate reaktif yang tidak melakukan push/pop
+        home: const SplashGate(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const HomePage(),
           '/registration_welcome': (context) => const RegistrationWelcomePage(),
-          // Tambahkan route lain jika perlu
         },
       ),
     );

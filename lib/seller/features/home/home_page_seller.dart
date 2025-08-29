@@ -19,7 +19,6 @@ import 'package:abc_e_mart/seller/features/order/order_page.dart';
 import 'package:abc_e_mart/seller/features/transaction/transaction_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_payment_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
-// detail invoice
 import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
 class HomePageSeller extends StatefulWidget {
@@ -31,7 +30,7 @@ class HomePageSeller extends StatefulWidget {
 
 class _HomePageSellerState extends State<HomePageSeller> {
   String? _storeId;
-  Map<String, dynamic>? _storeData; // ⬅️ simpan data toko agar bisa dipakai di transaksi
+  Map<String, dynamic>? _storeData; // simpan data toko untuk detail transaksi
 
   Future<void> _setOnlineStatus(
     bool isOnline, {
@@ -52,16 +51,64 @@ class _HomePageSellerState extends State<HomePageSeller> {
   @override
   void dispose() {
     _setOnlineStatus(false, updateLastLogin: true);
-
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'isOnline': true,
       }, SetOptions(merge: true));
     }
-
     super.dispose();
   }
+
+  // ==================== RINGKASAN TOKO (AGGREGATE COUNT) =====================
+  Future<_OrderSummary> _fetchOrderSummary(String sellerId) async {
+    final col = FirebaseFirestore.instance.collection('orders');
+
+    Future<int> countWhere({
+      required String seller,
+      String? equalStatus,
+      List<String>? inStatuses,
+    }) async {
+      Query q = col.where('sellerId', isEqualTo: seller);
+      if (equalStatus != null) {
+        q = q.where('status', isEqualTo: equalStatus);
+      }
+      if (inStatuses != null) {
+        q = q.where('status', whereIn: inStatuses);
+      }
+      final agg = await q.count().get();
+      return agg.count ?? 0; // ✅ handle nullable count
+    }
+
+    // Kelompok status
+    const incoming = <String>[
+      'PLACED', 'PENDING', 'PAID', 'PROCESSING', 'CONFIRMED', 'ACCEPTED', 'READY_TO_SHIP'
+    ];
+    const shipping = <String>[
+      'SHIPPED', 'OUT_FOR_DELIVERY', 'ON_DELIVERY', 'IN_TRANSIT'
+    ];
+    const success = <String>[
+      'COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'
+    ];
+    const failed = <String>[
+      'CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'
+    ];
+
+    final results = await Future.wait<int>([
+      countWhere(seller: sellerId, inStatuses: incoming),
+      countWhere(seller: sellerId, inStatuses: shipping),
+      countWhere(seller: sellerId, inStatuses: success),
+      countWhere(seller: sellerId, inStatuses: failed),
+    ]);
+
+    return _OrderSummary(
+      masuk: results[0],
+      dikirim: results[1],
+      selesai: results[2],
+      batal: results[3],
+    );
+  }
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -108,15 +155,6 @@ class _HomePageSellerState extends State<HomePageSeller> {
                   final description = data['description'] ?? "Menjual berbagai kebutuhan";
                   final address = data['address'] ?? "-";
                   final logoUrl = data['logoUrl'] ?? "";
-                  final phone = data['phone'] ?? "-";
-
-                  // dummy summary
-                  final pesananMasuk = 42;
-                  final pesananDikirim = 5;
-                  final pesananSelesai = 30;
-                  final pesananBatal = 15;
-                  final saldo = "Rp 1,25 Jt";
-                  final saldoTertahan = "Rp 250.000";
 
                   return SingleChildScrollView(
                     child: Padding(
@@ -154,7 +192,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Saldo
+                          // Saldo (realtime dari users/<uid>.wallet.available)
                           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('users')
@@ -249,17 +287,31 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             },
                           ),
 
-                          // Summary
-                          SellerSummaryCard(
-                            pesananMasuk: pesananMasuk,
-                            pesananDikirim: pesananDikirim,
-                            pesananSelesai: pesananSelesai,
-                            pesananBatal: pesananBatal,
-                            saldo: saldo,
-                            saldoTertahan: saldoTertahan,
+                          // ================== RINGKASAN TOKO (LIVE) ==================
+                          FutureBuilder<_OrderSummary>(
+                            future: _fetchOrderSummary(uid),
+                            builder: (context, sumSnap) {
+                              if (sumSnap.connectionState == ConnectionState.waiting) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              }
+                              final s = sumSnap.data ?? _OrderSummary.zero();
+                              return SellerSummaryCard(
+                                pesananMasuk: s.masuk,
+                                pesananDikirim: s.dikirim,
+                                pesananSelesai: s.selesai,
+                                pesananBatal: s.batal,
+                                // field ini tidak dipakai pada UI card
+                                saldo: '-',
+                                saldoTertahan: '-',
+                              );
+                            },
                           ),
+                          // ============================================================
 
-                          // Transaction Section
+                          // Transaction Section (riwayat singkat)
                           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('orders')
@@ -320,7 +372,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
     );
   }
 
-  // buka detail transaksi
+  // ======================== Detail Transaksi & Mapper ========================
   Future<void> _openTransactionDetail({
     required String orderId,
     required Map<String, dynamic> data,
@@ -426,14 +478,11 @@ class _HomePageSellerState extends State<HomePageSeller> {
       'invoiceId': invoiceId,
       'status': uiStatus,
       'date': date,
-
-      // ⬇️ Info toko ikut dikirim (supaya muncul di PDF)
       'store': {
         'name': _storeData?['name'] ?? '-',
         'phone': _storeData?['phone'] ?? '-',
         'address': _storeData?['address'] ?? '-',
       },
-
       'buyerName': buyerName,
       'shipping': {
         'recipient': buyerName,
@@ -472,4 +521,18 @@ class _HomePageSellerState extends State<HomePageSeller> {
     ];
     return '${d.day} ${bulan[d.month - 1]} ${d.year}';
   }
+}
+
+class _OrderSummary {
+  final int masuk;
+  final int dikirim;
+  final int selesai;
+  final int batal;
+  const _OrderSummary({
+    required this.masuk,
+    required this.dikirim,
+    required this.selesai,
+    required this.batal,
+  });
+  factory _OrderSummary.zero() => const _OrderSummary(masuk: 0, dikirim: 0, selesai: 0, batal: 0);
 }
