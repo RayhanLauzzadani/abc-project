@@ -301,7 +301,7 @@ class _SellerChatDetailPageState extends State<SellerChatDetailPage> with Widget
       final sellerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       String sellerName = sellerDoc.data()?['name'] ?? '';
 
-      await sendOrUpdateChatNotification(
+      await NotificationService.instance.sendOrUpdateChatNotification(
         receiverId: widget.buyerId,
         chatId: widget.chatId,
         senderName: sellerName,

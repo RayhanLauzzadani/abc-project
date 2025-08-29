@@ -10,6 +10,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:abc_e_mart/buyer/data/repositories/cart_repository.dart';
 
+// === NOTIF SERVICE (GANTI path ini bila berbeda)
+import 'package:abc_e_mart/data/services/notification_service.dart';
+
 // ===== Helper: format rupiah =====
 String formatRupiah(int v) {
   final s = v.toString();
@@ -46,27 +49,38 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
   String? selectedPaymentMethod; // null -> belum pilih
   bool isLoading = false;
 
-  int get subtotal =>
-      widget.cartItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
+  int get subtotal => widget.cartItems.fold(
+    0,
+    (sum, item) => sum + (item.price * item.quantity),
+  );
   int get total => subtotal + widget.shippingFee + widget.taxFee;
 
   // Validasi stok terbaru sebelum checkout
   Future<bool> _validateStockBeforeCheckout() async {
-    final prods = await Future.wait(widget.cartItems.map((it) {
-      return FirebaseFirestore.instance.collection('products').doc(it.id).get();
-    }));
+    final prods = await Future.wait(
+      widget.cartItems.map((it) {
+        return FirebaseFirestore.instance
+            .collection('products')
+            .doc(it.id)
+            .get();
+      }),
+    );
 
     for (int i = 0; i < widget.cartItems.length; i++) {
       final it = widget.cartItems[i];
       final data = prods[i].data() ?? {};
-      final int stock = (data['stock'] is num) ? (data['stock'] as num).toInt() : 0;
-      final int minBuy = (data['minBuy'] is num) ? (data['minBuy'] as num).toInt() : 1;
+      final int stock = (data['stock'] is num)
+          ? (data['stock'] as num).toInt()
+          : 0;
+      final int minBuy = (data['minBuy'] is num)
+          ? (data['minBuy'] as num).toInt()
+          : 1;
       final String name = (data['name'] ?? 'Produk') as String;
 
       if (stock <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Stok $name habis.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Stok $name habis.')));
         return false;
       }
       if (it.quantity < minBuy) {
@@ -77,7 +91,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
       }
       if (it.quantity > stock) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Jumlah $name melebihi stok (tersedia $stock).')),
+          SnackBar(
+            content: Text('Jumlah $name melebihi stok (tersedia $stock).'),
+          ),
         );
         return false;
       }
@@ -88,15 +104,18 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
   Future<void> _handleCheckout() async {
     if (selectedPaymentMethod != 'ABC Payment') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih metode pembayaran ABC Payment terlebih dahulu')),
+        const SnackBar(
+          content: Text('Pilih metode pembayaran ABC Payment terlebih dahulu'),
+        ),
       );
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Anda belum login!')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Anda belum login!')));
       return;
     }
 
@@ -109,8 +128,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
           .doc(user.uid)
           .get();
       final wallet = (userDoc.data()?['wallet'] as Map<String, dynamic>?) ?? {};
-      final int available =
-          wallet['available'] is num ? (wallet['available'] as num).toInt() : 0;
+      final int available = wallet['available'] is num
+          ? (wallet['available'] as num).toInt()
+          : 0;
 
       if (available < total) {
         setState(() => isLoading = false);
@@ -153,7 +173,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
       }).toList();
 
       // Panggil Cloud Function
-      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
+      final functions = FirebaseFunctions.instanceFor(
+        region: 'asia-southeast2',
+      );
       final idempotencyKey =
           '${user.uid}-$storeId-${DateTime.now().millisecondsSinceEpoch}';
 
@@ -195,6 +217,22 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
           ? invoiceId
           : (orderId ?? '-');
 
+      // === NOTIF: Buyer → Seller (order_created) ===
+      // DITARUH SETELAH order sukses dibuat & kita punya orderId.
+      // Kalau notify gagal, jangan blokir UX; tangkap error & lanjut.
+      if (orderId != null && sellerId.isNotEmpty) {
+        try {
+          await NotificationService.instance.notifyOrderCreated(
+            sellerId: sellerId,
+            buyerId: user.uid,
+            orderId: orderId,
+            storeName: widget.storeName,
+          );
+        } catch (_) {
+          // optional: log error
+        }
+      }
+
       // Bersihkan item keranjang toko ini
       try {
         final cartRepo = CartRepository();
@@ -205,7 +243,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
             productId: it.id,
           );
         }
-      } catch (_) {/* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
 
       setState(() => isLoading = false);
 
@@ -231,9 +271,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal membuat pesanan: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal membuat pesanan: $e')));
     }
   }
 
@@ -255,16 +295,30 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                     borderRadius: BorderRadius.circular(50),
                     onTap: () => Navigator.pop(context),
                     child: Container(
-                      width: 37, height: 37,
-                      decoration: const BoxDecoration(color: Color(0xFF1C55C0), shape: BoxShape.circle),
+                      width: 37,
+                      height: 37,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1C55C0),
+                        shape: BoxShape.circle,
+                      ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 15),
-                  Text('Rangkuman Transaksi',
-                      style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF373E3C))),
+                  Text(
+                    'Rangkuman Transaksi',
+                    style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -280,8 +334,14 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                         // Alamat
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text('Alamat Pengiriman',
-                              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 20, color: const Color(0xFF373E3C))),
+                          child: Text(
+                            'Alamat Pengiriman',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 13),
                         Padding(
@@ -293,21 +353,39 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                         // Produk
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text('Produk di Keranjang',
-                              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 20, color: const Color(0xFF373E3C))),
+                          child: Text(
+                            'Produk di Keranjang',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 13),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Container(
-                            decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(18)),
-                            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F8F8),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 18,
+                              horizontal: 18,
+                            ),
                             child: Column(
                               children: List.generate(
                                 widget.cartItems.length,
                                 (i) => Padding(
-                                  padding: EdgeInsets.only(bottom: i < widget.cartItems.length - 1 ? 14 : 0),
-                                  child: _ProductCheckoutItem(item: widget.cartItems[i]),
+                                  padding: EdgeInsets.only(
+                                    bottom: i < widget.cartItems.length - 1
+                                        ? 14
+                                        : 0,
+                                  ),
+                                  child: _ProductCheckoutItem(
+                                    item: widget.cartItems[i],
+                                  ),
                                 ),
                               ),
                             ),
@@ -318,29 +396,55 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                         // Detail Tagihan
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text('Detail Tagihan',
-                              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 20, color: const Color(0xFF373E3C))),
+                          child: Text(
+                            'Detail Tagihan',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 13),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Container(
-                            decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(18)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F8F8),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 18,
+                            ),
                             child: Column(
                               children: [
                                 _SummaryRow(label: 'Subtotal', value: subtotal),
                                 const SizedBox(height: 8),
-                                _SummaryRow(label: 'Biaya Pengiriman', value: widget.shippingFee),
+                                _SummaryRow(
+                                  label: 'Biaya Pengiriman',
+                                  value: widget.shippingFee,
+                                ),
                                 if (widget.taxFee > 0) ...[
                                   const SizedBox(height: 8),
-                                  _SummaryRow(label: 'Pajak', value: widget.taxFee),
+                                  _SummaryRow(
+                                    label: 'Pajak',
+                                    value: widget.taxFee,
+                                  ),
                                 ],
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: Divider(thickness: 1, color: Color(0xFFE5E5E5), height: 1),
+                                  child: Divider(
+                                    thickness: 1,
+                                    color: Color(0xFFE5E5E5),
+                                    height: 1,
+                                  ),
                                 ),
-                                _SummaryRow(label: 'Total', value: total, isTotal: true),
+                                _SummaryRow(
+                                  label: 'Total',
+                                  value: total,
+                                  isTotal: true,
+                                ),
                               ],
                             ),
                           ),
@@ -351,8 +455,14 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                         // Metode Pembayaran (buka halaman pilih)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text('Metode Pembayaran',
-                              style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 20, color: const Color(0xFF373E3C))),
+                          child: Text(
+                            'Metode Pembayaran',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: const Color(0xFF373E3C),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Padding(
@@ -363,7 +473,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                               final result = await Navigator.push<String?>(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => PaymentMethodPage(initialMethod: selectedPaymentMethod),
+                                  builder: (_) => PaymentMethodPage(
+                                    initialMethod: selectedPaymentMethod,
+                                  ),
                                 ),
                               );
                               if (result != null) {
@@ -371,87 +483,149 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                               }
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF8F8F8),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFFE5E5E5)),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E5E5),
+                                ),
                               ),
                               child: Row(
                                 children: [
                                   if (selectedPaymentMethod == 'ABC Payment')
-                                    Image.asset('assets/images/paymentlogo.png', width: 24, height: 24, fit: BoxFit.cover)
+                                    Image.asset(
+                                      'assets/images/paymentlogo.png',
+                                      width: 24,
+                                      height: 24,
+                                      fit: BoxFit.cover,
+                                    )
                                   else
-                                    const Icon(Icons.credit_card_rounded, size: 21, color: Color(0xFF353A3F)),
+                                    const Icon(
+                                      Icons.credit_card_rounded,
+                                      size: 21,
+                                      color: Color(0xFF353A3F),
+                                    ),
                                   const SizedBox(width: 11),
                                   Expanded(
                                     child: Text(
-                                      selectedPaymentMethod ?? 'Pilih Metode Pembayaran',
-                                      style: GoogleFonts.dmSans(fontWeight: FontWeight.w500, fontSize: 16, color: const Color(0xFF3B3B3B)),
+                                      selectedPaymentMethod ??
+                                          'Pilih Metode Pembayaran',
+                                      style: GoogleFonts.dmSans(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 16,
+                                        color: const Color(0xFF3B3B3B),
+                                      ),
                                     ),
                                   ),
-                                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFBDBDBD)),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFFBDBDBD),
+                                  ),
                                 ],
                               ),
                             ),
                           ),
                         ),
 
-                        if (currentUser != null && selectedPaymentMethod == 'ABC Payment') ...[
+                        if (currentUser != null &&
+                            selectedPaymentMethod == 'ABC Payment') ...[
                           const SizedBox(height: 10),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(currentUser.uid)
-                                  .snapshots(),
-                              builder: (context, snap) {
-                                final data = snap.data?.data();
-                                final wallet = (data?['wallet'] as Map<String, dynamic>?) ?? {};
-                                final available = wallet['available'] is num
-                                    ? (wallet['available'] as num).toInt()
-                                    : 0;
-                                final enough = available >= total;
-                                return Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Saldo ABC Payment',
-                                        style: GoogleFonts.dmSans(
-                                            fontSize: 13.5, color: Colors.grey[800], fontWeight: FontWeight.w500)),
-                                    Row(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20.0,
+                            ),
+                            child:
+                                StreamBuilder<
+                                  DocumentSnapshot<Map<String, dynamic>>
+                                >(
+                                  stream: FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(currentUser.uid)
+                                      .snapshots(),
+                                  builder: (context, snap) {
+                                    final data = snap.data?.data();
+                                    final wallet =
+                                        (data?['wallet']
+                                            as Map<String, dynamic>?) ??
+                                        {};
+                                    final available = wallet['available'] is num
+                                        ? (wallet['available'] as num).toInt()
+                                        : 0;
+                                    final enough = available >= total;
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text('Rp ${formatRupiah(available)}',
-                                            style: GoogleFonts.dmSans(
-                                                fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.black87)),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: enough ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
-                                            borderRadius: BorderRadius.circular(999),
-                                            border: Border.all(
-                                              color: enough ? const Color(0xFF66BB6A) : const Color(0xFFE57373),
-                                            ),
+                                        Text(
+                                          'Saldo ABC Payment',
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 13.5,
+                                            color: Colors.grey[800],
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                          child: Text(enough ? 'Cukup' : 'Tidak cukup',
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'Rp ${formatRupiah(available)}',
                                               style: GoogleFonts.dmSans(
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: enough
+                                                    ? const Color(0xFFE8F5E9)
+                                                    : const Color(0xFFFFEBEE),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                border: Border.all(
+                                                  color: enough
+                                                      ? const Color(0xFF66BB6A)
+                                                      : const Color(0xFFE57373),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                enough
+                                                    ? 'Cukup'
+                                                    : 'Tidak cukup',
+                                                style: GoogleFonts.dmSans(
                                                   fontSize: 11,
                                                   fontWeight: FontWeight.w700,
-                                                  color: enough ? const Color(0xFF2E7D32) : const Color(0xFFC62828))),
+                                                  color: enough
+                                                      ? const Color(0xFF2E7D32)
+                                                      : const Color(0xFFC62828),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
+                                    );
+                                  },
+                                ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  if (isLoading) Container(color: Colors.black26, child: const Center(child: CircularProgressIndicator())),
+                  if (isLoading)
+                    Container(
+                      color: Colors.black26,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
                 ],
               ),
             ),
@@ -464,7 +638,13 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
           decoration: const BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, -2))],
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 14,
+                offset: Offset(0, -2),
+              ),
+            ],
           ),
           child: SizedBox(
             width: double.infinity,
@@ -472,7 +652,9 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1C55C0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                ),
                 elevation: 0,
               ),
               onPressed: isLoading ? null : _handleCheckout,
@@ -480,11 +662,19 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                   ? const SizedBox(
                       height: 23,
                       width: 23,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
-                  : Text('Pesan Sekarang',
-                      style:
-                          GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFFFAFAFA))),
+                  : Text(
+                      'Pesan Sekarang',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFFAFAFA),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -510,21 +700,36 @@ class _AddressCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SvgPicture.asset('assets/icons/location.svg', width: 32, height: 32, color: const Color(0xFF777777)),
+          SvgPicture.asset(
+            'assets/icons/location.svg',
+            width: 32,
+            height: 32,
+            color: const Color(0xFF777777),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(address.label,
-                    style:
-                        GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF232323))),
+                Text(
+                  address.label,
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: const Color(0xFF232323),
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(address.address,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF979797))),
+                Text(
+                  address.address,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13.5,
+                    color: const Color(0xFF979797),
+                  ),
+                ),
               ],
             ),
           ),
@@ -543,21 +748,31 @@ class _ProductCheckoutItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(18),
+      ),
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Gambar produk
           Container(
-            width: 89, height: 76,
-            decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(12)),
+            width: 89,
+            height: 76,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(12),
+            ),
             clipBehavior: Clip.antiAlias,
             child: item.image.isNotEmpty
                 ? Image.network(
                     item.image,
-                    width: 89, height: 76, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 32, color: Colors.grey),
+                    width: 89,
+                    height: 76,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.image, size: 32, color: Colors.grey),
                   )
                 : const Icon(Icons.image, size: 32, color: Colors.grey),
           ),
@@ -566,30 +781,50 @@ class _ProductCheckoutItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style:
-                        GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF373E3C))),
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF373E3C),
+                  ),
+                ),
                 if (item.variant != null && item.variant!.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(item.variant!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF777777))),
+                  Text(
+                    item.variant!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF777777),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 8),
                 // Harga & Qty
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Rp ${formatRupiah(item.price)}',
-                        style:
-                            GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF373E3C))),
-                    Text("x${item.quantity}",
-                        style:
-                            GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF373E3C))),
+                    Text(
+                      'Rp ${formatRupiah(item.price)}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
+                    ),
+                    Text(
+                      "x${item.quantity}",
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -606,23 +841,33 @@ class _SummaryRow extends StatelessWidget {
   final int value;
   final bool isTotal;
 
-  const _SummaryRow({required this.label, required this.value, this.isTotal = false});
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: GoogleFonts.dmSans(
-                fontSize: isTotal ? 17 : 15,
-                fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-                color: isTotal ? Colors.black : Colors.grey[800])),
-        Text("Rp ${formatRupiah(value)}",
-            style: GoogleFonts.dmSans(
-                fontSize: isTotal ? 17 : 15,
-                fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-                color: isTotal ? Colors.black : Colors.grey[800])),
+        Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: isTotal ? 17 : 15,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            color: isTotal ? Colors.black : Colors.grey[800],
+          ),
+        ),
+        Text(
+          "Rp ${formatRupiah(value)}",
+          style: GoogleFonts.dmSans(
+            fontSize: isTotal ? 17 : 15,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            color: isTotal ? Colors.black : Colors.grey[800],
+          ),
+        ),
       ],
     );
   }

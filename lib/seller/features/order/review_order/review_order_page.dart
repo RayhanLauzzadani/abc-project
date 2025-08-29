@@ -7,10 +7,12 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'order_accepted_popup.dart';
 import 'order_delivered_popup.dart';
 
-// GANTI path ini sesuai struktur proyekmu kalau beda
+// Nota detail
 import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
-/// Palet tone untuk banner countdown
+// >>> IMPORT NOTIF SERVICE (OOP)
+import 'package:abc_e_mart/data/services/notification_service.dart';
+
 enum _BannerTone { info, success, warning }
 
 class ReviewOrderPage extends StatefulWidget {
@@ -31,24 +33,48 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     });
   }
 
+  Future<({String buyerId, String sellerId, String? invoiceId})> _fetchOrderMeta() async {
+    final doc = await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).get();
+    final data = doc.data() ?? {};
+    final buyerId = (data['buyerId'] ?? '') as String;
+    final sellerId = (data['sellerId'] ?? '') as String;
+    final invoiceId = (data['invoiceId'] as String?);
+    return (buyerId: buyerId, sellerId: sellerId, invoiceId: invoiceId);
+  }
+
   Future<void> _acceptOrder() async {
     try {
       final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
       await functions.httpsCallable('acceptOrder').call({'orderId': widget.orderId});
+
+      // notif → buyer
+      final meta = await _fetchOrderMeta();
+      if (meta.buyerId.isNotEmpty && meta.sellerId.isNotEmpty) {
+        await NotificationService.instance.notifyOrderAccepted(
+          buyerId: meta.buyerId,
+          sellerId: meta.sellerId,
+          orderId: widget.orderId,
+          invoiceId: meta.invoiceId,
+        );
+      }
+
       if (!mounted) return;
       await showDialog(context: context, builder: (_) => const OrderAcceptedPopup());
       if (mounted) setState(() {});
     } on FirebaseFunctionsException catch (e) {
       final msg = e.message ?? 'Gagal menerima pesanan.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menerima pesanan: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menerima pesanan: $e')),
+        );
+      }
     }
   }
 
-  // Tolak pesanan → panggil cancelOrder agar dana buyer dikembalikan
   Future<void> _rejectOrder() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -77,27 +103,53 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
           'orderId': widget.orderId,
           'reason': 'Seller rejected',
         });
-        if (mounted) Navigator.pop(context); // keluar halaman setelah sukses
+
+        // (opsional) kalau mau kirim notif ke buyer 'order_cancelled' tambahkan method di service + rules
+        if (mounted) Navigator.pop(context);
       } on FirebaseFunctionsException catch (e) {
         final msg = e.message ?? 'Gagal membatalkan pesanan.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal membatalkan pesanan: $e')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal membatalkan pesanan: $e')),
+          );
+        }
       }
     }
   }
 
   Future<void> _shipOrder() async {
-    await _updateStatus('SHIPPED'); // aman: tidak menyentuh saldo
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const OrderDeliveredPopup(),
-    );
-    if (mounted) Navigator.pop(context);
+    try {
+      await _updateStatus('SHIPPED');
+
+      // notif → buyer
+      final meta = await _fetchOrderMeta();
+      if (meta.buyerId.isNotEmpty && meta.sellerId.isNotEmpty) {
+        await NotificationService.instance.notifyOrderShipped(
+          buyerId: meta.buyerId,
+          sellerId: meta.sellerId,
+          orderId: widget.orderId,
+          invoiceId: meta.invoiceId,
+        );
+      }
+
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const OrderDeliveredPopup(),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengirim pesanan: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -121,14 +173,13 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             final data = snap.data!.data()!;
             final orderDocId = snap.data!.id;
 
-            // invoice untuk tampilan (prioritas invoiceId, fallback doc.id)
             final rawInvoice = (data['invoiceId'] as String?)?.trim();
             final displayedId =
                 (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : orderDocId;
 
             final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
             final autoCancelAtTs = data['autoCancelAt'] as Timestamp?;
-            final shipByAtTs = data['shipByAt'] as Timestamp?; // ← deadline kirim (48 jam) dari server
+            final shipByAtTs = data['shipByAt'] as Timestamp?;
             final buyerId = (data['buyerId'] ?? '') as String;
 
             final status =
@@ -149,14 +200,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             final method =
                 ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
-            // Deadline menerima pesanan (24 jam)
             final DateTime? acceptDeadline =
                 autoCancelAtTs != null ? autoCancelAtTs.toDate() : createdAt?.add(const Duration(days: 1));
-
-            // Deadline kirim pesanan (48 jam setelah ACCEPTED)
             final DateTime? shipDeadline = shipByAtTs?.toDate();
 
-            // Ambil nama buyer kalau ada buyerId
             if (buyerId.isEmpty) {
               return _buildOrderContent(
                 buyerName: '-',
@@ -174,7 +221,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 orderDocId: orderDocId,
                 status: status,
                 acceptDeadline: acceptDeadline,
-                shipDeadline: shipDeadline, // ← baru
+                shipDeadline: shipDeadline,
               );
             }
 
@@ -198,7 +245,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   orderDocId: orderDocId,
                   status: status,
                   acceptDeadline: acceptDeadline,
-                  shipDeadline: shipDeadline, // ← baru
+                  shipDeadline: shipDeadline,
                 );
               },
             );
@@ -269,7 +316,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     );
   }
 
-  // ---------- content builder ----------
+  // ---------- content builder & helpers (tidak diubah) ----------
   Widget _buildOrderContent({
     required String buyerName,
     required DateTime? createdAt,
@@ -282,17 +329,16 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     required int total,
     required String method,
     required Map<String, dynamic> data,
-    required String displayedId, // invoice tampilan
-    required String orderDocId,  // doc.id asli
+    required String displayedId,
+    required String orderDocId,
     required String status,
     required DateTime? acceptDeadline,
-    required DateTime? shipDeadline, // ← baru
+    required DateTime? shipDeadline,
   }) {
     final isLong = addressText.length > 60;
 
     return CustomScrollView(
       slivers: [
-        // Sticky header
         SliverPersistentHeader(
           pinned: true,
           delegate: _StickyHeaderDelegate(
@@ -320,8 +366,9 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             ),
           ),
         ),
-
-        // header info
+        // ... (SEMUA isi UI sama dengan versi kamu sebelumnya — dipertahankan)
+        // (untuk ringkasnya tidak diulang; gunakan konten dari file kamu)
+        // ---- MULAI dari sini copy persis isi _buildOrderContent dan helpers kamu ----
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -333,7 +380,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 const SizedBox(height: 2),
                 Text(buyerName, style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                // Tampilkan invoice
                 Text('#$displayedId', style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF888888))),
                 const SizedBox(height: 12),
                 const Divider(color: Color(0xFFE6E6E6)),
@@ -344,8 +390,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   createdAt != null ? _fmtDateTime(createdAt) : '-',
                   style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282)),
                 ),
-
-                // ====== Banner countdown: terima order (status PLACED) ======
                 if (status == 'PLACED' && acceptDeadline != null) ...[
                   const SizedBox(height: 10),
                   _countdownBanner(
@@ -356,8 +400,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   ),
                   const SizedBox(height: 10),
                 ],
-
-                // ====== Banner countdown: kirim order (status ACCEPTED) ======
                 if (status == 'ACCEPTED' && shipDeadline != null) ...[
                   const SizedBox(height: 10),
                   _countdownBanner(
@@ -369,7 +411,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   ),
                   const SizedBox(height: 10),
                 ],
-
                 const SizedBox(height: 13),
                 Text('Alamat Pengiriman',
                     style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -413,14 +454,12 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             ),
           ),
         ),
-
-        // list item
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Column(
               children: items.map((it) {
-                final img = (it['imageUrl'] ?? it['image']) as String?; // fallback
+                final img = (it['imageUrl'] ?? it['image']) as String?;
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.5),
                   child: Row(
@@ -474,8 +513,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             ),
           ),
         ),
-
-        // Nota & metode pembayaran
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
@@ -499,10 +536,9 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                       const Spacer(),
                       TextButton(
                         onPressed: () {
-                          // Mapping dokumen order → map untuk TransactionDetailPage
                           final txMap = _mapOrderToTransaction(
-                            displayedId: displayedId, // invoice tampilan
-                            orderDocId: orderDocId,   // doc.id asli
+                            displayedId: displayedId,
+                            orderDocId: orderDocId,
                             data: data,
                             buyerName: buyerName,
                           );
@@ -560,8 +596,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             ),
           ),
         ),
-
-        // subtotal / total
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -610,7 +644,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     );
   }
 
-  // ---------- helpers ----------
   static Widget _imgFallback() => Container(
         width: 56,
         height: 56,
@@ -644,7 +677,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   }
 
   static String _fmtDateTime(DateTime dt) {
-    // 05/07/2025, 8:00 PM
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
     final y = dt.year.toString();
@@ -654,7 +686,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     return '$d/$m/$y, $hour12:$min $ampm';
   }
 
-  // ======== Countdown Banner (reusable) ========
   Widget _countdownBanner({
     required String title,
     required DateTime deadline,
@@ -762,7 +793,6 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   }
 }
 
-// Sticky header delegate
 class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double minHeight;
   final double maxHeight;
@@ -786,17 +816,15 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
 }
 
-// ---------------- MAPPER: order doc -> map untuk TransactionDetailPage ----------------
 Map<String, dynamic> _mapOrderToTransaction({
-  required String displayedId,  // invoice tampilan (invoiceId/doc.id)
-  required String orderDocId,   // doc.id asli (opsional)
+  required String displayedId,
+  required String orderDocId,
   required Map<String, dynamic> data,
   required String buyerName,
 }) {
   final rawStatus =
       ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
 
-  // label status untuk nota
   String labelStatus;
   if (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SETTLED' || rawStatus == 'SUCCESS') {
     labelStatus = 'Sukses';

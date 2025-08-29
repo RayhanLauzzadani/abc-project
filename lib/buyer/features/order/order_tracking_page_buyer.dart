@@ -12,6 +12,9 @@ import 'package:abc_e_mart/buyer/features/order/widgets/order_success_pop_up.dar
 // Detail transaksi (PDF)
 import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
+// === NOTIF SERVICE (untuk order_delivered ke seller)
+import 'package:abc_e_mart/data/services/notification_service.dart';
+
 enum _BannerTone { info, success, warning }
 
 class OrderTrackingPage extends StatefulWidget {
@@ -33,6 +36,30 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     super.dispose();
   }
 
+  // Kirim notif ke SELLER: order_delivered (buyer -> seller)
+  Future<void> _notifySellerDelivered() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(widget.orderId)
+          .get();
+
+      final data = snap.data() ?? {};
+      final buyerId  = (data['buyerId']  ?? '') as String;
+      final sellerId = (data['sellerId'] ?? '') as String;
+      if (buyerId.isEmpty || sellerId.isEmpty) return;
+
+      // kirim notif (client-side), server-mu juga sudah memproses saldo di CF
+      await NotificationService.instance.notifyOrderDelivered(
+        sellerId: sellerId,
+        buyerId: buyerId,
+        orderId: widget.orderId,
+      );
+    } catch (_) {
+      // jangan blokir UX jika gagal notif; boleh log ke Crashlytics kalau ada
+    }
+  }
+
   // Buyer konfirmasi selesai -> Cloud Function completeOrder
   Future<void> _markAsCompleted() async {
     if (_completing) return;
@@ -40,6 +67,9 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     try {
       final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
       await functions.httpsCallable('completeOrder').call({'orderId': widget.orderId});
+
+      // Setelah server sukses menyelesaikan order, kirim notif ke seller
+      await _notifySellerDelivered();
 
       if (!mounted) return;
 
@@ -144,7 +174,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     return status.toUpperCase() == 'PLACED'
         ? 'Menunggu Seller menerima pesanan'
         : 'Produk disiapkan Toko';
-  }
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +197,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
           flexibleSpace: ColoredBox(
             color: Colors.white,
             child: Padding(
-              // spacing lebih rapat seperti halaman seller
               padding: const EdgeInsets.only(left: 20, top: 40, bottom: 8),
               child: Row(
                 children: [
@@ -286,7 +315,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _moreIcon(),
                     const SizedBox(height: 6),
 
-                    // step 2
                     _statusItem(
                       title: 'Produk Sedang Dikirim',
                       subtitle: '',
@@ -298,7 +326,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _moreIcon(),
                     const SizedBox(height: 6),
 
-                    // step 3
                     _statusItem(
                       title: 'Produk Sampai Tujuan',
                       subtitle: addressLabel,
@@ -307,7 +334,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                       isReached: stepIndex >= 2,
                     ),
 
-                    // ===== Banner countdown 48 jam (hanya saat SHIPPED/DELIVERED) =====
                     if (confirmDeadline != null) ...[
                       const SizedBox(height: 14),
                       _countdownBanner(
@@ -323,17 +349,15 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _divider(),
                     const SizedBox(height: 16),
 
-                    // ===== Detail Pesanan =====
                     Text('Detail Pesanan',
                         style: GoogleFonts.dmSans(
                             fontSize: 22, fontWeight: FontWeight.bold,
                             color: const Color(0xFF373E3C))),
                     const SizedBox(height: 12),
 
-                    // Header toko
                     _storeHeader(
                       storeName: storeName,
-                      orderId: displayId, // tampilkan invoiceId/fallback doc.id
+                      orderId: displayId, // invoiceId/fallback doc.id
                       logoUrl: logoUrl,
                       onChatTap: storeId.isEmpty
                           ? null
@@ -348,7 +372,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _divider(),
                     const SizedBox(height: 12),
 
-                    // Alamat Pengiriman
                     Text('Alamat Pengiriman',
                         style: GoogleFonts.dmSans(
                             fontSize: 16, fontWeight: FontWeight.bold,
@@ -374,7 +397,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _divider(),
                     const SizedBox(height: 12),
 
-                    // Produk yang dipesan
                     Text('Produk yang Dipesan',
                         style: GoogleFonts.dmSans(
                             fontSize: 16, fontWeight: FontWeight.bold,
@@ -396,7 +418,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _divider(),
                     const SizedBox(height: 14),
 
-                    // Nota Pesanan (tombol Lihat → TransactionDetailPage)
                     _notaPesananCard(
                       methodText: methodLabel,
                       onView: () async {
@@ -821,7 +842,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
   }
 
   static String _fmtDateTime(DateTime dt) {
-    // 05/07/2025, 8:00 PM
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
     final y = dt.year.toString();
@@ -844,7 +864,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String)
             .toUpperCase();
 
-    // label UI
     final uiStatus = (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SUCCESS' || rawStatus == 'SETTLED')
         ? 'Sukses'
         : (rawStatus == 'CANCELLED' || rawStatus == 'CANCELED' || rawStatus == 'REJECTED' || rawStatus == 'FAILED')
@@ -868,19 +887,15 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
 
     final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
-    // Ambil store meta dari order bila ada; fallback ke argumen dari stores/{id}
     final storePhoneFinal   = (data['storePhone']   ?? storePhone ?? '-') as String;
     final storeAddressFinal = (data['storeAddress'] ?? storeAddress ?? '-') as String;
 
     final buyerNameFinal = (data['buyerName'] ?? buyerName ?? '-') as String;
 
     return {
-      // identitas
       'invoiceId': orderIdForInvoice,
       'status': uiStatus,
       'date': date,
-
-      // info toko untuk PDF (flat & nested)
       'storeName': storeName,
       'storePhone': storePhoneFinal,
       'storeAddress': storeAddressFinal,
@@ -889,8 +904,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         'phone': storePhoneFinal,
         'address': storeAddressFinal,
       },
-
-      // info pembeli & pengiriman
       'buyerName': buyerNameFinal,
       'shipping': {
         'recipient': buyerNameFinal.isNotEmpty ? buyerNameFinal : addressLabel,
@@ -898,8 +911,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         'addressText': addressText,
         'phone': phone,
       },
-
-      // pembayaran & amounts
       'paymentMethod': method,
       'amounts': {
         'subtotal': subtotal,
@@ -907,8 +918,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         'tax': tax,
         'total': total,
       },
-
-      // item rows
       'items': items.map((it) => {
         'name': (it['name'] ?? '-') as String,
         'qty': ((it['qty'] as num?) ?? 0).toInt(),
