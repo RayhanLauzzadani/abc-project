@@ -94,9 +94,9 @@ class _AddAdsPageState extends State<AddAdsPage> {
         final frame = await codec.getNextFrame();
         final img = frame.image;
 
-        if (img.width != 390 || img.height != 160) {
+        if (img.width != 320 || img.height != 160) {
           if (mounted) {
-            _showAlert('Ukuran Banner Tidak Sesuai', 'Ukuran banner wajib **390x160 px**');
+            _showAlert('Ukuran Banner Tidak Sesuai', 'Ukuran banner wajib **320x160 px**');
           }
           return;
         }
@@ -435,7 +435,7 @@ class _AddAdsPageState extends State<AddAdsPage> {
                                         ),
                                       ),
                                       Text(
-                                        "Ukuran banner wajib 390px X 160px",
+                                        "Ukuran banner wajib 320px X 160px",
                                         style: GoogleFonts.dmSans(
                                           fontSize: 12,
                                           color: colorGreyText,

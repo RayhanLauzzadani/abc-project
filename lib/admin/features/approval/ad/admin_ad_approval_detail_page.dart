@@ -240,7 +240,7 @@ class _AdminAdApprovalDetailPageState extends State<AdminAdApprovalDetailPage> {
                         alignment: Alignment.center,
                         child: bannerUrl.isEmpty
                             ? Text(
-                                'Banner Iklan (390x160)',
+                                'Banner Iklan (320x160)',
                                 style: GoogleFonts.dmSans(
                                   fontSize: 13,
                                   color: const Color(0xFF9A9A9A),
