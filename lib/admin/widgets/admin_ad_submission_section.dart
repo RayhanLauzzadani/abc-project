@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// Pastikan import model AdApplication:
 import 'package:abc_e_mart/seller/data/models/ad.dart';
 
 class AdminAdSubmissionSection extends StatelessWidget {
@@ -30,7 +29,6 @@ class AdminAdSubmissionSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Expanded(
@@ -76,26 +74,35 @@ class AdminAdSubmissionSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
+
+            // ---------- EMPTY STATE TENGAH + ITALIC ----------
             if (submissions.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  "Belum ada ajuan iklan baru.",
-                  style: GoogleFonts.dmSans(
-                    fontSize: 14,
-                    color: Colors.grey[500],
+                padding: const EdgeInsets.symmetric(vertical: 25),
+                child: Center(
+                  child: Text(
+                    "Belum ada ajuan iklan terbaru.",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF9A9A9A),
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
               )
-            else ...submissions.map(
-              (submission) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _AdminAdSubmissionCard(
-                  data: submission,
-                  onDetail: () => onDetail?.call(submission),
+            // --------------------------------------------------
+            else
+              ...submissions.map(
+                (submission) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _AdminAdSubmissionCard(
+                    data: submission,
+                    onDetail: () => onDetail?.call(submission),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -122,7 +129,6 @@ class _AdminAdSubmissionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title
             Text(
               data.title,
               style: GoogleFonts.dmSans(
@@ -132,7 +138,6 @@ class _AdminAdSubmissionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            // Periode detail
             Text(
               data.detailPeriod,
               style: GoogleFonts.dmSans(
@@ -141,11 +146,9 @@ class _AdminAdSubmissionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            // Row bawah
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Date
                 Text(
                   data.date,
                   style: GoogleFonts.dmSans(
@@ -153,7 +156,6 @@ class _AdminAdSubmissionCard extends StatelessWidget {
                     color: const Color(0xFFBDBDBD),
                   ),
                 ),
-                // Detail Iklan
                 GestureDetector(
                   onTap: onDetail,
                   child: Row(
@@ -180,7 +182,6 @@ class _AdminAdSubmissionCard extends StatelessWidget {
   }
 }
 
-// Data class
 class AdminAdSubmissionData {
   final String title;
   final String detailPeriod;

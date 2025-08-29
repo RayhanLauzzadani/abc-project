@@ -5,11 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+// chat & popup sukses
 import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/order/widgets/order_success_pop_up.dart';
 
 // Detail transaksi (PDF)
 import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
+
+enum _BannerTone { info, success, warning }
 
 class OrderTrackingPage extends StatefulWidget {
   final String orderId;
@@ -30,7 +33,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     super.dispose();
   }
 
-  // Buyer menutup pesanan -> panggil CF completeOrder
+  // Buyer konfirmasi selesai -> Cloud Function completeOrder
   Future<void> _markAsCompleted() async {
     if (_completing) return;
     setState(() => _completing = true);
@@ -40,7 +43,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
 
       if (!mounted) return;
 
-      // Dialog sukses
+      // Animasi sukses
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -80,7 +83,8 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     if (user == null) return;
 
     // profil buyer (untuk metadata chat)
-    final buyerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final buyerDoc =
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final buyerName = (buyerDoc.data()?['name'] ?? '') as String;
     final buyerAvatar = (buyerDoc.data()?['photoUrl'] ?? '') as String;
 
@@ -100,8 +104,8 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
       await ref.set({
         'shopId': storeId,
         'shopName': storeName,
-        'shopAvatar': storeLogoUrl, // dipakai di list buyer
-        'logoUrl': storeLogoUrl,    // fallback bila widget lama pakai key ini
+        'shopAvatar': storeLogoUrl,   // dipakai di list buyer
+        'logoUrl': storeLogoUrl,      // fallback jika widget lama pakai key ini
         'buyerId': user.uid,
         'buyerName': buyerName,
         'buyerAvatar': buyerAvatar,
@@ -115,7 +119,8 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChatDetailPage(chatId: chatId, shopId: storeId, shopName: storeName),
+        builder: (_) =>
+            ChatDetailPage(chatId: chatId, shopId: storeId, shopName: storeName),
       ),
     );
   }
@@ -202,6 +207,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
 
           final data = snap.data!.data()!;
           final status = (data['status'] ?? 'PLACED') as String;
+          final statusU = status.toUpperCase();
           final storeName = (data['storeName'] ?? '-') as String;
           final storeId = (data['storeId'] ?? '') as String;
           final buyerId = (data['buyerId'] ?? '') as String;
@@ -209,18 +215,27 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
           // invoice displayId
           final realOrderId = snap.data!.id;
           final rawInvoice = (data['invoiceId'] as String?)?.trim();
-          final displayId = (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : realOrderId;
+          final displayId =
+              (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : realOrderId;
 
-          // alamat
+          // alamat (order doc boleh punya 'addressText' atau 'address')
           final addressMap = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
           final addressLabel = (addressMap['label'] ?? '-') as String;
-          final addressText  = (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
+          final addressText  =
+              (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
 
           final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
           final stepIndex = _currentStepIndex(status);
           final step1Title = _step1Title(status);
 
-          // ambil logo + meta toko dari stores/{storeId}
+          // deadline konfirmasi penerimaan: updatedAt + 2 hari (fallback createdAt + 2 hari)
+          final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+          final updatedAt = (data['updatedAt'] as Timestamp?)?.toDate();
+          final DateTime? confirmDeadline = (statusU == 'SHIPPED' || statusU == 'DELIVERED')
+              ? (updatedAt ?? createdAt)?.add(const Duration(days: 2))
+              : null;
+
+          // ambil logo/meta toko dari stores/{storeId}
           final Stream<DocumentSnapshot<Map<String, dynamic>>> storeStream =
             storeId.isEmpty
                 ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
@@ -292,6 +307,18 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                       isReached: stepIndex >= 2,
                     ),
 
+                    // ===== Banner countdown 48 jam (hanya saat SHIPPED/DELIVERED) =====
+                    if (confirmDeadline != null) ...[
+                      const SizedBox(height: 14),
+                      _countdownBanner(
+                        title: 'Konfirmasi penerimaan sebelum',
+                        deadline: confirmDeadline,
+                        caption:
+                            'Tekan tombol di bawah jika barang sudah diterima agar dana dicairkan ke seller.',
+                        tone: _BannerTone.info,
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
                     _divider(),
                     const SizedBox(height: 16),
@@ -306,7 +333,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     // Header toko
                     _storeHeader(
                       storeName: storeName,
-                      orderId: displayId, // tampilkan invoiceId/fallback
+                      orderId: displayId, // tampilkan invoiceId/fallback doc.id
                       logoUrl: logoUrl,
                       onChatTap: storeId.isEmpty
                           ? null
@@ -393,8 +420,9 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                           storeName: storeName,
                           storePhone: storePhone,                 // phone toko
                           storeAddress: storeAddress,             // alamat toko
-                          buyerName: buyerName,                   // nama buyer ✅
+                          buyerName: buyerName,                   // nama buyer
                         );
+                        if (!mounted) return;
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -671,14 +699,146 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     return b.toString();
   }
 
+  // ======== Countdown Banner (buyer confirm deadline) ========
+  Widget _countdownBanner({
+    required String title,
+    required DateTime deadline,
+    String? caption,
+    _BannerTone tone = _BannerTone.info,
+  }) {
+    final Color bg, border, textColor, iconBg;
+    switch (tone) {
+      case _BannerTone.success:
+        bg = const Color(0xFFF1FFF6);
+        border = const Color(0xFF28A745);
+        textColor = const Color(0xFF166534);
+        iconBg = const Color(0xFFE8FFF0);
+        break;
+      case _BannerTone.warning:
+        bg = const Color(0xFFFFFBF1);
+        border = const Color(0xFFEAB600);
+        textColor = const Color(0xFF6B4E00);
+        iconBg = const Color(0xFFFFF3C4);
+        break;
+      case _BannerTone.info:
+      default:
+        bg = const Color(0xFFF1F7FF);
+        border = const Color(0xFF1976D2);
+        textColor = const Color(0xFF0C3C78);
+        iconBg = const Color(0xFFE7F1FF);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFF666666)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: StreamBuilder<DateTime>(
+              stream: Stream<DateTime>.periodic(
+                const Duration(seconds: 1),
+                (_) => DateTime.now(),
+              ),
+              builder: (_, tick) {
+                final now = tick.data ?? DateTime.now();
+                final remaining = deadline.difference(now);
+                final over = remaining.isNegative;
+                final text = over ? 'Waktu habis' : _fmtRemaining(remaining);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$title ${_fmtDateTime(deadline)}',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.2,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: border, width: 1.1),
+                          ),
+                          child: Text(
+                            over ? 'Silakan hubungi penjual via chat' : 'Sisa waktu: $text',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.2,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (caption != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        caption,
+                        style: GoogleFonts.dmSans(fontSize: 12, color: textColor),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _fmtRemaining(Duration d) {
+    var secs = d.inSeconds;
+    if (secs < 0) secs = 0;
+    final days = secs ~/ 86400;
+    secs %= 86400;
+    final hrs = secs ~/ 3600;
+    secs %= 3600;
+    final mins = secs ~/ 60;
+    secs %= 60;
+    if (days > 0) return '${days}h ${hrs}j ${mins}m ${secs}s';
+    if (hrs > 0) return '${hrs}j ${mins}m ${secs}s';
+    if (mins > 0) return '${mins}m ${secs}s';
+    return '${secs}s';
+  }
+
+  static String _fmtDateTime(DateTime dt) {
+    // 05/07/2025, 8:00 PM
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year.toString();
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y, $hour12:$min $ampm';
+  }
+
   // ========= mapper: dokumen order -> map utk TransactionDetailPage =========
   Map<String, dynamic> _mapOrderToTransaction({
     required String orderIdForInvoice, // tampilkan invoiceId (displayId)
     required Map<String, dynamic> data,
     required String storeName,
-    String? storePhone,         // ➕
-    String? storeAddress,       // ➕
-    String? buyerName,          // ➕
+    String? storePhone,
+    String? storeAddress,
+    String? buyerName,
   }) {
     final rawStatus =
         ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String)
@@ -720,7 +880,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
       'status': uiStatus,
       'date': date,
 
-      // info toko untuk PDF (flat & nested — TransactionDetailPage support keduanya)
+      // info toko untuk PDF (flat & nested)
       'storeName': storeName,
       'storePhone': storePhoneFinal,
       'storeAddress': storeAddressFinal,

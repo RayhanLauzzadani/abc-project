@@ -183,8 +183,17 @@ class _AddAdsPageState extends State<AddAdsPage> {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
-      final bannerUrl = await AdService.uploadImageToStorage(_bannerImage!, 'ads/banner');
-      final paymentProofUrl = await AdService.uploadImageToStorage(_buktiPembayaranImage!, 'ads/payment_proof');
+      // ⬇️ PERUBAHAN MINIMAL: path upload disesuaikan dgn rules
+      final uid = widget.sellerId;
+      final bannerUrl = await AdService.uploadImageToStorage(
+        _bannerImage!,
+        'ads/$uid/banner',
+      );
+      final paymentProofUrl = await AdService.uploadImageToStorage(
+        _buktiPembayaranImage!,
+        'payment_proofs/$uid',
+      );
+      // ⬆️ END perubahan
 
       final adApp = AdApplication(
         id: '',

@@ -4,10 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+
 import 'package:abc_e_mart/admin/widgets/admin_dual_action_buttons.dart';
 import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
 import 'package:abc_e_mart/admin/widgets/admin_reject_reason_page.dart';
-import 'package:abc_e_mart/admin/data/services/payment_application_service.dart';
+
+// Service
+import 'package:abc_e_mart/data/services/payment_application_service.dart';
 
 enum PaymentRequestType { topUp, withdrawal }
 
@@ -35,9 +38,9 @@ class _AdminPaymentApprovalDetailPageState
 
   Future<void> _pickAdminProof() async {
     try {
-      final x =
-          await _picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
+      final x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
       if (x == null) return;
+
       final ext = x.name.split('.').last.toLowerCase();
       if (!['jpg', 'jpeg', 'png'].contains(ext)) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,17 +76,24 @@ class _AdminPaymentApprovalDetailPageState
   }
 
   Future<void> _onVerify(Map<String, dynamic> app) async {
-    final realType = (app['type'] as String?) ?? (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
+    final realType = (app['type'] as String?) ??
+        (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
     final isTopUp = realType == 'topup';
 
     try {
-      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
       if (isTopUp) {
+        // APPROVE TOPUP → tambah saldo buyer + notif ke buyer (service)
         await PaymentApplicationService.instance.approveTopUpApplication(
           applicationId: widget.applicationId,
         );
       } else {
+        // APPROVE WITHDRAWAL → wajib unggah bukti transfer admin
         if (!_hasProof) {
           Navigator.of(context, rootNavigator: true).pop();
           ScaffoldMessenger.of(context).showSnackBar(
@@ -91,11 +101,22 @@ class _AdminPaymentApprovalDetailPageState
           );
           return;
         }
-        final proof = await PaymentApplicationService.instance.uploadProof(
+
+        final ownerId = app['ownerId'] as String?;
+        if (ownerId == null || ownerId.isEmpty) {
+          Navigator.of(context, rootNavigator: true).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('ownerId tidak ditemukan di ajuan.', style: GoogleFonts.dmSans())),
+          );
+          return;
+        }
+
+        final proof = await PaymentApplicationService.instance.uploadAdminWithdrawProof(
           file: File(_adminProof!.path),
           filenameHint: 'withdraw_${widget.applicationId}.${_adminProof!.name.split('.').last}',
-          ownerId: app['ownerId'] as String?,
+          ownerId: ownerId,
         );
+
         await PaymentApplicationService.instance.approveWithdrawalApplication(
           applicationId: widget.applicationId,
           adminProof: proof,
@@ -125,7 +146,8 @@ class _AdminPaymentApprovalDetailPageState
   }
 
   Future<void> _onReject(Map<String, dynamic> app) async {
-    final realType = (app['type'] as String?) ?? (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
+    final realType = (app['type'] as String?) ??
+        (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
     final isTopUp = realType == 'topup';
 
     final reason = await Navigator.push<String>(
@@ -135,7 +157,11 @@ class _AdminPaymentApprovalDetailPageState
     if (reason == null || reason.trim().isEmpty) return;
 
     try {
-      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
       if (isTopUp) {
         await PaymentApplicationService.instance.rejectTopUpApplication(
@@ -219,16 +245,12 @@ class _AdminPaymentApprovalDetailPageState
                             color: Color(0xFF1C55C0),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white, size: 20),
+                          child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Text("Detail Ajuan",
-                          style: GoogleFonts.dmSans(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: const Color(0xFF232323))),
+                          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF232323))),
                     ],
                   ),
 
@@ -240,8 +262,7 @@ class _AdminPaymentApprovalDetailPageState
                   const Divider(color: Color(0xFFE5E7EB), thickness: 1, height: 1),
                   const SizedBox(height: 22),
 
-                  _sectionTitle(
-                      isTopUp ? "Data Pengisian Saldo" : "Data Pencairan Saldo"),
+                  _sectionTitle(isTopUp ? "Data Pengisian Saldo" : "Data Pencairan Saldo"),
                   const SizedBox(height: 16),
 
                   if (isTopUp) ...[
@@ -249,8 +270,7 @@ class _AdminPaymentApprovalDetailPageState
                     const SizedBox(height: 6),
                     _fileChip(
                       (app['proof']?['name'] as String?) ?? 'bukti.jpg',
-                      app['proof']?['bytes'] == null
-                          ? '—'
+                      app['proof']?['bytes'] == null ? '—'
                           : '${((app['proof']['bytes'] as num) / (1024 * 1024)).toStringAsFixed(1)} MB',
                       trailing: const Icon(Icons.chevron_right, size: 18),
                       onTap: () {
@@ -259,9 +279,7 @@ class _AdminPaymentApprovalDetailPageState
                         showDialog(
                           context: context,
                           builder: (_) => Dialog(
-                            child: InteractiveViewer(
-                              child: Image.network(url, fit: BoxFit.contain),
-                            ),
+                            child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
                           ),
                         );
                       },
@@ -273,15 +291,12 @@ class _AdminPaymentApprovalDetailPageState
                     FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       future: app['buyerId'] == null
                           ? null
-                          : FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(app['buyerId'])
-                              .get(),
+                          : FirebaseFirestore.instance.collection('users').doc(app['buyerId']).get(),
                       builder: (_, userSnap) {
                         final m = userSnap.data?.data();
                         final name = (m?['displayName'] as String?) ??
-                                    (m?['name'] as String?) ??
-                                    (app['buyerEmail'] as String? ?? '-');
+                            (m?['name'] as String?) ??
+                            (app['buyerEmail'] as String? ?? '-');
                         return _plainText(name);
                       },
                     ),
@@ -302,21 +317,15 @@ class _AdminPaymentApprovalDetailPageState
                     _emphasizedTotal("Total Dibayar Pembeli", _rp((app['totalPaid'] as num?) ?? 0)),
                     const SizedBox(height: 40),
                   ] else ...[
-                    // WITHDRAWAL
                     _label("Nama Pemilik Rekening"),
                     const SizedBox(height: 4),
                     FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       future: app['ownerId'] == null
                           ? null
-                          : FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(app['ownerId'])
-                              .get(),
+                          : FirebaseFirestore.instance.collection('users').doc(app['ownerId']).get(),
                       builder: (_, uSnap) {
-                        final m  = uSnap.data?.data();          // <-- perbaikan di sini
-                        final nm = (m?['displayName'] as String?) ??
-                                  (m?['name'] as String?) ??
-                                  '-';
+                        final m = uSnap.data?.data();
+                        final nm = (m?['displayName'] as String?) ?? (m?['name'] as String?) ?? '-';
                         return _plainText(nm);
                       },
                     ),
@@ -362,8 +371,7 @@ class _AdminPaymentApprovalDetailPageState
                                   children: [
                                     const Icon(Icons.add, size: 22, color: Color(0xFF9A9A9A)),
                                     const SizedBox(height: 4),
-                                    Text("Tambah Foto",
-                                        style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF9A9A9A))),
+                                    Text("Tambah Foto", style: GoogleFonts.dmSans(fontSize: 12, color: Color(0xFF9A9A9A))),
                                   ],
                                 ),
                               )
@@ -392,7 +400,7 @@ class _AdminPaymentApprovalDetailPageState
                     const SizedBox(height: 8),
                     Text(
                       "• Format yang Didukung : JPG, PNG, JPEG\n• Ukuran file maksimum: 2 MB",
-                      style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF9A9A9A), height: 1.35),
+                      style: GoogleFonts.dmSans(fontSize: 12, color: Color(0xFF9A9A9A), height: 1.35),
                     ),
                     const SizedBox(height: 16),
                     const SizedBox(height: 6),
@@ -438,29 +446,17 @@ class _AdminPaymentApprovalDetailPageState
   // ===== UI helpers =====
   Widget _sectionTitle(String text) => Text(
         text,
-        style: GoogleFonts.dmSans(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF373E3C),
-        ),
+        style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF373E3C)),
       );
 
   Widget _label(String text) => Text(
         text,
-        style: GoogleFonts.dmSans(
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-          color: const Color(0xFF373E3C),
-        ),
+        style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF373E3C)),
       );
 
   Widget _plainText(String text) => Text(
         text,
-        style: GoogleFonts.dmSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          color: const Color(0xFF232323),
-        ),
+        style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF232323)),
       );
 
   Widget _fileChip(String name, String size, {Widget? trailing, VoidCallback? onTap}) {
@@ -528,18 +524,9 @@ class _AdminPaymentApprovalDetailPageState
       child: Row(
         children: [
           Expanded(
-              child: Text(left,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF373E3C),
-                  ))),
-          Text(right,
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF373E3C),
-              )),
+            child: Text(left, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF373E3C))),
+          ),
+          Text(right, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF373E3C))),
         ],
       ),
     );
@@ -556,11 +543,7 @@ class _IconAction extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;
-  const _IconAction({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-  });
+  const _IconAction({required this.icon, required this.onTap, required this.tooltip});
 
   @override
   Widget build(BuildContext context) {
@@ -572,10 +555,7 @@ class _IconAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.all(6),
-          child: Tooltip(
-            message: tooltip,
-            child: Icon(icon, color: Colors.white, size: 18),
-          ),
+          child: Tooltip(message: tooltip, child: Icon(icon, color: Colors.white, size: 18)),
         ),
       ),
     );

@@ -52,7 +52,7 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
         break;
       }
     }
-    // Kalau ada yang valid → pakai itu. Kalau tidak ada → pakai minWithdraw (hanya sebagai tampilan).
+    // Kalau ada yang valid → pakai itu. Kalau tidak ada → pakai minWithdraw (hanya tampilan).
     _amount = firstEnabled ?? widget.minWithdraw;
 
     _bankCtrl.addListener(() => setState(() => _bankLen = _bankCtrl.text.characters.length));
@@ -98,80 +98,82 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
   }
 
   Future<String> _resolveStoreId() async {
-  if (widget.storeId != null && widget.storeId!.isNotEmpty) {
-    return widget.storeId!;
-  }
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) {
-    throw Exception('Belum login');
-  }
-  final q = await FirebaseFirestore.instance
-      .collection('stores')
-      .where('ownerId', isEqualTo: uid)
-      .limit(1)
-      .get();
-
-  if (q.docs.isEmpty) {
-    throw Exception('Toko tidak ditemukan untuk akun ini.');
-  }
-  return q.docs.first.id;
-}
-
-// Submit pengajuan penarikan ke paymentApplications (type: withdrawal)
-Future<void> _submitWithdrawal() async {
-  if (!_isFormValid || _submitting) return;
-  setState(() => _submitting = true);
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (widget.storeId != null && widget.storeId!.isNotEmpty) {
+      return widget.storeId!;
+    }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
       throw Exception('Belum login');
     }
+    final q = await FirebaseFirestore.instance
+        .collection('stores')
+        .where('ownerId', isEqualTo: uid)
+        .limit(1)
+        .get();
 
-    final storeId = await _resolveStoreId();
-    final amount = _amount;
-    final fee = widget.adminFee;
-    final received = (amount - fee) < 0 ? 0 : (amount - fee);
-
-    await PaymentApplicationService.instance.createWithdrawalApplication(
-      ownerId: user.uid,
-      storeId: storeId,
-      bankName: _bankCtrl.text.trim(),
-      accountNumber: _accNoCtrl.text.trim(),
-      amountRequested: amount,
-      adminFee: fee,
-      received: received,
-    );
-
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SuccessWithdrawalPage(
-          // Hanya pop dua kali: success -> withdraw -> kembali ke HomePageSeller lama
-          onGoHome: () {
-            Navigator.of(context).pop(); // tutup SuccessWithdrawalPage
-            Navigator.of(context).pop(); // tutup WithdrawPaymentPage
-          },
-          // Opsional: tutup success dulu, lalu buka riwayat
-          onViewHistory: () {
-            Navigator.of(context).pop(); // tutup SuccessWithdrawalPage
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const WithdrawHistoryPageSeller()),
-            );
-          },
-        ),
-      ),
-    );
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengirim penarikan: $e')),
-      );
+    if (q.docs.isEmpty) {
+      throw Exception('Toko tidak ditemukan untuk akun ini.');
     }
-  } finally {
-    if (mounted) setState(() => _submitting = false);
+    return q.docs.first.id;
   }
-}
+
+  // Submit pengajuan penarikan ke paymentApplications (type: withdrawal).
+  // Notifikasi admin dikirim di service (createWithdrawalApplication), jadi
+  // di UI tidak perlu kirim lagi agar tidak dobel.
+  Future<void> _submitWithdrawal() async {
+    if (!_isFormValid || _submitting) return;
+    setState(() => _submitting = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Belum login');
+      }
+
+      final storeId = await _resolveStoreId();
+      final amount = _amount;
+      final fee = widget.adminFee;
+      final received = (amount - fee) < 0 ? 0 : (amount - fee);
+
+      await PaymentApplicationService.instance.createWithdrawalApplication(
+        ownerId: user.uid,
+        storeId: storeId,
+        bankName: _bankCtrl.text.trim(),
+        accountNumber: _accNoCtrl.text.trim(),
+        amountRequested: amount,
+        adminFee: fee,
+        received: received,
+      );
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SuccessWithdrawalPage(
+            // Hanya pop dua kali: success -> withdraw -> kembali ke HomePageSeller lama
+            onGoHome: () {
+              Navigator.of(context).pop(); // tutup SuccessWithdrawalPage
+              Navigator.of(context).pop(); // tutup WithdrawPaymentPage
+            },
+            // Opsional: tutup success dulu, lalu buka riwayat
+            onViewHistory: () {
+              Navigator.of(context).pop(); // tutup SuccessWithdrawalPage
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const WithdrawHistoryPageSeller()),
+              );
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengirim penarikan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
