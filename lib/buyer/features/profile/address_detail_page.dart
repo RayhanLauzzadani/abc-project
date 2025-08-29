@@ -116,7 +116,9 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
               Marker(
                 markerId: const MarkerId('selected-location'),
                 position: markerLatLng,
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueRed,
+                ),
               ),
             },
             zoomControlsEnabled: false,
@@ -155,56 +157,61 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kamu belum login!'))
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Kamu belum login!')));
         setState(() => _isLoading = false);
         return;
       }
 
-        final address = AddressModel(
-          id: widget.isEdit && widget.addressId != null
-              ? widget.addressId!
-              : const Uuid().v4(),
-          label: _labelController.text.trim(),
-          name: _nameController.text.trim(),
-          phone: _phoneController.text.trim(),
-          address: _fullAddress!,
-          locationTitle: _locationTitle!,
-          latitude: _latitude!,
-          longitude: _longitude!,
-          createdAt: DateTime.now(),
-          isPrimary: widget.isEdit ? widget.isPrimary : false, // <-- Inilah fixnya!
-        );
+      final address = AddressModel(
+        id: widget.isEdit && widget.addressId != null
+            ? widget.addressId!
+            : const Uuid().v4(),
+        label: _labelController.text.trim(),
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: _fullAddress!,
+        locationTitle: _locationTitle!,
+        latitude: _latitude!,
+        longitude: _longitude!,
+        createdAt: DateTime.now(),
+        isPrimary: widget.isEdit ? widget.isPrimary : false,
+      );
 
       if (widget.isEdit && widget.addressId != null) {
-        // UPDATE (mode edit)
-        await AddressService().updateAddress(userId, widget.addressId!, address);
-      } else {
-        // CREATE (mode tambah)
-        await AddressService().addAddress(userId, address);
-      }
-
-      if (mounted) {
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const SuccessDialog(
-            message: "Alamat berhasil disimpan",
-            lottiePath: "assets/lottie/success_check.json",
-            lottieSize: 100,
-            buttonText: "OK",
-          ),
+        // UPDATE di sini
+        await AddressService().updateAddress(
+          userId,
+          widget.addressId!,
+          address,
         );
+      } else {
+        // CREATE: popup sukses muncul di halaman ini, setelah OK baru balik ke list
         if (mounted) {
-          Navigator.pop(context, address); 
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const SuccessDialog(
+              message: "Alamat berhasil disimpan",
+              lottiePath: "assets/lottie/success_check.json",
+              lottieSize: 100,
+              buttonText: "OK",
+            ),
+          );
+        }
+        if (mounted) {
+          Navigator.pop(context, address); // kirim AddressModel ke AddressList
+        } else {
+          // CREATE: JANGAN tulis ke DB di sini — kembalikan ke AddressList
+          if (mounted) Navigator.pop(context, address);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -219,9 +226,7 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const ProfileAppBar(
-        title: 'Detail Alamat',
-      ),
+      appBar: const ProfileAppBar(title: 'Detail Alamat'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         child: Column(
@@ -238,7 +243,7 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
                   BoxShadow(
                     color: Colors.black.withOpacity(0.03),
                     blurRadius: 4,
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -254,7 +259,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
                             'assets/icons/location.svg',
                             width: 18,
                             height: 18,
-                            colorFilter: const ColorFilter.mode(Color(0xFF9A9A9A), BlendMode.srcIn),
+                            colorFilter: const ColorFilter.mode(
+                              Color(0xFF9A9A9A),
+                              BlendMode.srcIn,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -311,7 +319,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1C55C0),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 0,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(6),
                               ),
@@ -346,7 +357,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
               maxLines: 2,
               readOnly: true,
               decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 border: getInputBorder(),
                 enabledBorder: getInputBorder(),
                 disabledBorder: getInputBorder(),
@@ -366,7 +380,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
             TextField(
               controller: _labelController,
               decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 border: getInputBorder(),
                 enabledBorder: getInputBorder(),
                 disabledBorder: getInputBorder(),
@@ -386,7 +403,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
             TextField(
               controller: _nameController,
               decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 border: getInputBorder(),
                 enabledBorder: getInputBorder(),
                 disabledBorder: getInputBorder(),
@@ -407,7 +427,10 @@ class _AddressDetailPageState extends State<AddressDetailPage> {
               controller: _phoneController,
               keyboardType: TextInputType.phone,
               decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 border: getInputBorder(),
                 enabledBorder: getInputBorder(),
                 disabledBorder: getInputBorder(),
