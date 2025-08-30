@@ -69,9 +69,10 @@ class PaymentApplicationService {
   /// return: docId
   Future<String> createTopUpApplication({
     required String orderId,
-    required int amountTopUp, // jumlah isi saldo (tanpa fee)
-    required int adminFee,
-    required int totalPaid,
+    required int amountTopUp, // jumlah isi saldo (tanpa fee & tax)
+    required int serviceFee,  // biaya layanan flat
+    required int tax,         // pajak
+    required int totalPaid,   // grand total yang dibayar user
     required String methodLabel,
     required ({String url, int bytes, String name}) proof,
   }) async {
@@ -86,9 +87,21 @@ class PaymentApplicationService {
       'buyerEmail': user.email,
       'submittedAt': FieldValue.serverTimestamp(),
       'methodLabel': methodLabel,
+
+      // angka utama
       'amount': amountTopUp,           // jumlah isi saldo
-      'fee': adminFee,
+      'fee': serviceFee,               // tetap simpan di field lama 'fee' agar compat
+      'tax': tax,
       'totalPaid': totalPaid,
+
+      // breakdown tambahan (lebih eksplisit)
+      'breakdown': {
+        'amount': amountTopUp,
+        'serviceFee': serviceFee,
+        'tax': tax,
+        'total': totalPaid,
+      },
+
       'proof': {
         'url': proof.url,
         'name': proof.name,
@@ -117,7 +130,7 @@ class PaymentApplicationService {
     await _fs.collection('admin_notifications').add({
       'title': 'Pengajuan Isi Saldo',
       'body': 'Pembeli mengajukan isi saldo.',
-      'type': 'wallet_topup_submitted', // <- konsisten
+      'type': 'wallet_topup_submitted',
       'paymentAppId': doc.id,
       'buyerId': user.uid,
       'buyerEmail': user.email,
@@ -146,7 +159,7 @@ class PaymentApplicationService {
       if ((data['status'] as String?) != 'pending') throw Exception('Ajuan sudah diproses');
 
       buyerId = data['buyerId'] as String? ?? '';
-      amount  = (data['amount'] as num?)?.toInt() ?? 0;
+      amount  = (data['amount'] as num?)?.toInt() ?? 0; // amountTopUp saja
       if (buyerId.isEmpty) throw Exception('buyerId kosong');
 
       final userRef = _fs.collection('users').doc(buyerId);
@@ -283,10 +296,6 @@ class PaymentApplicationService {
   }
 
   /// ADMIN: Approve withdrawal
-  /// - Kurangi wallet.available penjual
-  /// - Simpan bukti transfer admin (opsional)
-  /// - Update status
-  /// - Notif ke seller (berhasil)
   Future<void> approveWithdrawalApplication({
     required String applicationId,
     ({String url, int bytes, String name})? adminProof,
@@ -352,12 +361,9 @@ class PaymentApplicationService {
     }
 
     // ⛔️ Tidak menulis admin_notifications lagi saat approved
-    // agar tidak tampil di UI admin.
   }
 
   /// ADMIN: Reject withdrawal
-  /// - Update status + alasan
-  /// - Notif ke seller (ditolak)
   Future<void> rejectWithdrawalApplication({
     required String applicationId,
     required String reason,
@@ -395,7 +401,6 @@ class PaymentApplicationService {
       });
     }
 
-    // ⛔️ Tidak menulis admin_notifications lagi saat rejected,
-    // supaya tidak muncul di UI admin.
+    // ⛔️ Tidak menulis admin_notifications lagi saat rejected
   }
 }

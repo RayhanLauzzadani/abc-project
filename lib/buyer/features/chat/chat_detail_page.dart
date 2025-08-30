@@ -296,7 +296,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
         'buyerAvatar': buyerAvatar,
       });
 
-      await sendOrUpdateChatNotification(
+      await NotificationService.instance.sendOrUpdateChatNotification(
         receiverId: sellerUserId!,
         chatId: widget.chatId,
         senderName: buyerName,

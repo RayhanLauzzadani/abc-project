@@ -9,3 +9,4 @@ export {
   autoCancelUnacceptedOrders,
   autoCancelUnshippedOrders,
 } from "./wallet_escrow";
+export { quoteDelivery } from "./shipping";

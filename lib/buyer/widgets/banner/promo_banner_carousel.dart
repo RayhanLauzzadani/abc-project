@@ -20,9 +20,12 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
   void initState() {
     super.initState();
     _fetchBanners();
+
     _autoSlideTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted) return;
       if (allBanners.isEmpty) return;
-      int nextPage = (_currentIndex + 1) % allBanners.length;
+      if (!_controller.hasClients) return;
+      final nextPage = (_currentIndex + 1) % allBanners.length;
       _controller.animateToPage(
         nextPage,
         duration: const Duration(milliseconds: 800),
@@ -31,10 +34,16 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
     });
   }
 
+  String _sanitize(dynamic v) {
+    final s = (v ?? '').toString().trim();
+    if (s.isEmpty) return s;
+    // buang kutip nyasar dari data RC/Firestore
+    return s.replaceAll('"', '').replaceAll("'", '');
+  }
+
   Future<void> _fetchBanners() async {
-    setState(() {
-      allBanners = [];
-    });
+    if (!mounted) return;
+    setState(() => allBanners = []);
 
     try {
       final now = DateTime.now();
@@ -43,49 +52,54 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
           .where('status', isEqualTo: 'disetujui')
           .get();
 
-      List<Map<String, dynamic>> banners = [];
-      for (var doc in snapshot.docs) {
+      final List<Map<String, dynamic>> banners = [];
+      for (final doc in snapshot.docs) {
         final data = doc.data();
         final Timestamp? mulaiTS = data['durasiMulai'];
         final Timestamp? selesaiTS = data['durasiSelesai'];
-        if (mulaiTS != null && selesaiTS != null) {
-          final mulai = mulaiTS.toDate();
-          final selesai = selesaiTS.toDate();
+        if (mulaiTS == null || selesaiTS == null) continue;
 
-          // Inclusive range!
-          if (now.compareTo(mulai) >= 0 && now.compareTo(selesai) <= 0) {
-            banners.add({
-              'id': doc.id,
-              'judul': data['judul'] ?? '',
-              'deskripsi': data['deskripsi'] ?? '',
-              'imageUrl': data['bannerUrl'] ?? '',
-              'logoUrl': data['logoUrl'] ?? '', // optional
-              'storeName': data['storeName'] ?? '',
-              'buttonText': 'Kunjungi Toko',
-              'productId': data['productId'] ?? '',
-              'isAsset': false,
-            });
-          }
+        final mulai = mulaiTS.toDate();
+        final selesai = selesaiTS.toDate();
+
+        // inclusive
+        if (now.compareTo(mulai) >= 0 && now.compareTo(selesai) <= 0) {
+          final bannerUrl = _sanitize(data['bannerUrl']);
+          banners.add({
+            'id': doc.id,
+            'judul': data['judul'] ?? '',
+            'deskripsi': data['deskripsi'] ?? '',
+            'imageUrl': bannerUrl,
+            'logoUrl': _sanitize(data['logoUrl']),
+            'storeName': data['storeName'] ?? '',
+            'buttonText': 'Kunjungi Toko',
+            'productId': _sanitize(data['productId']),
+            'isAsset': bannerUrl.startsWith('assets/'), // kalau ada yang simpan path asset
+          });
         }
       }
 
-      // Fallback jika tidak ada banner aktif
-      if (banners.isEmpty) {
-        banners = [
-          {'imageUrl': 'assets/images/banner1.png', 'isAsset': true},
-          {'imageUrl': 'assets/images/banner2.png', 'isAsset': true},
-        ];
-      }
-
+      if (!mounted) return;
       setState(() {
-        allBanners = banners;
+        // fallback konsisten .png
+        allBanners = banners.isEmpty
+            ? [
+                {'imageUrl': 'assets/images/banner1.png', 'isAsset': true},
+                {'imageUrl': 'assets/images/banner2.png', 'isAsset': true},
+              ]
+            : banners;
       });
     } catch (e, st) {
-      print('Firestore error: $e\n$st');
+      // debug log
+      // ignore: avoid_print
+      print('Firestore banner error: $e\n$st');
+
+      if (!mounted) return;
       setState(() {
+        // JANGAN pakai .jpg di sini. Samakan dengan aset yang ada (.png)
         allBanners = [
-          {'imageUrl': 'assets/images/banner1.jpg', 'isAsset': true},
-          {'imageUrl': 'assets/images/banner2.jpg', 'isAsset': true},
+          {'imageUrl': 'assets/images/banner1.png', 'isAsset': true},
+          {'imageUrl': 'assets/images/banner2.png', 'isAsset': true},
         ];
       });
     }
@@ -101,97 +115,104 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
   @override
   Widget build(BuildContext context) {
     double cardWidth = MediaQuery.of(context).size.width - 40;
-    cardWidth = cardWidth.clamp(0, 390);
+    cardWidth = cardWidth.clamp(0.0, 390.0);
+
+    if (allBanners.isEmpty) {
+      return const SizedBox(
+        height: 160,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return SizedBox(
       height: 160,
       width: cardWidth,
-      child: allBanners.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                PageView.builder(
-                  controller: _controller,
-                  itemCount: allBanners.length,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentIndex = index;
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final data = allBanners[index];
-                    final bannerImage = ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: data['isAsset'] == true
-                          ? Image.asset(
-                              data['imageUrl'] ?? '',
-                              width: cardWidth,
-                              height: 160,
-                              fit: BoxFit.cover,
-                            )
-                          : Image.network(
-                              data['imageUrl'] ?? '',
-                              width: cardWidth,
-                              height: 160,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, o, s) => Container(
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.broken_image, size: 40),
-                              ),
-                              loadingBuilder: (context, child, progress) =>
-                                  progress == null
-                                  ? child
-                                  : const Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 1.5,
-                                      ),
-                                    ),
-                            ),
-                    );
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: allBanners.length,
+            onPageChanged: (index) {
+              if (!mounted) return;
+              setState(() => _currentIndex = index);
+            },
+            itemBuilder: (context, index) {
+              final data = allBanners[index];
+              final isAsset = data['isAsset'] == true;
+              final src = _sanitize(data['imageUrl']);
 
-                    Widget childBanner = bannerImage;
-                    if (data['isAsset'] != true && widget.onBannerTap != null) {
-                      childBanner = GestureDetector(
-                        onTap: () => widget.onBannerTap!(data),
-                        child: bannerImage,
-                      );
-                    }
-                    // Tambahkan padding horizontal di sini
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 3,
-                      ), // Jarak 20px antar banner
-                      child: childBanner,
-                    );
-                  },
-                ),
-                // Indicator
-                Positioned(
-                  bottom: 10,
-                  left: 0,
-                  right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      allBanners.length,
-                      (i) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: _currentIndex == i ? 18 : 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _currentIndex == i
-                              ? Colors.white
-                              : Colors.white.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.black12, width: 0.5),
-                        ),
+              final image = ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: isAsset
+                    ? Image.asset(
+                        src,
+                        width: cardWidth,
+                        height: 160,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _fallbackBox(),
+                      )
+                    : Image.network(
+                        src,
+                        width: cardWidth,
+                        height: 160,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _fallbackBox(),
+                        loadingBuilder: (context, child, progress) =>
+                            progress == null
+                                ? child
+                                : const Center(
+                                    child: SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(strokeWidth: 1.8),
+                                    ),
+                                  ),
                       ),
-                    ),
+              );
+
+              final clickable = !isAsset && widget.onBannerTap != null;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: clickable
+                    ? GestureDetector(onTap: () => widget.onBannerTap!(data), child: image)
+                    : image,
+              );
+            },
+          ),
+
+          // Dots
+          Positioned(
+            bottom: 10,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                allBanners.length,
+                (i) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: _currentIndex == i ? 18 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _currentIndex == i ? Colors.white : Colors.white.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.black12, width: 0.5),
                   ),
                 ),
-              ],
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _fallbackBox() => Container(
+        width: double.infinity,
+        height: 160,
+        color: const Color(0xFFEDEDED),
+        alignment: Alignment.center,
+        child: const Icon(Icons.image_not_supported, size: 36, color: Colors.grey),
+      );
 }

@@ -402,7 +402,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           submissions: submissions,
                           onSeeAll: () {
                             setState(() {
-                              _currentIndex = 1;
+                              _currentIndex = 2;
                             });
                           },
                           onDetail: (submission) {
@@ -466,7 +466,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           submissions: submissions,
                           onSeeAll: () {
                             setState(() {
-                              _currentIndex = 2;
+                              _currentIndex = 3;
                             });
                           },
                         );
@@ -533,7 +533,7 @@ class _HomePageAdminState extends State<HomePageAdmin> {
                           submissions: adSubmissions,
                           onSeeAll: () {
                             setState(() {
-                              _currentIndex = 3;
+                              _currentIndex = 4;
                             });
                           },
                           onDetail: (submission) {

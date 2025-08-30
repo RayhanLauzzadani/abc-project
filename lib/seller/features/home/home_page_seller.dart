@@ -226,8 +226,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                     MaterialPageRoute(
                                       builder: (_) => WithdrawPaymentPage(
                                         currentBalance: available,
-                                        adminFee: 1000,
                                         minWithdraw: 15000,
+                                        storeId: storeId, // opsional
                                       ),
                                     ),
                                   );

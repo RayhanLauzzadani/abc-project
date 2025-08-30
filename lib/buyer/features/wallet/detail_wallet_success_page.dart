@@ -20,7 +20,8 @@ class DetailWalletSuccessPage extends StatelessWidget {
   // untuk pembayaran
   final List<LineItem>? items;
   final int? shippingFeeOverride;
-  final int? tax;  
+  final int? tax;
+  final int? serviceFee; // NEW
 
   // untuk top up
   final int? adminFee;
@@ -35,6 +36,7 @@ class DetailWalletSuccessPage extends StatelessWidget {
     this.items,
     this.shippingFeeOverride,
     this.tax,
+    this.serviceFee,   // NEW
     this.adminFee,
     this.totalTopup,
   });
@@ -63,7 +65,9 @@ class DetailWalletSuccessPage extends StatelessWidget {
     final list = items ?? const <LineItem>[];
     final subtotal = list.fold<int>(0, (a, e) => a + e.price * e.qty);
     final taxValue = tax ?? 0;
-    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal - taxValue));
+    final service = serviceFee ?? 0; // NEW
+    // jika tidak ada override, tebak shipping dari total - subtotal - pajak - service
+    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal - taxValue - service));
 
     // TOP-UP
     final admin = adminFee ?? 1000;
@@ -193,6 +197,10 @@ class DetailWalletSuccessPage extends StatelessWidget {
                   _twoCols('Subtotal', _rp(subtotal), muted: true),
                   const SizedBox(height: 10),
                   _twoCols('Biaya Pengiriman', _rp(shipping), muted: true),
+                  if (service > 0) ...[
+                    const SizedBox(height: 10),
+                    _twoCols('Biaya Layanan', _rp(service), muted: true), // NEW
+                  ],
                   if (taxValue > 0) ...[
                     const SizedBox(height: 10),
                     _twoCols('Pajak', _rp(taxValue), muted: true),

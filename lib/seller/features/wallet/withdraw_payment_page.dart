@@ -7,17 +7,16 @@ import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:abc_e_mart/data/services/payment_application_service.dart';
+import 'package:abc_e_mart/common/fees.dart';
 
 class WithdrawPaymentPage extends StatefulWidget {
   final int currentBalance; // contoh: 150000
-  final int adminFee;       // contoh: 1000
-  final int minWithdraw;    // contoh: 10000
+  final int minWithdraw;    // contoh: 15000
   final String? storeId;
 
   const WithdrawPaymentPage({
     super.key,
     this.currentBalance = 150000,
-    this.adminFee = 1000,
     this.minWithdraw = 15000,
     this.storeId,
   });
@@ -30,6 +29,14 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
   // nominal
   int _amount = 20000;
   final List<int> _presets = const [15000, 20000, 25000, 50000, 100000, 200000];
+
+  // biaya & pajak (pakai Fees)
+  final int _serviceFee = Fees.serviceFee;
+  int get _tax => Fees.taxOn(_amount);
+  int get _received {
+    final r = _amount - _serviceFee - _tax;
+    return r < 0 ? 0 : r;
+  }
 
   // form data
   final _bankCtrl = TextEditingController();
@@ -52,7 +59,6 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
         break;
       }
     }
-    // Kalau ada yang valid → pakai itu. Kalau tidak ada → pakai minWithdraw (hanya tampilan).
     _amount = firstEnabled ?? widget.minWithdraw;
 
     _bankCtrl.addListener(() => setState(() => _bankLen = _bankCtrl.text.characters.length));
@@ -131,17 +137,19 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
 
       final storeId = await _resolveStoreId();
       final amount = _amount;
-      final fee = widget.adminFee;
-      final received = (amount - fee) < 0 ? 0 : (amount - fee);
+
+      // total fee yang direkam di dokumen withdrawal = serviceFee + tax
+      final totalFee = _serviceFee + _tax;
+      final received = _received;
 
       await PaymentApplicationService.instance.createWithdrawalApplication(
         ownerId: user.uid,
         storeId: storeId,
         bankName: _bankCtrl.text.trim(),
         accountNumber: _accNoCtrl.text.trim(),
-        amountRequested: amount,
-        adminFee: fee,
-        received: received,
+        amountRequested: amount, // wallet akan berkurang sebesar ini saat approve
+        adminFee: totalFee,      // simpan akumulasi fee (service + tax)
+        received: received,      // yang cair ke bank
       );
 
       if (!mounted) return;
@@ -177,7 +185,7 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalReceived = (_amount - widget.adminFee).clamp(0, 1 << 31);
+    final totalReceived = _received;
     final bool canWithdrawNow = widget.currentBalance >= widget.minWithdraw;
 
     return Scaffold(
@@ -357,6 +365,11 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
                                   '*Minimal Penarikan Sebesar ${_formatRp(widget.minWithdraw)}',
                                   style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF9AA0A6)),
                                 ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Biaya layanan ${_formatRp(_serviceFee)} + pajak 1% dari nominal penarikan.',
+                                  style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF6B7280)),
+                                ),
                                 if (!canWithdrawNow) ...[
                                   const SizedBox(height: 6),
                                   Row(
@@ -464,8 +477,14 @@ class _WithdrawPaymentPageState extends State<WithdrawPaymentPage> {
                           ),
                           const SizedBox(height: 6),
                           _BillRow(
-                            label: 'Biaya Admin',
-                            value: _formatRp(widget.adminFee),
+                            label: 'Biaya Layanan',
+                            value: _formatRp(_serviceFee),
+                            boldValue: true,
+                          ),
+                          const SizedBox(height: 6),
+                          _BillRow(
+                            label: 'Pajak (1%)',
+                            value: _formatRp(_tax),
                             boldValue: true,
                           ),
                         ],
@@ -631,7 +650,7 @@ class _SellerInputField extends StatelessWidget {
                     ),
                 ],
               ),
-              filled: true, // <<< abu-abu seperti referensi
+              filled: true,
               fillColor: const Color(0xFFF7F8FB),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),

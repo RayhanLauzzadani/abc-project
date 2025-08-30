@@ -15,7 +15,10 @@ class SellerOrderTabIncoming extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       return Center(
-        child: Text('Silakan login sebagai seller.', style: GoogleFonts.dmSans()),
+        child: Text(
+          'Silakan login sebagai seller.',
+          style: GoogleFonts.dmSans(),
+        ),
       );
     }
 
@@ -53,7 +56,10 @@ class SellerOrderTabIncoming extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   "Pesanan baru dari pembeli akan muncul di sini.",
-                  style: GoogleFonts.dmSans(fontSize: 14.5, color: Colors.grey[500]),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14.5,
+                    color: Colors.grey[500],
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -78,14 +84,17 @@ class SellerOrderTabIncoming extends StatelessWidget {
               return realOrderId; // fallback
             })();
 
-            final statusStr = ((data['status'] ?? 'PLACED') as String).toUpperCase();
+            final statusStr = ((data['status'] ?? 'PLACED') as String)
+                .toUpperCase();
 
             // Nama toko
             final storeName = (data['storeName'] ?? '-') as String;
 
             // Items ringkas (gambar pertama & total qty)
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-            final firstImage = items.isNotEmpty ? (items.first['imageUrl'] ?? '') as String : '';
+            final firstImage = items.isNotEmpty
+                ? (items.first['imageUrl'] ?? '') as String
+                : '';
             final itemCount = items.fold<int>(
               0,
               (a, it) => a + ((it['qty'] as num?)?.toInt() ?? 0),
@@ -93,7 +102,9 @@ class SellerOrderTabIncoming extends StatelessWidget {
 
             // Amounts / total
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
-            final totalPrice = ((amounts['total'] as num?) ?? 0).toInt();
+            final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
+            final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
+            final totalPrice = subtotal + shipping; // seller hanya menerima ini
 
             // Tanggal dibuat
             final ts = data['createdAt'];
@@ -109,8 +120,9 @@ class SellerOrderTabIncoming extends StatelessWidget {
               orderDateTime: orderDateTime,
               status: OrderStatus.inProgress,
               showStatusBadge: false,
-              actionTextOverride:
-                  statusStr == 'ACCEPTED' ? 'Kirim Pesanan' : 'Tinjau Pesanan',
+              actionTextOverride: statusStr == 'ACCEPTED'
+                  ? 'Kirim Pesanan'
+                  : 'Tinjau Pesanan',
               actionIconOverride: Icons.chevron_right_rounded,
               // Navigasi tetap pakai doc.id asli
               onTap: () {
