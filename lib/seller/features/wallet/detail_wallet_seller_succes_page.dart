@@ -26,12 +26,12 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
   final int? shippingFeeOverride;          // override ongkir bila perlu
 
   /// ====== OPSIONAL untuk PENARIKAN ======
-  final int? adminFee;                     // biaya admin
-  final int? received;                     // total bersih diterima
+  final int? adminFee;                     // biaya layanan (sebelumnya "admin")
+  final int? received;                     // total bersih diterima (jika disediakan server)
   final String? proofUrl;                  // bukti pencairan admin
   final String? proofName;
   final int? proofBytes;
-  final int? tax;
+  final int? tax;                          // pajak penarikan (opsional)
 
   const DetailWalletSellerSuccessPage({
     super.key,
@@ -78,13 +78,19 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
     // ===== perhitungan pemasukan
     final list = items ?? const <LineItem>[];
     final subtotal = list.fold<int>(0, (a, e) => a + e.price * e.qty);
-    final taxValue = tax ?? 0;  // <-- baru
-    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal - taxValue));
 
-    // ===== perhitungan penarikan (diperbaiki)
-    final requested = amount;               // nominal yang dipilih seller
-    final fee = adminFee ?? 1000;
-    final totalReceived = (received ?? (requested - fee)).clamp(0, requested);
+    // Untuk seller: pajak income tidak ditampilkan/diikutkan
+    final shipping = shippingFeeOverride ?? (list.isEmpty ? 0 : (amount - subtotal));
+
+    // ===== perhitungan penarikan (biaya layanan + pajak)
+    final requested = amount;        // nominal yang dipilih seller
+    final fee = adminFee ?? 0;       // biaya layanan penarikan
+    final wTax = tax ?? 0;           // pajak penarikan
+
+    int receivedCalc = received ?? (requested - fee - wTax);
+    if (receivedCalc < 0) receivedCalc = 0;
+    if (receivedCalc > requested) receivedCalc = requested;
+    final int totalReceived = receivedCalc;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -136,7 +142,9 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          // Angka besar: untuk withdraw tetap -requested
+          // Angka besar:
+          // - Pemasukan  : +total pemasukan
+          // - Penarikan  : -requested (bukan bersih)
           Center(
             child: Text(
               '$sign${_rp(amount)}',
@@ -227,24 +235,25 @@ class DetailWalletSellerSuccessPage extends StatelessWidget {
                 children: [
                   _twoCols('Subtotal', _rp(subtotal), muted: true),
                   const SizedBox(height: 10),
-                  _twoCols('Biaya Pengiriman', _rp(shipping), muted: true),
-                  if (taxValue > 0) ...[
-                    const SizedBox(height: 10),
-                    _twoCols('Pajak', _rp(taxValue), muted: true), // <-- baru
-                  ],
+                  _twoCols('Biaya Pengiriman', _rp(shipping < 0 ? 0 : shipping), muted: true),
+                  // Tidak menampilkan pajak untuk seller (income)
                 ],
               ),
             ),
             const SizedBox(height: 10),
             _grayCard(child: _twoCols('Total Pemasukan', _rp(amount), bold: true)),
           ] else ...[
-            // ===== Rincian penarikan (sesuai referensi)
+            // ===== Rincian penarikan
             _grayCard(
               child: Column(
                 children: [
                   _twoCols('Saldo Ditarik', _rp(requested), muted: true),
                   const SizedBox(height: 10),
-                  _twoCols('Biaya Admin', _rp(fee), muted: true),
+                  _twoCols('Biaya Layanan', _rp(fee), muted: true), // label diganti
+                  if (wTax > 0) ...[
+                    const SizedBox(height: 10),
+                    _twoCols('Pajak', _rp(wTax), muted: true),       // tampilkan pajak bila ada
+                  ],
                 ],
               ),
             ),

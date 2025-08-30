@@ -9,6 +9,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:abc_e_mart/buyer/data/repositories/cart_repository.dart';
+import 'package:abc_e_mart/buyer/features/profile/address_list_page.dart';
+import 'package:abc_e_mart/common/fees.dart'; // <<< pakai Fees
 
 // ===== Helper: format rupiah =====
 String formatRupiah(int v) {
@@ -26,8 +28,7 @@ class CheckoutSummaryPage extends StatefulWidget {
   final AddressModel address;
   final List<CartItem> cartItems;
   final String storeName;
-  final int shippingFee;
-  final int taxFee;
+  final int shippingFee; // default (fallback)
 
   const CheckoutSummaryPage({
     Key? key,
@@ -35,7 +36,6 @@ class CheckoutSummaryPage extends StatefulWidget {
     required this.cartItems,
     required this.storeName,
     this.shippingFee = 1500,
-    this.taxFee = 650,
   }) : super(key: key);
 
   @override
@@ -45,10 +45,92 @@ class CheckoutSummaryPage extends StatefulWidget {
 class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
   String? selectedPaymentMethod; // null -> belum pilih
   bool isLoading = false;
+  late AddressModel _address;
 
-  int get subtotal =>
-      widget.cartItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
-  int get total => subtotal + widget.shippingFee + widget.taxFee;
+  // ongkir dari CF
+  int? _shippingFee; // null -> belum dihitung, gunakan widget.shippingFee
+  bool _shippingLoading = false;
+  String? _distanceText; // opsional, info jarak untuk debug/UX
+
+  // ==== Hitung dinamis ====
+  int get shippingFee => _shippingFee ?? widget.shippingFee;
+  int get subtotal => widget.cartItems.fold(0, (sum, it) => sum + it.price * it.quantity);
+  int get serviceFee => Fees.serviceFee;
+  int get tax => Fees.taxOn(subtotal); // 1% dari subtotal
+  int get total => subtotal + shippingFee + serviceFee + tax;
+
+  @override
+  void initState() {
+    super.initState();
+    _address = widget.address;
+    _prefetchShippingFee(); // hitung ongkir langsung saat halaman dibuka
+  }
+
+  // Hitung ongkir via Cloud Function quoteDelivery
+  Future<void> _prefetchShippingFee() async {
+    if (widget.cartItems.isEmpty) return;
+    setState(() => _shippingLoading = true);
+    try {
+      final String firstProductId = widget.cartItems.first.id;
+      final prodSnap = await FirebaseFirestore.instance.collection('products').doc(firstProductId).get();
+      final prod = prodSnap.data() ?? {};
+      final String storeId = (prod['shopId'] ?? '') as String;
+      if (storeId.isEmpty) throw 'shopId kosong di produk';
+
+      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
+      final result = await functions.httpsCallable('quoteDelivery').call({
+        'storeId': storeId,
+        'buyerLat': _address.latitude,
+        'buyerLng': _address.longitude,
+      });
+
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final fee = (data['fee'] as num?)?.toInt();
+      final distText = data['distanceText'] as String?;
+      if (mounted && fee != null && fee >= 0) {
+        setState(() {
+          _shippingFee = fee;
+          _distanceText = distText;
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal menghitung ongkir: $e');
+    } finally {
+      if (mounted) setState(() => _shippingLoading = false);
+    }
+  }
+
+  Future<void> _openAddressListAndRefresh() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddressListPage()),
+    );
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // Ambil primary address terbaru
+    final q = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('addresses')
+        .where('isPrimary', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (q.docs.isNotEmpty) {
+      final doc = q.docs.first;
+      final newAddr = AddressModel.fromMap(doc.id, doc.data());
+      if (mounted) {
+        setState(() {
+          _address = newAddr;
+          _shippingFee = null;    // reset biar loading lagi
+          _distanceText = null;
+        });
+        _prefetchShippingFee();   // hitung ongkir dengan alamat baru
+      }
+    }
+  }
 
   // Validasi stok terbaru sebelum checkout
   Future<bool> _validateStockBeforeCheckout() async {
@@ -164,20 +246,21 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
         'items': items,
         'amounts': {
           'subtotal': subtotal,
-          'shipping': widget.shippingFee,
-          'tax': widget.taxFee,
-          'total': total,
+          'shipping': shippingFee,      // <— ongkir dinamis
+          'serviceFee': serviceFee,     // <— biaya layanan flat
+          'tax': tax,                   // <— 1% dari subtotal
+          'total': total,               // <— subtotal+shipping+serviceFee+tax
         },
         'shippingAddress': {
-          'label': widget.address.label,
-          'address': widget.address.address,
+          'label': _address.label,
+          'address': _address.address,
         },
         'idempotencyKey': idempotencyKey,
       });
 
       final orderId = (res.data as Map)['orderId'] as String?;
 
-      // === NEW: coba ambil invoiceId untuk ditampilkan di UI (fallback: orderId) ===
+      // coba ambil invoiceId untuk ditampilkan (fallback: orderId)
       String? invoiceId;
       if (orderId != null) {
         try {
@@ -185,11 +268,8 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
               .collection('orders')
               .doc(orderId)
               .get();
-
           invoiceId = (ordDoc.data()?['invoiceId'] as String?)?.trim();
-        } catch (_) {
-          // abaikan jika gagal fetch (mis. latency); fallback ke orderId
-        }
+        } catch (_) {/* ignore */}
       }
       final displayId = (invoiceId != null && invoiceId.isNotEmpty)
           ? invoiceId
@@ -209,7 +289,7 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
 
       setState(() => isLoading = false);
 
-      // Sukses UI (tampilkan nomor invoice)
+      // Sukses UI
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -221,10 +301,8 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
       );
       await Future.delayed(const Duration(milliseconds: 1500));
       if (!mounted) return;
-      // TUTUP dialog sukses
-      Navigator.of(context, rootNavigator: true).pop();
-      // TUTUP halaman checkout → kembali ke ProductDetailPage
-      Navigator.of(context).pop();
+      Navigator.of(context, rootNavigator: true).pop(); // tutup dialog
+      Navigator.of(context).pop();                      // kembali
     } on FirebaseFunctionsException catch (e) {
       setState(() => isLoading = false);
       final msg = e.message ?? 'Gagal memproses pesanan.';
@@ -286,7 +364,11 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                         const SizedBox(height: 13),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: _AddressCard(address: widget.address),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: _openAddressListAndRefresh,
+                            child: _AddressCard(address: _address),
+                          ),
                         ),
                         const SizedBox(height: 13),
 
@@ -331,16 +413,29 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
                               children: [
                                 _SummaryRow(label: 'Subtotal', value: subtotal),
                                 const SizedBox(height: 8),
-                                _SummaryRow(label: 'Biaya Pengiriman', value: widget.shippingFee),
-                                if (widget.taxFee > 0) ...[
-                                  const SizedBox(height: 8),
-                                  _SummaryRow(label: 'Pajak', value: widget.taxFee),
-                                ],
+                                _SummaryRow(
+                                  label: _shippingLoading ? 'Biaya Pengiriman (menghitung...)' : 'Biaya Pengiriman',
+                                  value: shippingFee,
+                                ),
+                                const SizedBox(height: 8),
+                                _SummaryRow(label: 'Biaya Layanan', value: serviceFee),
+                                const SizedBox(height: 8),
+                                _SummaryRow(label: 'Pajak (1%)', value: tax),
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 8),
                                   child: Divider(thickness: 1, color: Color(0xFFE5E5E5), height: 1),
                                 ),
                                 _SummaryRow(label: 'Total', value: total, isTotal: true),
+                                if (_distanceText != null && _distanceText!.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      _distanceText!,
+                                      style: GoogleFonts.dmSans(fontSize: 11.5, color: Colors.grey),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -348,7 +443,7 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
 
                         const SizedBox(height: 32),
 
-                        // Metode Pembayaran (buka halaman pilih)
+                        // Metode Pembayaran
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Text('Metode Pembayaran',
@@ -497,7 +592,6 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
 class _AddressCard extends StatelessWidget {
   final AddressModel address;
   const _AddressCard({required this.address});
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -539,7 +633,6 @@ class _AddressCard extends StatelessWidget {
 class _ProductCheckoutItem extends StatelessWidget {
   final CartItem item;
   const _ProductCheckoutItem({required this.item});
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -548,7 +641,6 @@ class _ProductCheckoutItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gambar produk
           Container(
             width: 89, height: 76,
             decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(12)),
@@ -605,9 +697,7 @@ class _SummaryRow extends StatelessWidget {
   final String label;
   final int value;
   final bool isTotal;
-
   const _SummaryRow({required this.label, required this.value, this.isTotal = false});
-
   @override
   Widget build(BuildContext context) {
     return Row(

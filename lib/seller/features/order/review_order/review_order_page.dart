@@ -25,7 +25,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
   bool _showFullAddress = false;
 
   Future<void> _updateStatus(String newStatus) async {
-    await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).update({
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(widget.orderId)
+        .update({
       'status': newStatus,
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -33,18 +36,25 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
   Future<void> _acceptOrder() async {
     try {
-      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
-      await functions.httpsCallable('acceptOrder').call({'orderId': widget.orderId});
+      final functions = FirebaseFunctions.instanceFor(
+        region: 'asia-southeast2',
+      );
+      await functions.httpsCallable('acceptOrder').call({
+        'orderId': widget.orderId,
+      });
       if (!mounted) return;
-      await showDialog(context: context, builder: (_) => const OrderAcceptedPopup());
+      await showDialog(
+        context: context,
+        builder: (_) => const OrderAcceptedPopup(),
+      );
       if (mounted) setState(() {});
     } on FirebaseFunctionsException catch (e) {
       final msg = e.message ?? 'Gagal menerima pesanan.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menerima pesanan: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menerima pesanan: $e')));
     }
   }
 
@@ -55,24 +65,41 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
       builder: (_) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Tolak Pesanan?', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
-        content: Text('Anda yakin ingin menolak pesanan ini?', style: GoogleFonts.dmSans()),
+        title: Text(
+          'Tolak Pesanan?',
+          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Anda yakin ingin menolak pesanan ini?',
+          style: GoogleFonts.dmSans(),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFF5B5B),
               foregroundColor: Colors.white,
             ),
-            child: Text('Tolak', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 15)),
+            child: Text(
+              'Tolak',
+              style: GoogleFonts.dmSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
           ),
         ],
       ),
     );
     if (ok == true) {
       try {
-        final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
+        final functions = FirebaseFunctions.instanceFor(
+          region: 'asia-southeast2',
+        );
         await functions.httpsCallable('cancelOrder').call({
           'orderId': widget.orderId,
           'reason': 'Seller rejected',
@@ -80,7 +107,9 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
         if (mounted) Navigator.pop(context); // keluar halaman setelah sukses
       } on FirebaseFunctionsException catch (e) {
         final msg = e.message ?? 'Gagal membatalkan pesanan.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal membatalkan pesanan: $e')),
@@ -102,8 +131,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
   @override
   Widget build(BuildContext context) {
-    final orderDocStream =
-        FirebaseFirestore.instance.collection('orders').doc(widget.orderId).snapshots();
+    final orderDocStream = FirebaseFirestore.instance
+        .collection('orders')
+        .doc(widget.orderId)
+        .snapshots();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -115,7 +146,12 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
               return const Center(child: CircularProgressIndicator());
             }
             if (!snap.hasData || !snap.data!.exists) {
-              return Center(child: Text('Pesanan tidak ditemukan', style: GoogleFonts.dmSans()));
+              return Center(
+                child: Text(
+                  'Pesanan tidak ditemukan',
+                  style: GoogleFonts.dmSans(),
+                ),
+              );
             }
 
             final data = snap.data!.data()!;
@@ -128,30 +164,29 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
 
             final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
             final autoCancelAtTs = data['autoCancelAt'] as Timestamp?;
-            final shipByAtTs = data['shipByAt'] as Timestamp?; // ← deadline kirim (48 jam) dari server
+            final shipByAtTs = data['shipByAt'] as Timestamp?; // deadline dari server
             final buyerId = (data['buyerId'] ?? '') as String;
 
-            final status =
-                ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String)
-                    .toUpperCase();
+            final status = ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
 
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
             final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
             final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
-            final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-            final total = ((amounts['total'] as num?) ?? 0).toInt();
+            final tax = 0; // seller tidak menampilkan pajak
+            // final sellerTotal = subtotal + shipping; // (dipakai di builder konten)
 
             final shipAddr = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
             final addressLabel = (shipAddr['label'] ?? '-') as String;
-            final addressText = (shipAddr['address'] ?? shipAddr['addressText'] ?? '-') as String;
+            final addressText =
+                (shipAddr['address'] ?? shipAddr['addressText'] ?? '-') as String;
 
-            final method =
-                ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+            final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
             // Deadline menerima pesanan (24 jam)
-            final DateTime? acceptDeadline =
-                autoCancelAtTs != null ? autoCancelAtTs.toDate() : createdAt?.add(const Duration(days: 1));
+            final DateTime? acceptDeadline = autoCancelAtTs != null
+                ? autoCancelAtTs.toDate()
+                : createdAt?.add(const Duration(days: 1));
 
             // Deadline kirim pesanan (48 jam setelah ACCEPTED)
             final DateTime? shipDeadline = shipByAtTs?.toDate();
@@ -167,14 +202,13 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 subtotal: subtotal,
                 shipping: shipping,
                 tax: tax,
-                total: total,
                 method: method,
                 data: data,
                 displayedId: displayedId,
                 orderDocId: orderDocId,
                 status: status,
                 acceptDeadline: acceptDeadline,
-                shipDeadline: shipDeadline, // ← baru
+                shipDeadline: shipDeadline,
               );
             }
 
@@ -191,14 +225,13 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   subtotal: subtotal,
                   shipping: shipping,
                   tax: tax,
-                  total: total,
                   method: method,
                   data: data,
                   displayedId: displayedId,
                   orderDocId: orderDocId,
                   status: status,
                   acceptDeadline: acceptDeadline,
-                  shipDeadline: shipDeadline, // ← baru
+                  shipDeadline: shipDeadline,
                 );
               },
             );
@@ -223,12 +256,22 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFFF3449),
                         backgroundColor: const Color(0xFFFFE8E8),
-                        side: const BorderSide(color: Color(0xFFFF3449), width: 1.2),
+                        side: const BorderSide(
+                          color: Color(0xFFFF3449),
+                          width: 1.2,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                       ),
-                      child: Text('Tolak',
-                          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                      child: Text(
+                        'Tolak',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -239,10 +282,17 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                         backgroundColor: const Color(0xFF2056D3),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                       ),
-                      child: Text('Terima',
-                          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                      child: Text(
+                        'Terima',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                 ] else if (showShip) ...[
@@ -253,10 +303,17 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                         backgroundColor: const Color(0xFF2056D3),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                       ),
-                      child: Text('Kirim Pesanan',
-                          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                      child: Text(
+                        'Kirim Pesanan',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                 ] else
@@ -278,17 +335,17 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
     required List<Map<String, dynamic>> items,
     required int subtotal,
     required int shipping,
-    required int tax,
-    required int total,
+    required int tax, // tidak ditampilkan, hanya placeholder
     required String method,
     required Map<String, dynamic> data,
     required String displayedId, // invoice tampilan
-    required String orderDocId,  // doc.id asli
+    required String orderDocId, // doc.id asli
     required String status,
     required DateTime? acceptDeadline,
-    required DateTime? shipDeadline, // ← baru
+    required DateTime? shipDeadline,
   }) {
     final isLong = addressText.length > 60;
+    final sellerTotal = subtotal + shipping;
 
     return CustomScrollView(
       slivers: [
@@ -309,12 +366,25 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                     child: Container(
                       width: 40,
                       height: 40,
-                      decoration: const BoxDecoration(color: Color(0xFF2056D3), shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2056D3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 15),
-                  Text('Tinjau Pesanan', style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Tinjau Pesanan',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -329,21 +399,23 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 6),
-                Text('Username Pembeli', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 17)),
+                Text('Username Pembeli',
+                    style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 17)),
                 const SizedBox(height: 2),
-                Text(buyerName, style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
+                Text(buyerName,
+                    style: GoogleFonts.dmSans(fontSize: 15.5, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
                 // Tampilkan invoice
-                Text('#$displayedId', style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF888888))),
+                Text('#$displayedId',
+                    style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF888888))),
                 const SizedBox(height: 12),
                 const Divider(color: Color(0xFFE6E6E6)),
                 const SizedBox(height: 8),
-                Text('Tanggal & Waktu', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('Tanggal & Waktu',
+                    style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 2),
-                Text(
-                  createdAt != null ? _fmtDateTime(createdAt) : '-',
-                  style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282)),
-                ),
+                Text(createdAt != null ? _fmtDateTime(createdAt) : '-',
+                    style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF828282))),
 
                 // ====== Banner countdown: terima order (status PLACED) ======
                 if (status == 'PLACED' && acceptDeadline != null) ...[
@@ -374,39 +446,51 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 Text('Alamat Pengiriman',
                     style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 2),
-                Builder(builder: (_) {
-                  final body = '$addressLabel, $addressText';
-                  if (isLong && !_showFullAddress) {
-                    final cut = body.substring(0, 60);
-                    return Wrap(
-                      children: [
-                        Text('$cut...', style: GoogleFonts.dmSans(fontSize: 13.5)),
-                        GestureDetector(
-                          onTap: () => setState(() => _showFullAddress = true),
-                          child: Text(' Lihat Selengkapnya',
+                Builder(
+                  builder: (_) {
+                    final body = '$addressLabel, $addressText';
+                    if (isLong && !_showFullAddress) {
+                      final cut = body.substring(0, 60);
+                      return Wrap(
+                        children: [
+                          Text('$cut...', style: GoogleFonts.dmSans(fontSize: 13.5)),
+                          GestureDetector(
+                            onTap: () => setState(() => _showFullAddress = true),
+                            child: Text(
+                              ' Lihat Selengkapnya',
                               style: GoogleFonts.dmSans(
-                                  fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF2056D3))),
-                        ),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF2056D3),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(body, style: GoogleFonts.dmSans(fontSize: 13.5)),
+                        if (isLong)
+                          GestureDetector(
+                            onTap: () => setState(() => _showFullAddress = false),
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 1),
+                              child: Text(
+                                'Tutup',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF2056D3),
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(body, style: GoogleFonts.dmSans(fontSize: 13.5)),
-                      if (isLong)
-                        GestureDetector(
-                          onTap: () => setState(() => _showFullAddress = false),
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 1),
-                            child: Text('Tutup',
-                                style: GoogleFonts.dmSans(
-                                    fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF2056D3))),
-                          ),
-                        ),
-                    ],
-                  );
-                }),
+                  },
+                ),
                 const SizedBox(height: 15),
                 const Divider(color: Color(0xFFE6E6E6)),
               ],
@@ -420,7 +504,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Column(
               children: items.map((it) {
-                final img = (it['imageUrl'] ?? it['image']) as String?; // fallback
+                final img = (it['imageUrl'] ?? it['image']) as String?;
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.5),
                   child: Row(
@@ -442,21 +526,32 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text((it['name'] ?? '-') as String,
-                                style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 14.7)),
+                            Text(
+                              (it['name'] ?? '-') as String,
+                              style: GoogleFonts.dmSans(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14.7,
+                              ),
+                            ),
                             if (((it['variant'] ?? it['note'] ?? '') as String).isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2.5),
                                 child: Text(
                                   (it['variant'] ?? it['note']) as String,
-                                  style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF888888)),
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 12.5,
+                                    color: const Color(0xFF888888),
+                                  ),
                                 ),
                               ),
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
                                 'Rp ${_rupiah(((it['price'] as num?) ?? 0).toInt())}',
-                                style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF232323)),
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 13.5,
+                                  color: const Color(0xFF232323),
+                                ),
                               ),
                             ),
                           ],
@@ -464,8 +559,13 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                       ),
                       Padding(
                         padding: const EdgeInsets.only(left: 9, top: 3),
-                        child: Text('x${((it['qty'] as num?) ?? 0).toInt()}',
-                            style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF444444))),
+                        child: Text(
+                          'x${((it['qty'] as num?) ?? 0).toInt()}',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13.5,
+                            color: const Color(0xFF444444),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -490,19 +590,21 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                 children: [
                   Row(
                     children: [
-                      Text('Nota Pesanan',
-                          style: GoogleFonts.dmSans(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: const Color(0xFF222222),
-                          )),
+                      Text(
+                        'Nota Pesanan',
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: const Color(0xFF222222),
+                        ),
+                      ),
                       const Spacer(),
                       TextButton(
                         onPressed: () {
-                          // Mapping dokumen order → map untuk TransactionDetailPage
+                          // Mapping dokumen order → map untuk TransactionDetailPage (versi seller)
                           final txMap = _mapOrderToTransaction(
                             displayedId: displayedId, // invoice tampilan
-                            orderDocId: orderDocId,   // doc.id asli
+                            orderDocId: orderDocId, // doc.id asli
                             data: data,
                             buyerName: buyerName,
                           );
@@ -515,13 +617,18 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                         },
                         child: Row(
                           children: [
-                            Text('Lihat',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 13.5,
-                                  color: const Color(0xFF2056D3),
-                                )),
-                            const Icon(Icons.receipt_long_rounded,
-                                color: Color(0xFF2056D3), size: 17),
+                            Text(
+                              'Lihat',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13.5,
+                                color: const Color(0xFF2056D3),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.receipt_long_rounded,
+                              color: Color(0xFF2056D3),
+                              size: 17,
+                            ),
                           ],
                         ),
                       ),
@@ -530,11 +637,13 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Text('Metode Pembayaran',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 13,
-                            color: const Color(0xFF828282),
-                          )),
+                      Text(
+                        'Metode Pembayaran',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          color: const Color(0xFF828282),
+                        ),
+                      ),
                       const Spacer(),
                       Row(
                         children: [
@@ -579,8 +688,7 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                       _feeRow('Subtotal', subtotal),
                       const SizedBox(height: 3),
                       _feeRow('Biaya Pengiriman', shipping),
-                      const SizedBox(height: 3),
-                      _feeRow('Pajak & Biaya Lainnya', tax),
+                      // Pajak & Biaya Lainnya: tidak ditampilkan untuk seller
                     ],
                   ),
                 ),
@@ -594,10 +702,16 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   child: Row(
                     children: [
                       Text('Total',
-                          style: GoogleFonts.dmSans(fontSize: 16.3, fontWeight: FontWeight.bold)),
+                          style: GoogleFonts.dmSans(
+                            fontSize: 16.3,
+                            fontWeight: FontWeight.bold,
+                          )),
                       const Spacer(),
-                      Text('Rp ${_rupiah(total)}',
-                          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 16.5)),
+                      Text('Rp ${_rupiah(sellerTotal)}',
+                          style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.5,
+                          )),
                     ],
                   ),
                 ),
@@ -623,10 +737,21 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
       padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         children: [
-          Text(title, style: GoogleFonts.dmSans(fontSize: 14, color: const Color(0xFF888888))),
+          Text(
+            title,
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: const Color(0xFF888888),
+            ),
+          ),
           const Spacer(),
-          Text('Rp ${_rupiah(amount)}',
-              style: GoogleFonts.dmSans(fontWeight: FontWeight.w500, fontSize: 14.5)),
+          Text(
+            'Rp ${_rupiah(amount)}',
+            style: GoogleFonts.dmSans(
+              fontWeight: FontWeight.w500,
+              fontSize: 14.5,
+            ),
+          ),
         ],
       ),
     );
@@ -702,7 +827,10 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
           const SizedBox(width: 10),
           Expanded(
             child: StreamBuilder<DateTime>(
-              stream: Stream<DateTime>.periodic(const Duration(seconds: 1), (_) => DateTime.now()),
+              stream: Stream<DateTime>.periodic(
+                const Duration(seconds: 1),
+                (_) => DateTime.now(),
+              ),
               builder: (_, tick) {
                 final now = tick.data ?? DateTime.now();
                 final remaining = deadline.difference(now);
@@ -714,7 +842,11 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                   children: [
                     Text(
                       '$title ${_fmtDateTime(deadline)}',
-                      style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 13.2, color: textColor),
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.2,
+                        color: textColor,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -727,7 +859,11 @@ class _ReviewOrderPageState extends State<ReviewOrderPage> {
                           ),
                           child: Text(
                             over ? 'Akan dibatalkan oleh sistem' : 'Sisa waktu: $text',
-                            style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, fontSize: 12.2, color: textColor),
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.2,
+                              color: textColor,
+                            ),
                           ),
                         ),
                       ],
@@ -786,15 +922,14 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
 }
 
-// ---------------- MAPPER: order doc -> map untuk TransactionDetailPage ----------------
+// ---------------- MAPPER: order doc -> map untuk TransactionDetailPage (VERSI SELLER) ----------------
 Map<String, dynamic> _mapOrderToTransaction({
-  required String displayedId,  // invoice tampilan (invoiceId/doc.id)
-  required String orderDocId,   // doc.id asli (opsional)
+  required String displayedId, // invoice tampilan (invoiceId/doc.id)
+  required String orderDocId, // doc.id asli (opsional)
   required Map<String, dynamic> data,
   required String buyerName,
 }) {
-  final rawStatus =
-      ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+  final rawStatus = ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
 
   // label status untuk nota
   String labelStatus;
@@ -810,12 +945,13 @@ Map<String, dynamic> _mapOrderToTransaction({
   final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
   final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
   final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
-  final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-  final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
 
-  final createdAt = (data['createdAt'] is Timestamp)
-      ? (data['createdAt'] as Timestamp).toDate()
-      : null;
+  // VERSI SELLER:
+  final tax = 0;
+  final total = subtotal + shipping;
+
+  final createdAt =
+      (data['createdAt'] is Timestamp) ? (data['createdAt'] as Timestamp).toDate() : null;
 
   final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
   final addressLabel = (ship['label'] ?? '-') as String;
@@ -837,17 +973,21 @@ Map<String, dynamic> _mapOrderToTransaction({
       'phone': phone,
     },
     'paymentMethod': method,
-    'items': items.map((it) => {
-          'name': (it['name'] ?? '-') as String,
-          'qty': ((it['qty'] as num?) ?? 0).toInt(),
-          'price': ((it['price'] as num?) ?? 0).toInt(),
-          'variant': (it['variant'] ?? it['note'] ?? '') as String,
-        }).toList(),
+    'items': items
+        .map(
+          (it) => {
+            'name': (it['name'] ?? '-') as String,
+            'qty': ((it['qty'] as num?) ?? 0).toInt(),
+            'price': ((it['price'] as num?) ?? 0).toInt(),
+            'variant': (it['variant'] ?? it['note'] ?? '') as String,
+          },
+        )
+        .toList(),
     'amounts': {
       'subtotal': subtotal,
       'shipping': shipping,
-      'tax': tax,
-      'total': total,
+      'tax': tax, // 0
+      'total': total, // subtotal + shipping
     },
   };
 }
