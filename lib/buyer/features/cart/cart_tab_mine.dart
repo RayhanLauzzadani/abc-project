@@ -6,7 +6,7 @@ import '../../widgets/cart_box.dart';
 import '../../data/repositories/cart_repository.dart';
 import '../../data/services/address_service.dart';
 import '../cart/checkout_summary_page.dart';
-import '../../data/models/address.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CartTabMine extends StatefulWidget {
