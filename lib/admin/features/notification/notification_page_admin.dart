@@ -4,10 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-// detail approval toko
+// Detail approval toko
 import 'package:abc_e_mart/admin/features/approval/store/admin_store_approval_detail_page.dart';
-// detail approval payment (topup & withdraw)
+// Detail approval payment (topup & withdraw)
 import 'package:abc_e_mart/admin/features/approval/payment/admin_payment_approval_detail_page.dart';
+// Detail approval iklan
+import 'package:abc_e_mart/admin/features/approval/ad/admin_ad_approval_detail_page.dart';
+import 'package:abc_e_mart/seller/data/models/ad.dart';
 
 class NotificationPageAdmin extends StatelessWidget {
   const NotificationPageAdmin({super.key});
@@ -23,13 +26,13 @@ class NotificationPageAdmin extends StatelessWidget {
         "svg": null,
         "iconData": Icons.account_balance_wallet_rounded,
         "iconColor": const Color(0xFFF4C21B),
-        "bgColor": const Color(0x33F4C21B), // 20% opac
+        "bgColor": const Color(0x33F4C21B),
       };
     }
 
     // ---- Payment: Withdraw (biru/indigo)
-    if (lowerType.startsWith('wallet_withdraw') || // <- tambah ini
-        lowerType.startsWith('seller_withdraw') || // kompat lama
+    if (lowerType.startsWith('wallet_withdraw') ||
+        lowerType.startsWith('seller_withdraw') ||
         lowerTitle.contains('tarik saldo') ||
         lowerTitle.contains('pencairan')) {
       return {
@@ -40,7 +43,7 @@ class NotificationPageAdmin extends StatelessWidget {
       };
     }
 
-    // ---- Existing
+    // ---- Toko
     if (lowerTitle.contains('toko')) {
       return {
         "svg": 'assets/icons/store.svg',
@@ -49,6 +52,8 @@ class NotificationPageAdmin extends StatelessWidget {
         "bgColor": const Color(0xFFEDF9F1),
       };
     }
+
+    // ---- Produk
     if (lowerTitle.contains('produk')) {
       return {
         "svg": 'assets/icons/box.svg',
@@ -57,6 +62,8 @@ class NotificationPageAdmin extends StatelessWidget {
         "bgColor": const Color(0x331C55C0),
       };
     }
+
+    // ---- Iklan
     if (lowerTitle.contains('iklan')) {
       return {
         "svg": 'assets/icons/megaphone.svg',
@@ -75,6 +82,101 @@ class NotificationPageAdmin extends StatelessWidget {
     };
   }
 
+  bool _looksLikeAd(Map<String, dynamic> data) {
+    final type = (data['type'] as String?)?.toLowerCase() ?? '';
+    final title = (data['title'] as String?)?.toLowerCase() ?? '';
+    return type.contains('ad') || type.contains('iklan') || title.contains('iklan');
+  }
+
+  String? _extractAdId(Map<String, dynamic> data) {
+    // coba ambil dari beberapa kemungkinan field
+    final keys = [
+      'adApplicationId',
+      'adId',
+      'adDocId',
+      'docId',
+      'applicationId',
+    ];
+    for (final k in keys) {
+      final v = data[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return null;
+  }
+
+  Future<void> _openAdById(BuildContext context, String adId) async {
+    // loader ringan
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('adsApplication')
+          .doc(adId)
+          .get();
+
+      Navigator.of(context, rootNavigator: true).pop(); // close loader
+
+      if (!snap.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ajuan iklan tidak ditemukan.')),
+        );
+        return;
+      }
+      final ad = AdApplication.fromFirestore(snap);
+      // ignore: use_build_context_synchronously
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AdminAdApprovalDetailPage(ad: ad)),
+      );
+    } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuka ajuan iklan: $e')),
+      );
+    }
+  }
+
+  Future<void> _openLatestPendingAdFallback(BuildContext context) async {
+    // loader ringan
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final qs = await FirebaseFirestore.instance
+          .collection('adsApplication')
+          .where('status', whereIn: ['Menunggu', 'menunggu', 'pending'])
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      Navigator.of(context, rootNavigator: true).pop(); // close loader
+
+      if (qs.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak ada ajuan iklan berstatus menunggu.')),
+        );
+        return;
+      }
+
+      final ad = AdApplication.fromFirestore(qs.docs.first);
+      // ignore: use_build_context_synchronously
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AdminAdApprovalDetailPage(ad: ad)),
+      );
+    } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat ajuan iklan: $e')),
+      );
+    }
+  }
+
   Future<void> _handleTap({
     required BuildContext context,
     required DocumentSnapshot notifDoc,
@@ -90,12 +192,12 @@ class NotificationPageAdmin extends StatelessWidget {
     final String? shopAppId = data['shopApplicationId'] as String?;
     final String? paymentAppId = data['paymentAppId'] as String?;
 
-    // 1) Payment → buka detail approval payment (hanya pengajuan)
+    // 1) Payment
     if (paymentAppId != null && paymentAppId.isNotEmpty) {
       PaymentRequestType requestType;
       if (type.startsWith('wallet_topup') || title.toLowerCase().contains('isi saldo')) {
         requestType = PaymentRequestType.topUp;
-      } else if (type.startsWith('wallet_withdraw') || // <- tambahkan
+      } else if (type.startsWith('wallet_withdraw') ||
           type.startsWith('seller_withdraw') ||
           title.toLowerCase().contains('tarik saldo') ||
           title.toLowerCase().contains('pencairan')) {
@@ -131,6 +233,23 @@ class NotificationPageAdmin extends StatelessWidget {
       );
       return;
     }
+
+    // 3) Iklan
+    if (_looksLikeAd(data)) {
+      final adId = _extractAdId(data);
+      if (adId != null) {
+        await _openAdById(context, adId);
+      } else {
+        // fallback: buka latest pending ad agar tetap responsif
+        await _openLatestPendingAdFallback(context);
+      }
+      return;
+    }
+
+    // 4) Default: tidak ada action yang cocok
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tidak ada aksi untuk notifikasi ini.')),
+    );
   }
 
   // ====== FILTER UTAMA ADMIN ======
@@ -139,8 +258,8 @@ class NotificationPageAdmin extends StatelessWidget {
     final t = (m['type'] ?? '').toString().toLowerCase().trim();
     final title = (m['title'] ?? '').toString().toLowerCase();
 
-    // hasil keputusan → jangan tampil di admin
     const blockedTypes = {
+      // withdraw/topup
       'withdrawal_approved',
       'withdrawal_rejected',
       'seller_withdraw_approved',
@@ -151,15 +270,24 @@ class NotificationPageAdmin extends StatelessWidget {
       'wallet_withdrawal_rejected',
       'wallet_topup_approved',
       'wallet_topup_rejected',
+      // ads
+      'ad_approved',
+      'ad_rejected',
+      'ads_approved',
+      'ads_rejected',
     };
 
     final looksLikeDecision =
-        (title.contains('pencairan') && (title.contains('disetujui') || title.contains('ditolak'))) ||
-        (title.contains('isi saldo') && (title.contains('disetujui') || title.contains('ditolak')));
+        (title.contains('pencairan') &&
+            (title.contains('disetujui') || title.contains('ditolak') || title.contains('diterima'))) ||
+        (title.contains('isi saldo') &&
+            (title.contains('disetujui') || title.contains('ditolak') || title.contains('diterima'))) ||
+        (title.contains('iklan') &&
+            (title.contains('disetujui') || title.contains('ditolak') || title.contains('diterima')));
 
     if (blockedTypes.contains(t) || looksLikeDecision) return false;
 
-    return true; // sisanya tampilkan (termasuk wallet_topup_submitted & wallet_withdraw_submitted)
+    return true;
   }
 
   @override
@@ -280,7 +408,8 @@ class NotificationPageAdmin extends StatelessWidget {
                           ? DateFormat('dd MMM, yyyy  |  HH:mm').format(ts.toDate())
                           : '-';
 
-                      return GestureDetector(
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(18),
                         onTap: () => _handleTap(
                           context: context,
                           notifDoc: notifDoc,

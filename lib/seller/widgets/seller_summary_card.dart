@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 class SellerSummaryCard extends StatelessWidget {
   final int pesananMasuk;
@@ -121,6 +122,12 @@ class _SummaryItem extends StatelessWidget {
     final double cardHeight = 73;
     final double circleDiameter = cardHeight * 2;
 
+    // Format angka jadi currency kalau isCurrency true
+    final displayValue = isCurrency
+        ? NumberFormat.currency(locale: 'id', symbol: 'Rp ')
+            .format(int.tryParse(value) ?? 0)
+        : value;
+
     return SizedBox(
       width: width,
       height: cardHeight,
@@ -130,7 +137,7 @@ class _SummaryItem extends StatelessWidget {
           children: [
             Positioned(
               left: (width - circleDiameter) / 2,
-              bottom: -(circleDiameter / 2 - cardHeight / 2),
+              bottom: -(circleDiameter / 1 - cardHeight / 2),
               child: CustomPaint(
                 size: Size(circleDiameter, circleDiameter),
                 painter: _HalfCirclePainter(
@@ -170,7 +177,7 @@ class _SummaryItem extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        value,
+                        displayValue,
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -198,14 +205,8 @@ class _HalfCirclePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-    final rect = Rect.fromLTWH(100, 50, size.width, size.height);
-    canvas.drawArc(
-      rect,
-      math.pi,
-      math.pi / 2,
-      true,
-      paint,
-    );
+    final rect = Rect.fromLTWH(90, -10, size.width, size.height);
+    canvas.drawArc(rect, math.pi, math.pi / 2, true, paint);
   }
 
   @override

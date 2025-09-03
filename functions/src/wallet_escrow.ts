@@ -179,7 +179,7 @@ export const initWalletOnSignup = functionsV1
  *  - storeName: string
  *  - items: Array<{ productId,name,imageUrl,price,qty,variant? }>
  *  - amounts: { subtotal, shipping, serviceFee, tax, total }
- *  - shippingAddress: { label, address }
+ *  - shippingAddress: { label, address | addressText, phone }   // << phone ditambahkan
  *  - idempotencyKey?: string
  */
 export const placeOrder = onCall(
@@ -249,6 +249,14 @@ export const placeOrder = onCall(
     );
     const invoiceId = await generateUniqueInvoiceId();
 
+    // --- Normalisasi shippingAddress dari payload (termasuk phone) ---
+    const sa: any = (shippingAddress as any) ?? {};
+    const saLabel: string = sa.label ?? "-";
+    // Simpan keduanya untuk kompatibilitas UI lama/baru
+    const saAddressText: string = sa.addressText ?? sa.address ?? "-";
+    const saAddressLegacy: string = sa.address ?? sa.addressText ?? "-";
+    const saPhone: string = sa.phone ? String(sa.phone) : "";
+
     await db.runTransaction(async (t: Transaction) => {
       const buyerSnap = await t.get(buyerRef);
       const wallet = buyerSnap.get("wallet") ?? { available: 0, onHold: 0 };
@@ -285,8 +293,10 @@ export const placeOrder = onCall(
         },
         status: "PLACED",
         shippingAddress: {
-          label: (shippingAddress as any)?.label ?? "-",
-          address: (shippingAddress as any)?.address ?? "-",
+          label: saLabel,
+          address: saAddressLegacy,   // kompat backend/versi lama
+          addressText: saAddressText, // dipakai UI baru
+          phone: saPhone,             // <<< SIMPAN NOMOR HP DI SINI
           status: "PLACED",
         },
         createdAt: NOW,

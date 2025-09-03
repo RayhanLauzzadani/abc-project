@@ -258,6 +258,7 @@ class _CheckoutSummaryPageState extends State<CheckoutSummaryPage> {
         'shippingAddress': {
           'label': _address.label,
           'address': _address.address,
+          'phone': _address.phone,     // <<=== DITAMBAHKAN: nomor HP ikut disimpan
         },
         'idempotencyKey': idempotencyKey,
       });

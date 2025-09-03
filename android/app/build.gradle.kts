@@ -38,6 +38,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // ✅ WAJIB untuk flutter_local_notifications (desugaring)
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
@@ -128,4 +130,9 @@ play {
     // track default (internal / alpha / beta / production)
     track.set(System.getenv("PLAY_TRACK") ?: "internal")
     defaultToAppBundles.set(true)
+}
+
+// ✅ Tambahkan dependencies desugaring di modul :app
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

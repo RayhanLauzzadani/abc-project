@@ -95,12 +95,13 @@ class NotificationPageSeller extends StatelessWidget {
         .snapshots();
   }
 
-  // Stream chatNotifications: pakai orderBy timestamp
+  // Stream chatNotifications: pakai orderBy timestamp — khusus sisi SELLER
   Stream<QuerySnapshot<Map<String, dynamic>>> _chatNotifStream(String uid) {
     return FirebaseFirestore.instance
         .collection('chatNotifications')
         .where('receiverId', isEqualTo: uid)
         .where('type', isEqualTo: 'chat_message')
+        .where('receiverSide', isEqualTo: 'seller')
         .orderBy('timestamp', descending: true)
         .snapshots();
   }
@@ -255,10 +256,18 @@ class NotificationPageSeller extends StatelessWidget {
                 }
               }
 
-              // Kumpulkan chat notifications
+              // Kumpulkan chat notifications (receiverSide='seller') + skip self-chat bila metadata tersedia
               if (chatSnap.hasData) {
                 for (final doc in chatSnap.data!.docs) {
                   final data = doc.data();
+
+                  final buyerId = data['buyerId'];
+                  final shopOwnerId = data['shopOwnerId'];
+                  if (buyerId == user.uid && shopOwnerId == user.uid) {
+                    // self-chat (akun yang sama memiliki 2 role) → jangan tampilkan
+                    continue;
+                  }
+
                   all.add({
                     ...data,
                     '_id': doc.id,
@@ -351,6 +360,22 @@ class NotificationPageSeller extends StatelessWidget {
                                 .get();
                             final chatData = chatDoc.data();
                             if (chatData != null) {
+                              // Guard final: cegah self-chat
+                              final bId = chatData['buyerId'];
+                              final ownerId = chatData['shopOwnerId'] ??
+                                  chatData['ownerId'] ??
+                                  chatData['sellerId'];
+                              if (bId == user.uid && ownerId == user.uid) {
+                                showDialog(
+                                  context: rootCtx,
+                                  builder: (_) => const AlertDialog(
+                                    title: Text('Chat tidak valid'),
+                                    content: Text('Anda tidak dapat membuka chat dengan diri sendiri.'),
+                                  ),
+                                );
+                                return;
+                              }
+
                               navigator.push(MaterialPageRoute(
                                 builder: (_) => SellerChatDetailPage(
                                   chatId: chatId,

@@ -4,7 +4,7 @@ import 'package:abc_e_mart/buyer/widgets/search_bar.dart' as custom_widgets;
 import 'package:abc_e_mart/widgets/chat_list_card.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:lucide_icons/lucide_icons.dart'; // pakai icon lucide
+import 'package:lucide_icons/lucide_icons.dart';
 import 'chat_detail_page.dart';
 
 class ChatListPage extends StatefulWidget {
@@ -17,7 +17,7 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = "";
-  String? _myStoreId;
+  String? _myStoreId; // toko milik user (kalau user juga seller)
   bool _isLoadingStoreId = true;
 
   @override
@@ -29,14 +29,12 @@ class _ChatListPageState extends State<ChatListPage> {
   Future<void> _getMyStoreId() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      setState(() {
-        _isLoadingStoreId = false;
-      });
+      setState(() => _isLoadingStoreId = false);
       return;
     }
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     setState(() {
-      _myStoreId = doc.data()?['storeId'];
+      _myStoreId = (doc.data()?['storeId'] as String?)?.trim();
       _isLoadingStoreId = false;
     });
   }
@@ -45,6 +43,24 @@ class _ChatListPageState extends State<ChatListPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Heuristik: chat dianggap DM (buyer↔buyer) bila:
+  /// - channel/type == 'dm', ATAU
+  /// - shopId kosong/tidak ada
+  bool _looksLikeDm(Map<String, dynamic> m) {
+    final channel = (m['channel'] ?? m['type'] ?? '').toString().toLowerCase();
+    final shopId = (m['shopId'] ?? m['storeId'] ?? '').toString();
+    return channel == 'dm' || shopId.isEmpty;
+  }
+
+  /// Heuristik self-chat: user adalah buyer sekaligus owner toko tujuan.
+  bool _isSelfChat(Map<String, dynamic> m, String? myStoreId, String myUid) {
+    final shopId = (m['shopId'] ?? m['storeId'] ?? '').toString();
+    final ownerId = (m['shopOwnerId'] ?? m['ownerId'] ?? m['sellerId'] ?? '').toString();
+    if (myStoreId != null && myStoreId.isNotEmpty && shopId == myStoreId) return true;
+    if (ownerId.isNotEmpty && ownerId == myUid) return true;
+    return false;
   }
 
   @override
@@ -89,10 +105,11 @@ class _ChatListPageState extends State<ChatListPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
-                        .collection('chats')
-                        .where('buyerId', isEqualTo: currentUser.uid)
-                        .orderBy('lastTimestamp', descending: true)
-                        .snapshots(),
+                          .collection('chats')
+                          // fokus list buyer ↔ seller dari sisi buyer
+                          .where('buyerId', isEqualTo: currentUser.uid)
+                          .orderBy('lastTimestamp', descending: true)
+                          .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());
@@ -100,18 +117,22 @@ class _ChatListPageState extends State<ChatListPage> {
                         if (!snapshot.hasData) {
                           return _emptyChat();
                         }
-                        // --- FILTER ---
+
+                        // --- FILTER client-side (agar aman untuk data lama) ---
                         final docs = snapshot.data!.docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          // --- filter chat untuk buyer (pov buyer) ---
+                          final data = (doc.data() as Map<String, dynamic>);
+                          // 1) hard filter: hanya chat buyer ↔ seller (bukan DM)
+                          if (_looksLikeDm(data)) return false;
+
+                          // 2) hide self-chat (kalau user juga seller)
+                          if (_isSelfChat(data, _myStoreId, currentUser.uid)) return false;
+
+                          // 3) search: berdasarkan nama toko atau id toko
                           final storeName = (data['shopName'] ?? '').toString().toLowerCase();
-                          final storeId = data['shopId'] ?? data['storeId'] ?? '';
-                          // --- hide chat ke toko sendiri (jika user juga seller) ---
-                          if (_myStoreId != null && storeId == _myStoreId) return false;
-                          // --- search: fallback ke id jika shopName kosong ---
+                          final storeId = (data['shopId'] ?? data['storeId'] ?? '').toString().toLowerCase();
                           if (searchQuery.isEmpty) return true;
-                          return storeName.contains(searchQuery.toLowerCase()) ||
-                                storeId.toString().toLowerCase().contains(searchQuery.toLowerCase());
+                          final q = searchQuery.toLowerCase();
+                          return storeName.contains(q) || storeId.contains(q);
                         }).toList();
 
                         if (docs.isEmpty) {
@@ -123,11 +144,12 @@ class _ChatListPageState extends State<ChatListPage> {
                           itemBuilder: (context, idx) {
                             final chatData = docs[idx].data() as Map<String, dynamic>;
                             final chatId = docs[idx].id;
-                            final storeName = chatData['shopName'] ?? '';
-                            final storeId = chatData['shopId'] ?? chatData['storeId'] ?? '';
-                            final lastMessage = chatData['lastMessage'] ?? '';
+
+                            final storeName = (chatData['shopName'] ?? '').toString();
+                            final storeId = (chatData['shopId'] ?? chatData['storeId'] ?? '').toString();
+                            final lastMessage = (chatData['lastMessage'] ?? '').toString();
                             final lastTimestamp = chatData['lastTimestamp'];
-                            final avatarUrl = chatData['shopAvatar'] ?? chatData['logoUrl'] ?? '';
+                            final avatarUrl = (chatData['shopAvatar'] ?? chatData['logoUrl'] ?? '').toString();
                             final time = (lastTimestamp is Timestamp)
                                 ? _formatTime(lastTimestamp.toDate())
                                 : '';
@@ -138,13 +160,15 @@ class _ChatListPageState extends State<ChatListPage> {
                                   .doc(chatId)
                                   .collection('messages')
                                   .where('isRead', isEqualTo: false)
-                                  .where('senderId', isNotEqualTo: currentUser.uid) // unread dr toko
+                                  // unread dari toko (bukan pesan yang user kirim sendiri)
+                                  .where('senderId', isNotEqualTo: currentUser.uid)
                                   .snapshots(),
-                              builder: (context, snapshot) {
+                              builder: (context, msgSnap) {
                                 int unreadCount = 0;
-                                if (snapshot.hasData) {
-                                  unreadCount = snapshot.data!.docs.length;
+                                if (msgSnap.hasData) {
+                                  unreadCount = msgSnap.data!.docs.length;
                                 }
+
                                 return ChatListCard(
                                   avatarUrl: avatarUrl,
                                   name: storeName.isNotEmpty ? storeName : 'Toko tanpa nama',
@@ -152,11 +176,26 @@ class _ChatListPageState extends State<ChatListPage> {
                                   time: time,
                                   unreadCount: unreadCount,
                                   onTap: () async {
-                                    // Saat buka chat, set semua isRead jadi true (jika pesan dari toko)
-                                    final unreadDocs = snapshot.data?.docs ?? [];
+                                    // Guard ekstra saat tap (kalau ada data lama lolos filter)
+                                    if (_isSelfChat(chatData, _myStoreId, currentUser.uid)) {
+                                      if (!context.mounted) return;
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => const AlertDialog(
+                                          title: Text('Chat tidak valid'),
+                                          content: Text('Anda tidak dapat membuka chat dengan toko Anda sendiri.'),
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    // Tandai pesan toko sebagai read
+                                    final unreadDocs = msgSnap.data?.docs ?? [];
                                     await Future.wait(
-                                      unreadDocs.map((doc) => doc.reference.update({'isRead': true}))
+                                      unreadDocs.map((d) => d.reference.update({'isRead': true})),
                                     );
+
+                                    if (!context.mounted) return;
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => ChatDetailPage(
@@ -210,7 +249,6 @@ class _ChatListPageState extends State<ChatListPage> {
     );
   }
 
-  // Format waktu sesuai kebutuhan
   String _formatTime(DateTime dt) {
     final now = DateTime.now();
     if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {

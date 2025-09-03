@@ -13,6 +13,33 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
 
   const AdminProductApprovalDetailPage({super.key, required this.data});
 
+  // ==========================
+  // Helpers: Image Preview
+  // ==========================
+  void _previewImage(BuildContext context, String url) {
+    if (url.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: InteractiveViewer(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.broken_image,
+                size: 64,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // REJECT PRODUCT (plus push notif ke seller, not to buyer!)
   Future<void> _onReject(BuildContext context) async {
     final reason = await Navigator.push<String>(
@@ -149,6 +176,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final product = data.rawData;
     final List<dynamic> variations = product['varieties'] ?? [];
+    final String imageUrl = (product['imageUrl'] ?? '').toString();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -200,7 +228,7 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 17),
 
-                    // Foto Produk
+                    // Foto Produk (tap to preview)
                     Text(
                       "Foto Produk",
                       style: GoogleFonts.dmSans(
@@ -210,21 +238,32 @@ class AdminProductApprovalDetailPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 7),
-                    Container(
-                      width: 89,
-                      height: 76,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: Colors.grey[200],
+                    GestureDetector(
+                      onTap: () => _previewImage(context, imageUrl),
+                      child: Container(
+                        width: 89,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: Colors.grey[200],
+                        ),
+                        clipBehavior: Clip.hardEdge,
+                        child: imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.broken_image,
+                                  size: 32,
+                                  color: Colors.grey,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.image_outlined,
+                                size: 32,
+                                color: Colors.grey,
+                              ),
                       ),
-                      clipBehavior: Clip.hardEdge,
-                      child: (product['imageUrl'] ?? '').toString().isNotEmpty
-                          ? Image.network(product['imageUrl'], fit: BoxFit.cover)
-                          : const Icon(
-                              Icons.image_outlined,
-                              size: 32,
-                              color: Colors.grey,
-                            ),
                     ),
                     const SizedBox(height: 16),
 

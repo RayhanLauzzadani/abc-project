@@ -82,17 +82,22 @@ class _HomePageSellerState extends State<HomePageSeller> {
 
     // Kelompok status
     const incoming = <String>[
-      'PLACED', 'PENDING', 'PAID', 'PROCESSING', 'CONFIRMED', 'ACCEPTED', 'READY_TO_SHIP'
+      'PLACED',
+      'PENDING',
+      'PAID',
+      'PROCESSING',
+      'CONFIRMED',
+      'ACCEPTED',
+      'READY_TO_SHIP',
     ];
     const shipping = <String>[
-      'SHIPPED', 'OUT_FOR_DELIVERY', 'ON_DELIVERY', 'IN_TRANSIT'
+      'SHIPPED',
+      'OUT_FOR_DELIVERY',
+      'ON_DELIVERY',
+      'IN_TRANSIT',
     ];
-    const success = <String>[
-      'COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'
-    ];
-    const failed = <String>[
-      'CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'
-    ];
+    const success = <String>['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'];
+    const failed = <String>['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'];
 
     final results = await Future.wait<int>([
       countWhere(seller: sellerId, inStatuses: incoming),
@@ -152,7 +157,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                   }
 
                   final shopName = data['name'] ?? "-";
-                  final description = data['description'] ?? "Menjual berbagai kebutuhan";
+                  final description =
+                      data['description'] ?? "Menjual berbagai kebutuhan";
                   final address = data['address'] ?? "-";
                   final logoUrl = data['logoUrl'] ?? "";
 
@@ -168,7 +174,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             onNotif: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => const NotificationPageSeller(),
+                                  builder: (_) =>
+                                      const NotificationPageSeller(),
                                 ),
                               );
                             },
@@ -202,9 +209,12 @@ class _HomePageSellerState extends State<HomePageSeller> {
                               int available = 0;
                               if (snap.hasData) {
                                 final u = snap.data!.data();
-                                final wallet = (u?['wallet'] as Map<String, dynamic>?) ?? {};
+                                final wallet =
+                                    (u?['wallet'] as Map<String, dynamic>?) ??
+                                    {};
                                 if (wallet['available'] is num) {
-                                  available = (wallet['available'] as num).toInt();
+                                  available = (wallet['available'] as num)
+                                      .toInt();
                                 }
                               }
 
@@ -235,7 +245,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 onHistory: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const WithdrawHistoryPageSeller(),
+                                      builder: (_) =>
+                                          const WithdrawHistoryPageSeller(),
                                     ),
                                   );
                                 },
@@ -249,39 +260,52 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             onTap: (index) {
                               switch (index) {
                                 case 0:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => ProductsPage(storeId: storeId),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ProductsPage(storeId: storeId),
+                                    ),
+                                  );
                                   break;
                                 case 1:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => const SellerOrderPage(),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SellerOrderPage(),
+                                    ),
+                                  );
                                   break;
                                 case 2:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => const SellerChatListPage(),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const SellerChatListPage(),
+                                    ),
+                                  );
                                   break;
                                 case 3:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => StoreRatingPage(
-                                      storeId: storeId,
-                                      storeName: shopName,
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => StoreRatingPage(
+                                        storeId: storeId,
+                                        storeName: shopName,
+                                      ),
                                     ),
-                                  ));
+                                  );
                                   break;
                                 case 4:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => const TransactionPage(),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const TransactionPage(),
+                                    ),
+                                  );
                                   break;
                                 case 5:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => AdsListPage(
-                                      sellerId: uid,
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          AdsListPage(sellerId: uid),
                                     ),
-                                  ));
+                                  );
                                   break;
                               }
                             },
@@ -291,10 +315,13 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           FutureBuilder<_OrderSummary>(
                             future: _fetchOrderSummary(uid),
                             builder: (context, sumSnap) {
-                              if (sumSnap.connectionState == ConnectionState.waiting) {
+                              if (sumSnap.connectionState ==
+                                  ConnectionState.waiting) {
                                 return const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: Center(child: CircularProgressIndicator()),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
                                 );
                               }
                               final s = sumSnap.data ?? _OrderSummary.zero();
@@ -316,18 +343,17 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             stream: FirebaseFirestore.instance
                                 .collection('orders')
                                 .where('sellerId', isEqualTo: uid)
-                                .where('status', whereIn: [
-                                  'COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED',
-                                  'CANCELLED', 'CANCELED', 'REJECTED', 'FAILED',
-                                ])
                                 .orderBy('updatedAt', descending: true)
                                 .limit(5)
                                 .snapshots(),
                             builder: (context, txSnap) {
-                              if (txSnap.connectionState == ConnectionState.waiting) {
+                              if (txSnap.connectionState ==
+                                  ConnectionState.waiting) {
                                 return const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: Center(child: CircularProgressIndicator()),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
                                 );
                               }
 
@@ -337,7 +363,9 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                   transactions: const [],
                                   onSeeAll: () {
                                     Navigator.of(context).push(
-                                      MaterialPageRoute(builder: (_) => const TransactionPage()),
+                                      MaterialPageRoute(
+                                        builder: (_) => const TransactionPage(),
+                                      ),
                                     );
                                   },
                                 );
@@ -348,7 +376,10 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 return _mapOrderDocToCard(
                                   docId: d.id,
                                   data: od,
-                                  onDetail: () => _openTransactionDetail(orderId: d.id, data: od),
+                                  onDetail: () => _openTransactionDetail(
+                                    orderId: d.id,
+                                    data: od,
+                                  ),
                                 );
                               }).toList();
 
@@ -356,7 +387,9 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 transactions: cardsData,
                                 onSeeAll: () {
                                   Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => const TransactionPage()),
+                                    MaterialPageRoute(
+                                      builder: (_) => const TransactionPage(),
+                                    ),
                                   );
                                 },
                               );
@@ -382,7 +415,10 @@ class _HomePageSellerState extends State<HomePageSeller> {
       final buyerId = (data['buyerId'] ?? '') as String? ?? '';
       if (buyerId.isNotEmpty) {
         try {
-          final snap = await FirebaseFirestore.instance.collection('users').doc(buyerId).get();
+          final snap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(buyerId)
+              .get();
           buyerName = (snap.data()?['name'] ?? '-') as String? ?? '-';
         } catch (_) {
           buyerName = '-';
@@ -392,11 +428,17 @@ class _HomePageSellerState extends State<HomePageSeller> {
       }
     }
 
-    final txMap = _mapOrderToTransaction(orderId: orderId, data: data, buyerName: buyerName);
+    final txMap = _mapOrderToTransaction(
+      orderId: orderId,
+      data: data,
+      buyerName: buyerName,
+    );
 
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TransactionDetailPage(transaction: txMap)),
+      MaterialPageRoute(
+        builder: (_) => TransactionDetailPage(transaction: txMap),
+      ),
     );
   }
 
@@ -406,7 +448,9 @@ class _HomePageSellerState extends State<HomePageSeller> {
     required VoidCallback onDetail,
   }) {
     final invoice = (data['invoiceId'] as String?)?.trim();
-    final displayInvoice = (invoice != null && invoice.isNotEmpty) ? invoice : docId;
+    final displayInvoice = (invoice != null && invoice.isNotEmpty)
+        ? invoice
+        : docId;
 
     final ts = data['updatedAt'] ?? data['createdAt'];
     final dt = ts is Timestamp ? ts.toDate() : null;
@@ -443,12 +487,19 @@ class _HomePageSellerState extends State<HomePageSeller> {
     required String buyerName,
   }) {
     final statusRaw =
-        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED')
+                as String)
+            .toUpperCase();
 
     String uiStatus;
     if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(statusRaw)) {
       uiStatus = 'Sukses';
-    } else if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(statusRaw)) {
+    } else if ([
+      'CANCELLED',
+      'CANCELED',
+      'REJECTED',
+      'FAILED',
+    ].contains(statusRaw)) {
       uiStatus = 'Gagal';
     } else {
       uiStatus = 'Tertahan';
@@ -459,17 +510,20 @@ class _HomePageSellerState extends State<HomePageSeller> {
     final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
     final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
     final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax))
+        .toInt();
 
     final createdAt = (data['updatedAt'] ?? data['createdAt']);
     final date = createdAt is Timestamp ? createdAt.toDate() : null;
 
     final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
     final addressLabel = (ship['label'] ?? '-') as String;
-    final addressText = (ship['addressText'] ?? ship['address'] ?? '-') as String;
+    final addressText =
+        (ship['addressText'] ?? ship['address'] ?? '-') as String;
     final phone = (ship['phone'] ?? '-') as String;
 
-    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+    final method = ((data['payment']?['method'] ?? 'abc_payment') as String)
+        .toUpperCase();
 
     final inv = (data['invoiceId'] as String?)?.trim();
     final invoiceId = (inv != null && inv.isNotEmpty) ? inv : orderId;
@@ -492,12 +546,14 @@ class _HomePageSellerState extends State<HomePageSeller> {
       },
       'paymentMethod': method,
       'items': items
-          .map((it) => {
-                'name': (it['name'] ?? '-') as String,
-                'qty': ((it['qty'] as num?) ?? 0).toInt(),
-                'price': ((it['price'] as num?) ?? 0).toInt(),
-                'variant': (it['variant'] ?? it['note'] ?? '') as String,
-              })
+          .map(
+            (it) => {
+              'name': (it['name'] ?? '-') as String,
+              'qty': ((it['qty'] as num?) ?? 0).toInt(),
+              'price': ((it['price'] as num?) ?? 0).toInt(),
+              'variant': (it['variant'] ?? it['note'] ?? '') as String,
+            },
+          )
           .toList(),
       'amounts': {
         'subtotal': subtotal,
@@ -509,15 +565,27 @@ class _HomePageSellerState extends State<HomePageSeller> {
   }
 
   String _statusToUi(String raw) {
-    if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(raw)) return 'Sukses';
-    if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(raw)) return 'Gagal';
+    if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(raw))
+      return 'Sukses';
+    if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(raw))
+      return 'Gagal';
     return 'Tertahan';
   }
 
   String _fmtDateIndo(DateTime d) {
     const bulan = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${d.day} ${bulan[d.month - 1]} ${d.year}';
   }
@@ -534,5 +602,6 @@ class _OrderSummary {
     required this.selesai,
     required this.batal,
   });
-  factory _OrderSummary.zero() => const _OrderSummary(masuk: 0, dikirim: 0, selesai: 0, batal: 0);
+  factory _OrderSummary.zero() =>
+      const _OrderSummary(masuk: 0, dikirim: 0, selesai: 0, batal: 0);
 }
