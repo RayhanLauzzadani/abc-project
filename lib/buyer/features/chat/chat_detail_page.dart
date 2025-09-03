@@ -36,29 +36,37 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
 
   bool _scrolledToUnread = false;
 
+  // guard tambahan
+  bool _blockedSelfOrInvalid = false;
+
   @override
   void initState() {
     super.initState();
     _fetchShopData();
     _controller.addListener(_onTextChanged);
-    WidgetsBinding.instance.addObserver(this); // Tambahan: observer
+    WidgetsBinding.instance.addObserver(this);
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // tandai read di subkoleksi lama (kalau ada)
       markChatNotificationAsRead(user.uid, widget.chatId);
+      // tandai read juga di top-level chatNotifications (skema baru)
+      _markTopLevelChatNotifRead(user.uid);
+      // validasi channel / self-chat
+      _validateChatChannel(user.uid);
     }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // Tambahan: remove observer
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  // Tambahan: scroll otomatis saat keyboard muncul
+  // Auto scroll saat keyboard muncul
   @override
   void didChangeMetrics() {
     final bottomInset = WidgetsBinding.instance.window.viewInsets.bottom;
@@ -75,7 +83,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
     }
   }
 
-  // --- sisanya TIDAK ADA YANG BERUBAH ---
   void _onTextChanged() {
     setState(() {
       _inputText = _controller.text;
@@ -85,28 +92,19 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
   String _getStatus() {
     if (shopData == null) return '';
     final isOnline = shopData?['isOnline'] ?? false;
-    if (isOnline) {
-      return 'Online';
-    } else {
-      final lastLogin = shopData?['lastLogin'];
-      if (lastLogin is Timestamp) {
-        final now = DateTime.now();
-        final diff = now.difference(lastLogin.toDate());
+    if (isOnline) return 'Online';
 
-        if (diff.inMinutes < 1) {
-          return 'Terakhir dilihat baru saja';
-        } else if (diff.inMinutes < 60) {
-          return 'Terakhir dilihat ${diff.inMinutes} menit yang lalu';
-        } else if (diff.inHours < 24) {
-          return 'Terakhir dilihat ${diff.inHours} jam yang lalu';
-        } else {
-          final days = diff.inDays > 7 ? 7 : diff.inDays;
-          return 'Terakhir dilihat $days hari yang lalu';
-        }
-      } else {
-        return 'Offline';
-      }
+    final lastLogin = shopData?['lastLogin'];
+    if (lastLogin is Timestamp) {
+      final now = DateTime.now();
+      final diff = now.difference(lastLogin.toDate());
+      if (diff.inMinutes < 1) return 'Terakhir dilihat baru saja';
+      if (diff.inMinutes < 60) return 'Terakhir dilihat ${diff.inMinutes} menit yang lalu';
+      if (diff.inHours < 24) return 'Terakhir dilihat ${diff.inHours} jam yang lalu';
+      final days = diff.inDays > 7 ? 7 : diff.inDays;
+      return 'Terakhir dilihat $days hari yang lalu';
     }
+    return 'Offline';
   }
 
   void _onLongPressMessage({
@@ -231,7 +229,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
 
   void jumpToFirstUnread(int index) {
     if (_scrollController.hasClients) {
-      final itemHeight = 72.0;
+      const itemHeight = 72.0;
       _scrollController.jumpTo(itemHeight * index);
     }
   }
@@ -246,6 +244,41 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
     }
   }
 
+  /// Guard: validasi bahwa chat ini memang buyer↔seller dan bukan self-chat
+  Future<void> _validateChatChannel(String myUid) async {
+    try {
+      final chatDoc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .get();
+      final m = chatDoc.data();
+      if (m == null) return;
+
+      final buyerId = (m['buyerId'] ?? '').toString();
+      final shopOwnerId =
+          (m['shopOwnerId'] ?? m['ownerId'] ?? m['sellerId'] ?? '').toString();
+      final shopIdInChat = (m['shopId'] ?? m['storeId'] ?? '').toString();
+      final channel = (m['channel'] ?? m['type'] ?? '').toString().toLowerCase();
+
+      final isDm = channel == 'dm' || shopIdInChat.isEmpty;
+      final isSelf = shopOwnerId.isNotEmpty && shopOwnerId == myUid;
+      final buyerMismatch = buyerId.isNotEmpty && buyerId != myUid;
+
+      if (isDm || isSelf || buyerMismatch) {
+        if (!mounted) return;
+        setState(() => _blockedSelfOrInvalid = true);
+        await showDialog(
+          context: context,
+          builder: (_) => const AlertDialog(
+            title: Text('Chat tidak valid'),
+            content: Text('Anda tidak dapat membuka chat ini.'),
+          ),
+        );
+        if (mounted) Navigator.pop(context);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _sendMessage() async {
     final user = FirebaseAuth.instance.currentUser;
     final text = _controller.text.trim();
@@ -258,16 +291,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
     }
     if (_sending) return;
 
-    if (sellerUserId == null) {
+    // guard self-chat saat kirim (jika lolos ke layar karena data lama)
+    if (sellerUserId != null && sellerUserId == user.uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Gagal menemukan user toko. Coba ulangi nanti.")),
+        const SnackBar(content: Text("Tidak bisa mengirim pesan ke toko milik sendiri.")),
       );
       return;
     }
 
-    setState(() {
-      _sending = true;
-    });
+    if (_blockedSelfOrInvalid) return;
+
+    setState(() => _sending = true);
 
     try {
       final now = DateTime.now();
@@ -286,8 +320,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
       });
 
       final buyerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      String buyerName = buyerDoc.data()?['name'] ?? '';
-      String buyerAvatar = buyerDoc.data()?['avatar'] ?? '';
+      final buyerName = (buyerDoc.data()?['name'] ?? '') as String? ?? '';
+      final buyerAvatar = (buyerDoc.data()?['avatar'] ?? '') as String? ?? '';
 
       await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).update({
         'lastMessage': text,
@@ -296,13 +330,16 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
         'buyerAvatar': buyerAvatar,
       });
 
-      await sendOrUpdateChatNotification(
-        receiverId: sellerUserId!,
-        chatId: widget.chatId,
-        senderName: buyerName,
-        lastMessage: text,
-        senderRole: "buyer",
-      );
+      // kirim notifikasi ke owner toko (receiver seller)
+      if (sellerUserId != null && sellerUserId!.isNotEmpty) {
+        await NotificationService.instance.sendOrUpdateChatNotification(
+          receiverId: sellerUserId!,
+          chatId: widget.chatId,
+          senderName: buyerName,
+          lastMessage: text,
+          senderRole: "buyer",
+        );
+      }
 
       _controller.clear();
 
@@ -320,24 +357,39 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
         SnackBar(content: Text("Gagal mengirim pesan: $e")),
       );
     } finally {
-      setState(() {
-        _sending = false;
-      });
+      if (mounted) setState(() => _sending = false);
     }
   }
 
+  /// Tandai read di subkoleksi users/{uid}/notifications (skema lama)
   Future<void> markChatNotificationAsRead(String userId, String chatId) async {
     final notifDocs = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('notifications')
-      .where('chatId', isEqualTo: chatId)
-      .where('type', isEqualTo: 'chat_message')
-      .where('isRead', isEqualTo: false)
-      .get();
-    
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .where('chatId', isEqualTo: chatId)
+        .where('type', isEqualTo: 'chat_message')
+        .where('isRead', isEqualTo: false)
+        .get();
+
     for (final doc in notifDocs.docs) {
       await doc.reference.update({'isRead': true});
+    }
+  }
+
+  /// Tandai read juga di top-level chatNotifications (skema baru, ada receiverSide)
+  Future<void> _markTopLevelChatNotifRead(String userId) async {
+    final qs = await FirebaseFirestore.instance
+        .collection('chatNotifications')
+        .where('receiverId', isEqualTo: userId)
+        .where('chatId', isEqualTo: widget.chatId)
+        .where('type', isEqualTo: 'chat_message')
+        .get();
+
+    for (final d in qs.docs) {
+      if (d.data()['isRead'] != true) {
+        await d.reference.update({'isRead': true});
+      }
     }
   }
 
@@ -441,7 +493,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                         style: GoogleFonts.dmSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: shopData?['isOnline'] == true ? Color(0xFF00C168) : Colors.grey[600],
+                          color: shopData?['isOnline'] == true
+                              ? const Color(0xFF00C168)
+                              : Colors.grey[600],
                         ),
                       ),
                     ],
@@ -478,7 +532,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                     }
                   }
 
-                  // Auto scroll ke unread (hanya sekali)
+                  // Auto scroll ke unread (sekali)
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!_scrolledToUnread) {
                       if (unreadIndex != null) {
@@ -490,7 +544,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                     }
                   });
 
-                  // Tandai pesan unread jadi read
+                  // Tandai unread → read
                   Future.microtask(() async {
                     for (final doc in messages) {
                       final data = doc.data() as Map<String, dynamic>;
@@ -522,7 +576,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                       final isEdited = msg.containsKey('editedAt') && msg['editedAt'] != null;
                       final showUnreadDivider = (unreadIndex != null && i == unreadIndex);
 
-                      // --- Tambahan: Cek perlu date separator ---
+                      // Date separator
                       bool showDateSeparator = false;
                       DateTime? msgDate;
                       if (msg['sentAt'] is Timestamp) {
@@ -532,7 +586,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                         } else {
                           final prevMsg = messages[i - 1].data() as Map<String, dynamic>;
                           final prevDate = (prevMsg['sentAt'] as Timestamp).toDate();
-                          // Tampilkan separator jika beda hari
                           if (!(msgDate.year == prevDate.year &&
                               msgDate.month == prevDate.month &&
                               msgDate.day == prevDate.day)) {
@@ -571,7 +624,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return Center(child: Text("Terjadi kesalahan"));
+                return const Center(child: Text("Terjadi kesalahan"));
               },
             ),
           ),
@@ -580,7 +633,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
             bottom: true,
             child: Container(
               color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // vertical kecil
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 children: [
                   Expanded(
@@ -592,7 +645,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                       decoration: InputDecoration(
                         hintText: "Ketik Pesanmu...",
                         hintStyle: GoogleFonts.dmSans(color: Colors.grey[400], fontSize: 15),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14), // kecil
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
                         filled: true,
                         fillColor: const Color(0xFFF5F6FA),
                         border: OutlineInputBorder(
@@ -600,23 +653,25 @@ class _ChatDetailPageState extends State<ChatDetailPage> with WidgetsBindingObse
                           borderSide: BorderSide.none,
                         ),
                       ),
-                      enabled: !_sending,
+                      enabled: !_sending && !_blockedSelfOrInvalid,
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: (_inputText.trim().isEmpty || _sending) ? null : _sendMessage,
+                    onTap: (_inputText.trim().isEmpty || _sending || _blockedSelfOrInvalid)
+                        ? null
+                        : _sendMessage,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 100),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: (_inputText.trim().isEmpty || _sending)
+                        color: (_inputText.trim().isEmpty || _sending || _blockedSelfOrInvalid)
                             ? Colors.grey[300]
                             : const Color(0xFF2056D3),
                         shape: BoxShape.circle,
                       ),
                       child: _sending
-                          ? SizedBox(
+                          ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(

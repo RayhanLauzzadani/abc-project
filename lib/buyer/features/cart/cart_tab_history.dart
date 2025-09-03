@@ -6,6 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../widgets/cart_and_order_list_card.dart' as cards;
 import 'detail_history_page.dart' show DetailHistoryPage;
+// ⬇️ import halaman nota/invoice
+import 'package:abc_e_mart/buyer/features/payment/note_pesanan_detail_page_buyer.dart'
+    show NotePesananDetailPageBuyer;
 
 class CartTabHistory extends StatelessWidget {
   const CartTabHistory({super.key});
@@ -100,9 +103,21 @@ class CartTabHistory extends StatelessWidget {
             final rawStatus = (data['status'] ?? data['shippingAddress']?['status']) as String?;
             final (badgeStatus, badgeText) = _mapStatus(rawStatus);
 
-            // ambil invoiceId (kalau ada) untuk ditampilkan di kartu
+            // invoiceId (kalau ada) untuk display
             final invoiceRaw = (data['invoiceId'] as String?)?.trim();
             final displayId = (invoiceRaw != null && invoiceRaw.isNotEmpty) ? invoiceRaw : null;
+
+            // ⬇️ jika badge "Selesai" di-tap → buka halaman Nota/Invoice
+            VoidCallback? onStatusTap;
+            if (badgeStatus == cards.OrderStatus.success) {
+              onStatusTap = () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => NotePesananDetailPageBuyer(orderId: orderId),
+                  ),
+                );
+              };
+            }
 
             return cards.CartAndOrderListCard(
               storeName: storeName,
@@ -114,6 +129,7 @@ class CartTabHistory extends StatelessWidget {
               orderDateTime: orderDateTime,
               status: badgeStatus,            // hijau untuk selesai, merah untuk batal
               statusText: badgeText,          // "Selesai" / "Dibatalkan"
+              onStatusTap: onStatusTap,       // ⬅️ tambahkan ini
               actionTextOverride: "Detail Pesanan",
               actionIconOverride: Icons.chevron_right_rounded,
               onTap: () {

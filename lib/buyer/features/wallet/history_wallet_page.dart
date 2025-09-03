@@ -24,12 +24,13 @@ class WalletTxn {
   final WalletTxnStatus status;
 
   // ekstra untuk detail
-  final int? adminFee;   // topup
-  final int? totalPaid;  // topup (amount + adminFee)
-  final String? reason;  // topup rejection reason
+  final int? adminFee;     // topup
+  final int? totalPaid;    // topup (amount + adminFee)
+  final String? reason;    // topup rejection reason
   final List<LineItem>? items; // payment -> detail
-  final int? shipping;   // payment
-  final int? tax;
+  final int? shipping;     // payment
+  final int? tax;          // payment
+  final int? serviceFee;   // payment  <<< NEW
 
   WalletTxn({
     required this.id,
@@ -45,6 +46,7 @@ class WalletTxn {
     this.items,
     this.shipping,
     this.tax,
+    this.serviceFee, // NEW
   });
 }
 
@@ -121,7 +123,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
           type: WalletTxnType.topup,
           title: 'Isi Saldo',
           subtitle: methodLbl == null ? 'Dari ABC Payment' : 'Dari $methodLbl',
-          amount: amount,              // << tampilkan + sesuai saldo dipilih
+          amount: amount,              // tampilkan sesuai saldo dipilih
           createdAt: created,
           status: status,
           adminFee: adminFee,
@@ -148,9 +150,10 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
         final storeName = (data['storeName'] as String?) ?? 'Toko';
 
         final amounts = (data['amounts'] as Map<String, dynamic>?) ?? const {};
-        final total    = ((amounts['total'] as num?)    ?? (data['total'] as num?)    ?? 0).toInt();
-        final shipping = ((amounts['shipping'] as num?) ?? (data['shipping'] as num?) ?? 0).toInt();
-        final tax      = ((amounts['tax'] as num?)      ?? (data['tax'] as num?)      ?? 0).toInt();
+        final total      = ((amounts['total'] as num?)      ?? (data['total'] as num?)      ?? 0).toInt();
+        final shipping   = ((amounts['shipping'] as num?)   ?? (data['shipping'] as num?)   ?? 0).toInt();
+        final tax        = ((amounts['tax'] as num?)        ?? (data['tax'] as num?)        ?? 0).toInt();
+        final serviceFee = ((amounts['serviceFee'] as num?) ?? (amounts['service_fee'] as num?) ?? 0).toInt(); // NEW
 
         final rawItems = List<Map<String, dynamic>>.from((data['items'] as List?) ?? const []);
         final items = rawItems.map((m) => LineItem(
@@ -169,7 +172,8 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
           status: WalletTxnStatus.success,
           items: items,
           shipping: shipping,
-          tax: tax,                     // <<< TAMBAHKAN KE MODEL
+          tax: tax,
+          serviceFee: serviceFee, // NEW
         );
       }).toList();
 
@@ -453,6 +457,7 @@ class _HistoryWalletPageState extends State<HistoryWalletPage> {
                                                               items: e.items,
                                                               shippingFeeOverride: e.shipping,
                                                               tax: e.tax,
+                                                              serviceFee: e.serviceFee, // NEW
                                                             ),
                                                           ),
                                                         );

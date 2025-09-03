@@ -10,15 +10,18 @@ import 'package:abc_e_mart/buyer/features/wallet/success_top_up_page.dart';
 import 'package:abc_e_mart/data/services/payment_application_service.dart';
 
 class WaitingPaymentWalletPage extends StatefulWidget {
-  final int amount;                 // TOTAL (isi saldo + admin)
+  final int amount;        // total dibayar (topup + fee + tax)
   final String orderId;
   final String methodLabel;
   final String qrisAssetPath;
   final Duration countdown;
 
-  // >>> Tambahan supaya bisa bikin “Jumlah Isi Saldo” & “Biaya Admin”
-  final int adminFee;
-  final int? topUpAmount;           // kalau null, dihitung = amount - adminFee
+  // NEW: breakdown
+  final int serviceFee;
+  final int tax;
+
+  // kalau null, dihitung dari amount - (fee+tax)
+  final int? topUpAmount;
 
   const WaitingPaymentWalletPage({
     super.key,
@@ -27,12 +30,14 @@ class WaitingPaymentWalletPage extends StatefulWidget {
     required this.methodLabel,
     required this.qrisAssetPath,
     this.countdown = const Duration(minutes: 8),
-    this.adminFee = 1000,
+    required this.serviceFee,
+    required this.tax,
     this.topUpAmount,
   });
 
   @override
-  State<WaitingPaymentWalletPage> createState() => _WaitingPaymentWalletPageState();
+  State<WaitingPaymentWalletPage> createState() =>
+      _WaitingPaymentWalletPageState();
 }
 
 class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
@@ -49,7 +54,8 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
   final ImagePicker _picker = ImagePicker();
   XFile? _proof;
 
-  int get _isiSaldo => widget.topUpAmount ?? (widget.amount - widget.adminFee);
+  int get _isiSaldo =>
+      widget.topUpAmount ?? (widget.amount - widget.serviceFee - widget.tax);
 
   // flag agar sheet timeout tidak tampil berkali-kali
   bool _expiredDialogShown = false;
@@ -58,15 +64,13 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
   void initState() {
     super.initState();
     _remaining = widget.countdown;
-    _startTimer(); // <- pakai helper
+    _startTimer();
   }
 
-  // helper untuk memulai/merestart timer
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
-
       if (_remaining.inSeconds > 0) {
         setState(() => _remaining -= const Duration(seconds: 1));
       } else {
@@ -79,7 +83,6 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
     });
   }
 
-  // popup ketika waktu habis
   Future<void> _showExpiredSheet() async {
     if (!mounted) return;
     await showModalBottomSheet(
@@ -110,18 +113,19 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                 ),
               ),
               const SizedBox(height: 14),
-              Icon(Icons.timer_off_rounded, size: 42, color: const Color(0xFF1C55C0)),
+              const Icon(Icons.timer_off_rounded,
+                  size: 42, color: Color(0xFF1C55C0)),
               const SizedBox(height: 10),
-              Text(
-                'Waktu Pembayaran Habis',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 18),
-              ),
+              Text('Waktu Pembayaran Habis',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w700, fontSize: 18)),
               const SizedBox(height: 6),
               Text(
                 'Sesi pembayaran kamu telah berakhir. Silakan ulangi proses pembayaran.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(fontSize: 14.5, color: const Color(0xFF5B5F62), height: 1.45),
+                style: GoogleFonts.dmSans(
+                    fontSize: 14.5, color: Color(0xFF5B5F62), height: 1.45),
               ),
               const SizedBox(height: 16),
               Row(
@@ -129,15 +133,18 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.pop(context); // tutup sheet
-                        Navigator.pop(context); // kembali ke halaman sebelumnya
+                        Navigator.pop(context);
+                        Navigator.pop(context);
                       },
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFE0E0E0)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: Text('Kembali', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+                      child: Text('Kembali',
+                          style:
+                              GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -149,15 +156,19 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                           _remaining = widget.countdown;
                           _expiredDialogShown = false;
                         });
-                        _startTimer(); // restart
+                        _startTimer();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1C55C0),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
                       ),
-                      child: Text('Ulangi', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: Colors.white)),
+                      child: Text('Ulangi',
+                          style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
                     ),
                   ),
                 ],
@@ -185,36 +196,41 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
     return 'Rp ${buf.toString().split('').reversed.join()}';
   }
 
-  String get _mm => _remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-  String get _ss => _remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+  String get _mm =>
+      _remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+  String get _ss =>
+      _remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
 
   Future<void> _pickProof() async {
     try {
-      final XFile? x = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+      final XFile? x =
+          await _picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
       if (x == null) return;
 
       final ext = x.name.split('.').last.toLowerCase();
       const allowed = ['jpg', 'jpeg', 'png'];
       if (!allowed.contains(ext)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Format tidak didukung. Gunakan JPG, JPEG, atau PNG.', style: GoogleFonts.dmSans())),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Format tidak didukung. Gunakan JPG, JPEG, atau PNG.',
+              style: GoogleFonts.dmSans()),
+        ));
         return;
       }
 
       final size = await x.length();
       if (size > 2 * 1024 * 1024) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ukuran file maksimal 2 MB.', style: GoogleFonts.dmSans())),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text('Ukuran file maksimal 2 MB.', style: GoogleFonts.dmSans()),
+        ));
         return;
       }
 
       setState(() => _proof = x);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memilih gambar: $e', style: GoogleFonts.dmSans())),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal memilih gambar: $e', style: GoogleFonts.dmSans()),
+      ));
     }
   }
 
@@ -222,43 +238,112 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
 
   Future<void> _saveQrisToGallery() async {
     try {
-      if (Platform.isAndroid) {
-        final p = await Permission.storage.request();
-        if (!p.isGranted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Izin penyimpanan dibutuhkan untuk mengunduh.', style: GoogleFonts.dmSans())),
-          );
-          return;
-        }
-      } else if (Platform.isIOS) {
-        final p = await Permission.photosAddOnly.request();
-        if (!p.isGranted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Izin Foto dibutuhkan untuk menyimpan.', style: GoogleFonts.dmSans())),
-          );
-          return;
-        }
-      }
-
       final bytes = await rootBundle.load(widget.qrisAssetPath);
-      final name = 'QRIS_${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}';
-      final result = await ImageGallerySaverPlus.saveImage(
+      final name =
+          'QRIS_${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      dynamic result = await ImageGallerySaverPlus.saveImage(
         bytes.buffer.asUint8List(),
         quality: 100,
         name: name,
       );
+      bool ok = _saveResultOk(result);
 
-      bool ok = false;
-      if (result is Map) ok = (result['isSuccess'] == true) || (result['filePath'] != null);
+      if (!ok && Platform.isAndroid) {
+        final status = await Permission.storage.request();
+        if (status.isPermanentlyDenied) {
+          await _showOpenSettingsDialog(
+              title: 'Izin Dibutuhkan',
+              message:
+                  'Aktifkan izin Penyimpanan agar bisa menyimpan QR ke galeri.');
+          return;
+        }
+        if (!status.isGranted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Izin penyimpanan dibutuhkan untuk mengunduh.',
+                style: GoogleFonts.dmSans()),
+          ));
+          return;
+        }
+        result = await ImageGallerySaverPlus.saveImage(
+          bytes.buffer.asUint8List(),
+          quality: 100,
+          name: name,
+        );
+        ok = _saveResultOk(result);
+      } else if (!ok && Platform.isIOS) {
+        final st = await Permission.photosAddOnly.request();
+        if (st.isPermanentlyDenied) {
+          await _showOpenSettingsDialog(
+              title: 'Akses Foto Dibutuhkan',
+              message:
+                  'Aktifkan akses Foto (Add Only) agar bisa menyimpan QR ke Galeri.');
+          return;
+        }
+        if (!st.isGranted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Izin Foto dibutuhkan untuk menyimpan.',
+                style: GoogleFonts.dmSans()),
+          ));
+          return;
+        }
+        result = await ImageGallerySaverPlus.saveImage(
+          bytes.buffer.asUint8List(),
+          quality: 100,
+          name: name,
+        );
+        ok = _saveResultOk(result);
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? 'QR berhasil disimpan ke galeri.' : 'Gagal menyimpan QR.', style: GoogleFonts.dmSans())),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            ok ? 'QR berhasil disimpan ke galeri.' : 'Gagal menyimpan QR.',
+            style: GoogleFonts.dmSans()),
+      ));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e', style: GoogleFonts.dmSans())),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal menyimpan: $e', style: GoogleFonts.dmSans()),
+      ));
     }
+  }
+
+  bool _saveResultOk(dynamic result) {
+    if (result is Map) {
+      final isSuccess =
+          result['isSuccess'] == true || result['isSuccess'] == 'true';
+      final filePath =
+          result['filePath'] ?? result['fileUri'] ?? result['savedFilePath'];
+      return isSuccess || (filePath != null && filePath.toString().isNotEmpty);
+    }
+    return result != null;
+  }
+
+  Future<void> _showOpenSettingsDialog({
+    required String title,
+    required String message,
+  }) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+        content: Text(message, style: GoogleFonts.dmSans()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.dmSans()),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: Text('Buka Pengaturan',
+                style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<T?> _withLoading<T>(Future<T> Function() block) async {
@@ -276,40 +361,40 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
 
   Future<void> _submitTopUp() async {
     if (_proof == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unggah bukti pembayaran terlebih dahulu.', style: GoogleFonts.dmSans())),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Unggah bukti pembayaran terlebih dahulu.',
+            style: GoogleFonts.dmSans()),
+      ));
       return;
     }
 
-    // (opsional) cegah submit kalau waktu habis
     if (_remaining.inSeconds <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sesi pembayaran telah berakhir. Ulangi pembayaran.', style: GoogleFonts.dmSans())),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Sesi pembayaran telah berakhir. Ulangi pembayaran.',
+            style: GoogleFonts.dmSans()),
+      ));
       return;
     }
 
     try {
       await _withLoading(() async {
-        // 1) upload bukti ke Storage
         final proof = await PaymentApplicationService.instance.uploadProof(
           file: File(_proof!.path),
-          filenameHint: 'topup_${widget.orderId}.${_proof!.name.split('.').last}',
+          filenameHint:
+              'topup_${widget.orderId}.${_proof!.name.split('.').last}',
         );
 
-        // 2) buat dokumen paymentApplications (type: topup)
         await PaymentApplicationService.instance.createTopUpApplication(
           orderId: widget.orderId,
           amountTopUp: _isiSaldo,
-          adminFee: widget.adminFee,
+          serviceFee: widget.serviceFee, // NEW
+          tax: widget.tax,               // NEW
           totalPaid: widget.amount,
           methodLabel: widget.methodLabel,
           proof: proof,
         );
       });
 
-      // 3) sukses → ke halaman sukses
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -317,9 +402,10 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengirim pengajuan: $e', style: GoogleFonts.dmSans())),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text('Gagal mengirim pengajuan: $e', style: GoogleFonts.dmSans()),
+      ));
     }
   }
 
@@ -332,7 +418,13 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.09), blurRadius: 8, offset: const Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                color: const Color.fromRGBO(0, 0, 0, 0.09),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           padding: const EdgeInsets.only(bottom: 13, top: 13, left: 16),
           child: SafeArea(
@@ -343,13 +435,20 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                   child: Container(
                     width: 40,
                     height: 40,
-                    decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2563EB),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 20),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Text('Menunggu Pembayaran',
-                    style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 19, color: const Color(0xFF232323))),
+                    style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 19,
+                        color: const Color(0xFF232323))),
               ],
             ),
           ),
@@ -358,40 +457,35 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // Headline
           Padding(
             padding: const EdgeInsets.only(top: 16, bottom: 10),
             child: Center(
               child: Text(
                 'Selesaikan pembayaran dengan\nQRIS sebelum waktu habis',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF373E3C)),
+                style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF373E3C)),
               ),
             ),
           ),
-          // Timer
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               children: [
-                Text(
-                  _timeText, // << pakai teks adaptif
-                  style: GoogleFonts.dmSans(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF2563EB),
-                    letterSpacing: 1,
-                  ),
-                ),
+                Text(_timeText,
+                    style: GoogleFonts.dmSans(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF2563EB),
+                        letterSpacing: 1)),
                 const SizedBox(height: 2),
-                Text(
-                  _timeUnit, // << label adaptif: Menit/Detik
-                  style: GoogleFonts.dmSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF2563EB),
-                  ),
-                ),
+                Text(_timeUnit,
+                    style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF2563EB))),
               ],
             ),
           ),
@@ -415,14 +509,18 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Rincian Top Up', style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF373E3C))),
+                        Text('Rincian Top Up',
+                            style: GoogleFonts.dmSans(
+                                fontSize: 12, color: const Color(0xFF373E3C))),
                         const SizedBox(height: 2),
                         Text(_formatRupiah(widget.amount),
-                            style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1C55C0))),
+                            style: GoogleFonts.dmSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1C55C0))),
                       ],
                     ),
                   ),
-                  // Link Detail -> bottom sheet baru
                   InkWell(
                     borderRadius: BorderRadius.circular(6),
                     onTap: () => showModalBottomSheet(
@@ -430,17 +528,23 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                       backgroundColor: Colors.white,
                       isScrollControlled: true,
                       shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(28)),
                       ),
                       builder: (_) => _OrderDetailSheetWallet(
                         isiSaldo: _isiSaldo,
-                        adminFee: widget.adminFee,
+                        serviceFee: widget.serviceFee,
+                        tax: widget.tax,
                         total: widget.amount,
                       ),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      child: Text('Detail', style: GoogleFonts.dmSans(color: const Color(0xFF1C55C0), fontWeight: FontWeight.bold)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      child: Text('Detail',
+                          style: GoogleFonts.dmSans(
+                              color: const Color(0xFF1C55C0),
+                              fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -449,7 +553,7 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
           ),
           const SizedBox(height: 16),
 
-          // Kartu QR + tombol unduh (jarak bawah 2px)
+          // Kartu QR
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
@@ -457,21 +561,30 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFFE5E5E5)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 10, offset: const Offset(0, 2))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2)),
+                ],
               ),
-              padding: const EdgeInsets.fromLTRB(10, 16, 10, 2), // << bottom 2px
+              padding: const EdgeInsets.fromLTRB(10, 16, 10, 2),
               child: Column(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(widget.qrisAssetPath, height: 280, fit: BoxFit.contain),
+                    child: Image.asset(widget.qrisAssetPath,
+                        height: 280, fit: BoxFit.contain),
                   ),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(width: 7),
-                      const Text('Powered by ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF232323))),
+                      const Text('Powered by ',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF232323))),
                       Image.asset('assets/images/qris.png', height: 20),
                     ],
                   ),
@@ -481,9 +594,11 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                     icon: const Icon(Icons.download_rounded, size: 18),
                     label: const Text('Unduh QR'),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       foregroundColor: const Color(0xFF1C55C0),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -491,9 +606,9 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
             ),
           ),
 
-          const SizedBox(height: 12), // << dipendekkan
+          const SizedBox(height: 12),
 
-          // Cara Pembayaran (accordion) – jarak judul ke isi dipendekkan
+          // Cara Pembayaran
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 15),
             child: _Accordion(
@@ -507,7 +622,7 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFFE0E0E0)),
                 ),
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14), // << lebih rapat sedikit
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
@@ -542,8 +657,15 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                   Row(
                     children: [
                       Text('Bukti Pembayaran ',
-                          style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF232323))),
-                      Text('*', style: GoogleFonts.dmSans(color: Colors.red, fontSize: 16, fontWeight: FontWeight.w700)),
+                          style: GoogleFonts.dmSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF232323))),
+                      Text('*',
+                          style: GoogleFonts.dmSans(
+                              color: Colors.red,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700)),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -558,15 +680,21 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                       child: Container(
                         height: 150,
                         width: double.infinity,
-                        decoration: BoxDecoration(color: const Color(0xFFFDFDFD), borderRadius: BorderRadius.circular(14)),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFFFDFDFD),
+                            borderRadius: BorderRadius.circular(14)),
                         child: _proof == null
                             ? Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.add, size: 24, color: Color(0xFF6B7280)),
+                                    const Icon(Icons.add,
+                                        size: 24, color: Color(0xFF6B7280)),
                                     const SizedBox(height: 6),
-                                    Text('Tambah Foto', style: GoogleFonts.dmSans(color: const Color(0xFF6B7280), fontSize: 14.5)),
+                                    Text('Tambah Foto',
+                                        style: GoogleFonts.dmSans(
+                                            color: const Color(0xFF6B7280),
+                                            fontSize: 14.5)),
                                   ],
                                 ),
                               )
@@ -575,16 +703,23 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(14),
-                                    child: Image.file(File(_proof!.path), fit: BoxFit.cover),
+                                    child: Image.file(File(_proof!.path),
+                                        fit: BoxFit.cover),
                                   ),
                                   Positioned(
                                     right: 8,
                                     top: 8,
                                     child: Row(
                                       children: [
-                                        _IconAction(icon: Icons.delete_rounded, onTap: _removeProof, tooltip: 'Hapus'),
+                                        _IconAction(
+                                            icon: Icons.delete_rounded,
+                                            onTap: _removeProof,
+                                            tooltip: 'Hapus'),
                                         const SizedBox(width: 8),
-                                        _IconAction(icon: Icons.swap_horiz_rounded, onTap: _pickProof, tooltip: 'Ganti'),
+                                        _IconAction(
+                                            icon: Icons.swap_horiz_rounded,
+                                            onTap: _pickProof,
+                                            tooltip: 'Ganti'),
                                       ],
                                     ),
                                   ),
@@ -594,8 +729,13 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text('• Format yang Didukung: JPG, PNG, JPEG\n• Ukuran file maksimum: 2 MB',
-                      style: GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF6B7280), height: 1.45)),
+                  Text(
+                    '• Format yang Didukung: JPG, PNG, JPEG\n• Ukuran file maksimum: 2 MB',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13.5,
+                        color: const Color(0xFF6B7280),
+                        height: 1.45),
+                  ),
                 ],
               ),
             ),
@@ -608,9 +748,12 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          decoration: const BoxDecoration(color: Colors.white, boxShadow: [
-            BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, -2)),
-          ]),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, -2)),
+            ],
+          ),
           child: SizedBox(
             width: double.infinity,
             height: 56,
@@ -618,11 +761,15 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
               onPressed: _submitTopUp,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1C55C0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(100)),
                 elevation: 0,
               ),
               child: Text('Saya sudah bayar',
-                  style: GoogleFonts.dmSans(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
+                  style: GoogleFonts.dmSans(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
             ),
           ),
         ),
@@ -631,12 +778,19 @@ class _WaitingPaymentWalletPageState extends State<WaitingPaymentWalletPage> {
   }
 }
 
-// ===== Bottom sheet baru: kotak-kotak + tombol OK (judul center) =====
+// ===== Bottom sheet: ringkasan top up =====
 class _OrderDetailSheetWallet extends StatelessWidget {
   final int isiSaldo;
-  final int adminFee;
+  final int serviceFee;
+  final int tax;
   final int total;
-  const _OrderDetailSheetWallet({required this.isiSaldo, required this.adminFee, required this.total});
+
+  const _OrderDetailSheetWallet({
+    required this.isiSaldo,
+    required this.serviceFee,
+    required this.tax,
+    required this.total,
+  });
 
   String _rp(int v) {
     final s = v.toString();
@@ -660,15 +814,23 @@ class _OrderDetailSheetWallet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFE6E9EF), borderRadius: BorderRadius.circular(2))),
+          Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFE6E9EF),
+                  borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 14),
-          Text('Detail Top Up', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, fontSize: 18)),
+          Text('Detail Top Up',
+              style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700, fontSize: 18)),
           const SizedBox(height: 14),
 
-          // 3 kotak
           _MiniCardRow(label: 'Jumlah Isi Saldo', value: _rp(isiSaldo)),
           const SizedBox(height: 8),
-          _MiniCardRow(label: 'Biaya Admin', value: _rp(adminFee)),
+          _MiniCardRow(label: 'Biaya Layanan', value: _rp(serviceFee)),
+          const SizedBox(height: 8),
+          _MiniCardRow(label: 'Pajak (1%)', value: _rp(tax)),
           const SizedBox(height: 8),
           _MiniCardRow(label: 'Total', value: _rp(total), boldValue: true),
 
@@ -680,10 +842,13 @@ class _OrderDetailSheetWallet extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1C55C0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
-              child: Text('OK', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: Colors.white)),
+              child: Text('OK',
+                  style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w700, color: Colors.white)),
             ),
           ),
         ],
@@ -696,16 +861,17 @@ class _MiniCardRow extends StatelessWidget {
   final String label;
   final String value;
   final bool boldValue;
-  const _MiniCardRow({required this.label, required this.value, this.boldValue = false});
+  const _MiniCardRow(
+      {required this.label, required this.value, this.boldValue = false});
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = GoogleFonts.dmSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: const Color(0xFF373E3C));
+    final labelStyle = GoogleFonts.dmSans(
+        fontSize: 13.5, fontWeight: FontWeight.w700, color: const Color(0xFF373E3C));
     final valueStyle = GoogleFonts.dmSans(
-      fontSize: 13.5,
-      fontWeight: boldValue ? FontWeight.w800 : FontWeight.w600,
-      color: const Color(0xFF232323),
-    );
+        fontSize: 13.5,
+        fontWeight: boldValue ? FontWeight.w800 : FontWeight.w600,
+        color: const Color(0xFF232323));
     return Container(
       height: 46,
       decoration: BoxDecoration(
@@ -717,7 +883,9 @@ class _MiniCardRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(child: Text(label, style: labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(
+              child: Text(label,
+                  style: labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis)),
           Text(value, style: valueStyle),
         ],
       ),
@@ -725,31 +893,41 @@ class _MiniCardRow extends StatelessWidget {
   }
 }
 
-/// Accordion tanpa “tearing” huruf: animasi tinggi saja
 class _Accordion extends StatelessWidget {
   final String title;
   final bool expanded;
   final VoidCallback onToggle;
   final Widget child;
-  const _Accordion({required this.title, required this.expanded, required this.onToggle, required this.child});
+  const _Accordion(
+      {required this.title,
+      required this.expanded,
+      required this.onToggle,
+      required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(17), border: Border.all(color: const Color(0xFFE0E0E0))),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: const Color(0xFFE0E0E0))),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 7, 10), // << bottom 10 (lebih rapat)
+            padding: const EdgeInsets.fromLTRB(18, 16, 7, 10),
             child: Row(
               children: [
-                Expanded(child: Text(title, style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, fontSize: 18))),
+                Expanded(
+                    child: Text(title,
+                        style: GoogleFonts.dmSans(
+                            fontWeight: FontWeight.bold, fontSize: 18))),
                 GestureDetector(
                   onTap: onToggle,
                   child: AnimatedRotation(
                     turns: expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
-                    child: const Icon(Icons.keyboard_arrow_up_rounded, size: 32),
+                    child:
+                        const Icon(Icons.keyboard_arrow_up_rounded, size: 32),
                   ),
                 ),
               ],
@@ -761,9 +939,11 @@ class _Accordion extends StatelessWidget {
               curve: Curves.easeInOut,
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: expanded ? const BoxConstraints() : const BoxConstraints(maxHeight: 0.0),
+                constraints: expanded
+                    ? const BoxConstraints()
+                    : const BoxConstraints(maxHeight: 0.0),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 15), // << hapus gap atas berlebih
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 15),
                   child: child,
                 ),
               ),
@@ -775,20 +955,24 @@ class _Accordion extends StatelessWidget {
   }
 }
 
-// Komponen kecil lain (Bullet, IconAction, DashedBorder) tetap sama dengan versi sebelumnya…
+// Util kecil
 class _Bullet extends StatelessWidget {
   final String text;
   const _Bullet(this.text);
   @override
-  Widget build(BuildContext context) =>
-      Text(text, style: GoogleFonts.dmSans(fontSize: 15, color: const Color(0xFF373E3C), height: 1.5));
+  Widget build(BuildContext context) => Text(
+        text,
+        style: GoogleFonts.dmSans(
+            fontSize: 15, color: const Color(0xFF373E3C), height: 1.5),
+      );
 }
 
 class _IconAction extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;
-  const _IconAction({required this.icon, required this.onTap, required this.tooltip});
+  const _IconAction(
+      {required this.icon, required this.onTap, required this.tooltip});
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -799,7 +983,9 @@ class _IconAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.all(6),
-          child: Tooltip(message: tooltip, child: Icon(icon, color: Colors.white, size: 18)),
+          child: Tooltip(
+              message: tooltip,
+              child: Icon(icon, color: Colors.white, size: 18)),
         ),
       ),
     );
@@ -825,8 +1011,11 @@ class _DashedBorder extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       painter: _DashedRRectPainter(
-        radius: radius, color: color, strokeWidth: strokeWidth, dashWidth: dashWidth, dashGap: dashGap,
-      ),
+          radius: radius,
+          color: color,
+          strokeWidth: strokeWidth,
+          dashWidth: dashWidth,
+          dashGap: dashGap),
       child: ClipRRect(borderRadius: BorderRadius.circular(radius), child: child),
     );
   }
@@ -835,27 +1024,45 @@ class _DashedBorder extends StatelessWidget {
 class _DashedRRectPainter extends CustomPainter {
   final double radius, strokeWidth, dashWidth, dashGap;
   final Color color;
-  _DashedRRectPainter({required this.radius, required this.color, required this.strokeWidth, required this.dashWidth, required this.dashGap});
+  _DashedRRectPainter(
+      {required this.radius,
+      required this.color,
+      required this.strokeWidth,
+      required this.dashWidth,
+      required this.dashGap});
   @override
   void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
-    final paint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = strokeWidth;
+    final rrect =
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
     final path = Path()..addRRect(rrect);
     final dashed = _dashPath(path, dashWidth: dashWidth, dashGap: dashGap);
     canvas.drawPath(dashed, paint);
   }
+
   Path _dashPath(Path source, {required double dashWidth, required double dashGap}) {
     final Path dest = Path();
     for (final m in source.computeMetrics()) {
       double distance = 0.0;
       while (distance < m.length) {
-        dest.addPath(m.extractPath(distance, (distance + dashWidth).clamp(0, m.length)), Offset.zero);
+        final double start = distance;
+        final double end =
+            (distance + dashWidth) > m.length ? m.length : (distance + dashWidth);
+        dest.addPath(m.extractPath(start, end), Offset.zero);
         distance += dashWidth + dashGap;
       }
     }
     return dest;
   }
+
   @override
   bool shouldRepaint(covariant _DashedRRectPainter old) =>
-      old.color != color || old.radius != radius || old.strokeWidth != strokeWidth || old.dashGap != dashGap || old.dashWidth != dashWidth;
+      old.color != color ||
+      old.radius != radius ||
+      old.strokeWidth != strokeWidth ||
+      old.dashGap != dashGap ||
+      old.dashWidth != dashWidth;
 }

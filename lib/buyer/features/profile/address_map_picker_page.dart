@@ -7,7 +7,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:abc_e_mart/buyer/widgets/profile_app_bar.dart';
-import 'address_detail_page.dart';
 
 class AddressMapPickerPage extends StatefulWidget {
   final String? addressId;
@@ -188,37 +187,32 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   }
 
   void _handlePickLocation() {
-    if (_selectedLocation != null && _fullAddress != null) {
-      if (widget.isEdit) {
-        Navigator.pop(context, {
-          'fullAddress': _fullAddress,
-          'locationTitle': _streetName,
-          'latitude': _selectedLocation!.latitude,
-          'longitude': _selectedLocation!.longitude,
-          'addressId': widget.addressId,
-          'isEdit': widget.isEdit,
-          'label': widget.label,
-          'name': widget.name,
-          'phone': widget.phone,
-        });
-      } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AddressDetailPage(
-              fullAddress: _fullAddress,
-              locationTitle: _streetName,
-              latitude: _selectedLocation!.latitude,
-              longitude: _selectedLocation!.longitude,
-            ),
-          ),
-        );
-      }
-    } else {
+    if (_selectedLocation == null || _fullAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Silakan pilih lokasi terlebih dahulu.')),
       );
+      return;
     }
+
+    final payload = <String, dynamic>{
+      'fullAddress': _fullAddress,
+      'locationTitle': _streetName,
+      'latitude': _selectedLocation!.latitude,
+      'longitude': _selectedLocation!.longitude,
+    };
+    
+    if (widget.isEdit) {
+      payload.addAll({
+        'addressId': widget.addressId,
+        'isEdit': true,
+        'label': widget.label,
+        'name': widget.name,
+        'phone': widget.phone,
+      });
+    }
+
+    // <-- Yang penting: SELALU pop dengan hasil, JANGAN push ke detail di sini.
+    Navigator.pop(context, payload);
   }
 
   @override

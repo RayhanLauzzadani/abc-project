@@ -36,9 +36,13 @@ class _AddressListPageState extends State<AddressListPage> {
     await AddressService().deleteAddress(userId!, addressId);
   }
 
-  Future<void> onAddAddress(Map<String, dynamic> result, int addressCount) async {
+  Future<void> onAddAddress(
+    Map<String, dynamic> result,
+    int addressCount,
+  ) async {
     if (userId == null) return;
     final isFirst = addressCount == 0;
+
     final detailResult = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -50,8 +54,23 @@ class _AddressListPageState extends State<AddressListPage> {
         ),
       ),
     );
+
+    if (!mounted) return;
+
     if (detailResult != null && detailResult is AddressModel) {
-      await AddressService().addAddress(userId!, detailResult, setAsPrimary: isFirst);
+      await AddressService().addAddress(
+        userId!,
+        detailResult,
+        setAsPrimary: isFirst,
+      );
+
+      // Tidak perlu popup lagi di sini, karena popup sudah muncul di halaman detail.
+      // (Opsional) bisa kasih SnackBar kecil kalau mau:
+      // if (mounted) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(content: Text('Alamat ditambahkan')),
+      //   );
+      // }
     }
   }
 
@@ -79,15 +98,20 @@ class _AddressListPageState extends State<AddressListPage> {
                 final addresses = snapshot.data ?? [];
                 String? primaryId;
                 if (addresses.isNotEmpty) {
-                  primaryId = addresses.firstWhere(
-                    (a) => a.isPrimary,
-                    orElse: () => addresses.first,
-                  ).id;
+                  primaryId = addresses
+                      .firstWhere(
+                        (a) => a.isPrimary,
+                        orElse: () => addresses.first,
+                      )
+                      .id;
                 }
 
                 if (addresses.isEmpty) {
                   return ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     children: [
                       const SizedBox(height: 100),
                       Center(
@@ -122,7 +146,8 @@ class _AddressListPageState extends State<AddressListPage> {
                                 final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const AddressMapPickerPage(),
+                                    builder: (context) =>
+                                        const AddressMapPickerPage(),
                                   ),
                                 );
                                 if (result != null && mounted) {
@@ -156,56 +181,62 @@ class _AddressListPageState extends State<AddressListPage> {
                 }
 
                 return ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   children: [
                     const SizedBox(height: 10),
-                    ...addresses.map((address) => Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: _buildAddressCard(
-                            address: address,
-                            isPrimary: address.isPrimary,
-                            isPrimaryVisual: address.id == primaryId,
-                            onEdit: () async {
-                              final detailResult = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AddressDetailPage(
-                                    fullAddress: address.address,
-                                    label: address.label,
-                                    name: address.name,
-                                    phone: address.phone,
-                                    locationTitle: address.locationTitle,
-                                    latitude: address.latitude,
-                                    longitude: address.longitude,
-                                    addressId: address.id,
-                                    isEdit: true,
-                                    isPrimary: address.isPrimary,
-                                  ),
+                    ...addresses.map(
+                      (address) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildAddressCard(
+                          address: address,
+                          isPrimary: address.isPrimary,
+                          isPrimaryVisual: address.id == primaryId,
+                          onEdit: () async {
+                            final detailResult = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddressDetailPage(
+                                  fullAddress: address.address,
+                                  label: address.label,
+                                  name: address.name,
+                                  phone: address.phone,
+                                  locationTitle: address.locationTitle,
+                                  latitude: address.latitude,
+                                  longitude: address.longitude,
+                                  addressId: address.id,
+                                  isEdit: true,
+                                  isPrimary: address.isPrimary,
                                 ),
-                              );
-                              if (detailResult != null &&
-                                  detailResult is AddressModel &&
-                                  detailResult.isPrimary &&
-                                  !address.isPrimary) {
-                                await setAsPrimary(address.id);
-                              }
-                            },
-                            onDelete: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => const DeleteAddressConfirmationDialog(),
-                              );
-                              if (confirm == true) {
-                                await deleteAddress(address.id);
-                              }
-                            },
-                            onSetPrimary: address.id == primaryId
-                                ? null
-                                : () async {
-                                    await setAsPrimary(address.id);
-                                  },
-                          ),
-                        )),
+                              ),
+                            );
+                            if (detailResult != null &&
+                                detailResult is AddressModel &&
+                                detailResult.isPrimary &&
+                                !address.isPrimary) {
+                              await setAsPrimary(address.id);
+                            }
+                          },
+                          onDelete: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) =>
+                                  const DeleteAddressConfirmationDialog(),
+                            );
+                            if (confirm == true) {
+                              await deleteAddress(address.id);
+                            }
+                          },
+                          onSetPrimary: address.id == primaryId
+                              ? null
+                              : () async {
+                                  await setAsPrimary(address.id);
+                                },
+                        ),
+                      ),
+                    ),
                     if (addresses.length < 3) ...[
                       const SizedBox(height: 28),
                       Center(
@@ -214,7 +245,8 @@ class _AddressListPageState extends State<AddressListPage> {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const AddressMapPickerPage(),
+                                builder: (context) =>
+                                    const AddressMapPickerPage(),
                               ),
                             );
                             if (result != null && mounted) {
@@ -228,7 +260,9 @@ class _AddressListPageState extends State<AddressListPage> {
                                 width: 32,
                                 height: 32,
                                 colorFilter: const ColorFilter.mode(
-                                    Color(0xFF9A9A9A), BlendMode.srcIn),
+                                  Color(0xFF9A9A9A),
+                                  BlendMode.srcIn,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -265,7 +299,9 @@ class _AddressListPageState extends State<AddressListPage> {
         color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isPrimaryVisual ? const Color(0xFF2056D3) : const Color(0xFFE0E0E0),
+          color: isPrimaryVisual
+              ? const Color(0xFF2056D3)
+              : const Color(0xFFE0E0E0),
           width: isPrimaryVisual ? 2 : 1,
         ),
         boxShadow: isPrimaryVisual
@@ -299,14 +335,21 @@ class _AddressListPageState extends State<AddressListPage> {
               if (isPrimaryVisual)
                 Container(
                   margin: const EdgeInsets.only(left: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF2056D3).withOpacity(0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Color(0xFF2056D3), size: 16),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Color(0xFF2056D3),
+                        size: 16,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         "Utama",
@@ -346,7 +389,11 @@ class _AddressListPageState extends State<AddressListPage> {
                 ),
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
-                icon: const Icon(Icons.more_vert, color: Color(0xFF9A9A9A), size: 22),
+                icon: const Icon(
+                  Icons.more_vert,
+                  color: Color(0xFF9A9A9A),
+                  size: 22,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                   side: const BorderSide(color: Color(0xFFD8DADC)),
@@ -375,7 +422,11 @@ class _AddressListPageState extends State<AddressListPage> {
                     value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.delete_outline, color: Colors.grey[500], size: 20),
+                        Icon(
+                          Icons.delete_outline,
+                          color: Colors.grey[500],
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         const Text('Hapus Alamat'),
                       ],
@@ -386,11 +437,7 @@ class _AddressListPageState extends State<AddressListPage> {
             ],
           ),
           const SizedBox(height: 10),
-          const Divider(
-            height: 1,
-            thickness: 1,
-            color: Color(0xFFE0E0E0),
-          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
           const SizedBox(height: 8),
           Text(
             address.name,

@@ -14,8 +14,9 @@ class SellerOrderTabDelivered extends StatelessWidget {
   (OrderStatus, String) _mapStatus(String? raw) {
     final s = (raw ?? '').toUpperCase();
     if (s == 'DELIVERED') return (OrderStatus.delivered, 'Terkirim');
-    if (s == 'SHIPPED')   return (OrderStatus.inProgress, 'Dikirim');
-    if (s == 'COMPLETED' || s == 'SUCCESS') return (OrderStatus.success, 'Selesai');
+    if (s == 'SHIPPED') return (OrderStatus.inProgress, 'Dikirim');
+    if (s == 'COMPLETED' || s == 'SUCCESS')
+      return (OrderStatus.success, 'Selesai');
     return (OrderStatus.inProgress, 'Dalam Proses');
   }
 
@@ -24,7 +25,10 @@ class SellerOrderTabDelivered extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       return Center(
-        child: Text('Silakan login sebagai seller.', style: GoogleFonts.dmSans()),
+        child: Text(
+          'Silakan login sebagai seller.',
+          style: GoogleFonts.dmSans(),
+        ),
       );
     }
 
@@ -32,7 +36,10 @@ class SellerOrderTabDelivered extends StatelessWidget {
     final stream = FirebaseFirestore.instance
         .collection('orders')
         .where('sellerId', isEqualTo: uid)
-        .where('status', whereIn: ['SHIPPED', 'DELIVERED']) // tambahkan DELIVERED juga
+        .where(
+          'status',
+          whereIn: ['SHIPPED', 'DELIVERED'],
+        ) // tambahkan DELIVERED juga
         .orderBy('updatedAt', descending: true)
         .snapshots();
 
@@ -60,7 +67,10 @@ class SellerOrderTabDelivered extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   "Pesanan yang sudah dikirim akan muncul di sini.",
-                  style: GoogleFonts.dmSans(fontSize: 14.5, color: Colors.grey[500]),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14.5,
+                    color: Colors.grey[500],
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -82,14 +92,17 @@ class SellerOrderTabDelivered extends StatelessWidget {
 
             // Tampilkan invoiceId jika ada, fallback doc.id
             final rawInvoice = (data['invoiceId'] as String?)?.trim();
-            final displayId = (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : realOrderId;
+            final displayId = (rawInvoice != null && rawInvoice.isNotEmpty)
+                ? rawInvoice
+                : realOrderId;
 
             final storeName = (data['storeName'] ?? '-') as String;
 
             // Items ringkas (gambar & total qty)
             final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
             final firstImage = items.isNotEmpty
-                ? ((items.first['imageUrl'] ?? items.first['image'] ?? '') as String)
+                ? ((items.first['imageUrl'] ?? items.first['image'] ?? '')
+                      as String)
                 : '';
             final itemCount = items.fold<int>(
               0,
@@ -98,11 +111,15 @@ class SellerOrderTabDelivered extends StatelessWidget {
 
             // Amounts / total
             final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
-            final totalPrice = ((amounts['total'] as num?) ?? 0).toInt();
+            final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
+            final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
+            final totalPrice = subtotal + shipping; // seller take
 
             // Tanggal update (fallback ke createdAt)
             final ts = data['updatedAt'] ?? data['createdAt'];
-            final orderDateTime = ts is Timestamp ? ts.toDate() : DateTime.now();
+            final orderDateTime = ts is Timestamp
+                ? ts.toDate()
+                : DateTime.now();
 
             // Status & badge
             final statusStr = (data['status'] ?? 'SHIPPED') as String;
@@ -110,27 +127,31 @@ class SellerOrderTabDelivered extends StatelessWidget {
 
             return CartAndOrderListCard(
               storeName: storeName,
-              orderId: realOrderId,    // untuk navigasi
-              displayId: displayId,    // untuk tampilan (#INV…)
+              orderId: realOrderId, // untuk navigasi
+              displayId: displayId, // untuk tampilan (#INV…)
               productImage: firstImage,
               itemCount: itemCount,
               totalPrice: totalPrice,
               orderDateTime: orderDateTime,
               status: cardStatus,
-              statusText: badgeText,   // “Dikirim” / “Terkirim”
+              statusText: badgeText, // “Dikirim” / “Terkirim”
               showStatusBadge: true,
               actionTextOverride: "Lacak Pesanan",
               actionIconOverride: Icons.chevron_right_rounded,
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => TrackOrderPageSeller(orderId: realOrderId)),
+                  MaterialPageRoute(
+                    builder: (_) => TrackOrderPageSeller(orderId: realOrderId),
+                  ),
                 );
               },
               onActionTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => TrackOrderPageSeller(orderId: realOrderId)),
+                  MaterialPageRoute(
+                    builder: (_) => TrackOrderPageSeller(orderId: realOrderId),
+                  ),
                 );
               },
             );

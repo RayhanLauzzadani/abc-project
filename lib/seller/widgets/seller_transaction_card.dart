@@ -40,21 +40,31 @@ class SellerTransactionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ===== Header: Invoice + Status (dengan gap rapi) =====
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(
-                  'Invoice ID : ${data.invoiceId}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Color(0xFF373E3C),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 10), // ruang aman sebelum chip
+                  child: Text(
+                    'Invoice ID : ${data.invoiceId}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF373E3C),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
                   ),
                 ),
               ),
+              const SizedBox(width: 8), // gap eksplisit antara invoice & chip
               _StatusBubble(status: data.status, color: statusColor),
             ],
           ),
+
           const SizedBox(height: 2),
           Text(
             data.date,
@@ -83,7 +93,7 @@ class SellerTransactionCard extends StatelessWidget {
                 ),
               ),
               InkWell(
-                onTap: _resolvedOnDetail, // <-- aman: bisa onDetail param, bisa dari data.onDetail
+                onTap: _resolvedOnDetail, // fallback aman
                 child: const Row(
                   children: [
                     Text(

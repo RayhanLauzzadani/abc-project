@@ -29,10 +29,14 @@ class CatalogPage extends StatefulWidget {
   final int selectedCategory;
   final ValueChanged<int>? onCategoryChanged;
 
+  // NEW: kontrol tab awal (0 = Produk Tersedia, 1 = Toko Tersedia)
+  final int initialTab;
+
   const CatalogPage({
     Key? key,
     required this.selectedCategory,
     this.onCategoryChanged,
+    this.initialTab = 0,
   }) : super(key: key);
 
   @override
@@ -53,7 +57,17 @@ class _CatalogPageState extends State<CatalogPage>
   void initState() {
     super.initState();
     _selectedCategory = widget.selectedCategory;
-    _tabController = TabController(length: 2, vsync: this);
+
+    // gunakan initialTab dari parent
+    _tabIndex = (widget.initialTab == 0 || widget.initialTab == 1)
+        ? widget.initialTab
+        : 0;
+
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: _tabIndex,
+    );
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
         setState(() => _tabIndex = _tabController.index);
@@ -68,6 +82,13 @@ class _CatalogPageState extends State<CatalogPage>
       setState(() {
         _selectedCategory = widget.selectedCategory;
       });
+    }
+
+    // sinkronkan jika parent mengubah initialTab saat mounted
+    if (widget.initialTab != oldWidget.initialTab &&
+        (widget.initialTab == 0 || widget.initialTab == 1)) {
+      _tabIndex = widget.initialTab;
+      _tabController.index = _tabIndex;
     }
   }
 
@@ -200,8 +221,7 @@ class _ProductList extends StatelessWidget {
 
         // kategori
         if (selectedCategory > 0) {
-          final catStr =
-              categoryLabels[categoryList[selectedCategory - 1]]!;
+          final catStr = categoryLabels[categoryList[selectedCategory - 1]]!;
           docs = docs.where((doc) {
             final c = (doc['category'] ?? '').toString();
             return c.toLowerCase().contains(catStr.toLowerCase());
@@ -305,7 +325,9 @@ class _StoreList extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => StoreDetailPage(store: {...data, 'id': docs[index].id}),
+                    builder: (_) => StoreDetailPage(
+                      store: {...data, 'id': docs[index].id},
+                    ),
                   ),
                 );
               },
@@ -369,7 +391,7 @@ class _CatalogTabBar extends StatelessWidget {
             text: TextSpan(text: tabs[i], style: textStyle),
             textDirection: TextDirection.ltr,
           )..layout();
-        return tp;
+          return tp;
         });
 
         const spacing = 32.0;
@@ -388,9 +410,9 @@ class _CatalogTabBar extends StatelessWidget {
           child: Stack(
             alignment: Alignment.bottomLeft,
             children: [
-              Positioned(
+              const Positioned(
                 left: 0, right: 0, bottom: 0,
-                child: Container(height: 2, color: const Color(0x11B2B2B2)),
+                child: SizedBox(height: 2, child: ColoredBox(color: Color(0x11B2B2B2))),
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,

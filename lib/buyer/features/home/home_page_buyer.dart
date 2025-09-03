@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../widgets/search_bar.dart' as custom;
@@ -35,17 +36,38 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   int selectedCategory = 0;
+  bool _isExiting = false;
+
+  // kontrol tab awal CatalogPage (0 = Produk, 1 = Toko)
+  int _catalogInitialTab = 0;
 
   @override
   void initState() {
     super.initState();
-    // ... existing code ...
     _selectedIndex = widget.initialIndex;
   }
 
   void _gotoCatalogWithCategory(int categoryIdx) {
     setState(() {
       selectedCategory = categoryIdx;
+      _catalogInitialTab = 0; // jika dari kategori, buka tab Produk
+      _selectedIndex = 1;
+    });
+  }
+
+  // buka Catalog tab Toko
+  void _gotoCatalogStoresTab() {
+    setState(() {
+      _catalogInitialTab = 1;
+      selectedCategory = 0;
+      _selectedIndex = 1;
+    });
+  }
+
+  // buka Catalog tab Produk
+  void _gotoCatalogProductsTab() {
+    setState(() {
+      _catalogInitialTab = 0;
       _selectedIndex = 1;
     });
   }
@@ -59,9 +81,12 @@ class _HomePageState extends State<HomePage> {
   List<Widget> get _pages => [
     _HomeMainContent(
       onCategorySelected: _gotoCatalogWithCategory,
+      onSeeAllStores: _gotoCatalogStoresTab,
+      onSeeAllProducts: _gotoCatalogProductsTab, // << penting
     ),
     CatalogPage(
       selectedCategory: selectedCategory,
+      initialTab: _catalogInitialTab, // << penting
       onCategoryChanged: (cat) {
         setState(() {
           selectedCategory = cat;
@@ -75,13 +100,39 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
         if (_selectedIndex != 0) {
           setState(() => _selectedIndex = 0);
-          return false;
+          return;
         }
-        return true;
+        if (_isExiting) return;
+        _isExiting = true;
+        final ok =
+            await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Keluar Aplikasi?'),
+                content: const Text('Anda yakin ingin menutup aplikasi?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Batal'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Keluar'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        _isExiting = false;
+        if (ok && mounted) {
+          SystemNavigator.pop();
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -92,9 +143,9 @@ class _HomePageState extends State<HomePage> {
           currentIndex: _selectedIndex,
           onTap: (index) {
             setState(() {
-              // Jika pindah ke Katalog, reset kategori ke 'Semua'
               if (index == 1 && _selectedIndex != 1) {
                 _resetCatalogCategory();
+                _catalogInitialTab = 0; // buka Catalog dari navbar -> tab Produk
               }
               _selectedIndex = index;
             });
@@ -110,7 +161,15 @@ class _HomePageState extends State<HomePage> {
 ///
 class _HomeMainContent extends StatefulWidget {
   final Function(int selectedCategory) onCategorySelected;
-  const _HomeMainContent({Key? key, required this.onCategorySelected}) : super(key: key);
+  final VoidCallback onSeeAllStores;   // "Lihat Semua" toko
+  final VoidCallback onSeeAllProducts; // "Lihat Semua" produk
+
+  const _HomeMainContent({
+    Key? key,
+    required this.onCategorySelected,
+    required this.onSeeAllStores,
+    required this.onSeeAllProducts,
+  }) : super(key: key);
 
   static const double headerHeight = 110;
   static const double spaceBawah = 0;
@@ -164,7 +223,7 @@ class _HomeMainContentState extends State<_HomeMainContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _HomeAddressHeader(),
+                  const _HomeAddressHeader(),
                   const SizedBox(height: 20),
                   SizedBox(
                     height: _HomeMainContent.searchBarHeight,
@@ -208,8 +267,10 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Produk tidak ditemukan atau sudah dihapus.'),
+                        const SnackBar(
+                          content: Text(
+                            'Produk tidak ditemukan atau sudah dihapus.',
+                          ),
                         ),
                       );
                     }
@@ -226,12 +287,20 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                     balance: 0,
                     primaryLabel: 'Isi Saldo',
                     onPrimary: () {
-                      Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TopUpWalletPage(),
+                        ),
+                      );
                     },
                     onHistory: () {
-                      Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const HistoryWalletPage()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HistoryWalletPage(),
+                        ),
+                      );
                     },
                   )
                 : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -241,23 +310,30 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                         .snapshots(),
                     builder: (context, snap) {
                       if (snap.connectionState == ConnectionState.waiting) {
-                        // loading tipis: tetap render kartu dengan 0 biar UI stabil
                         return ABCPaymentCard(
                           balance: 0,
                           primaryLabel: 'Isi Saldo',
                           onPrimary: () {
-                            Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TopUpWalletPage(),
+                              ),
+                            );
                           },
                           onHistory: () {
-                            Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => const HistoryWalletPage()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const HistoryWalletPage(),
+                              ),
+                            );
                           },
                         );
                       }
                       final data = snap.data?.data();
-                      final wallet = (data?['wallet'] as Map<String, dynamic>?) ?? {};
-                      // aman untuk num/double/int
+                      final wallet =
+                          (data?['wallet'] as Map<String, dynamic>?) ?? {};
                       final available = (wallet['available'] is num)
                           ? (wallet['available'] as num).toInt()
                           : 0;
@@ -266,12 +342,20 @@ class _HomeMainContentState extends State<_HomeMainContent> {
                         balance: available,
                         primaryLabel: 'Isi Saldo',
                         onPrimary: () {
-                          Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const TopUpWalletPage()));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TopUpWalletPage(),
+                            ),
+                          );
                         },
                         onHistory: () {
-                          Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const HistoryWalletPage()));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const HistoryWalletPage(),
+                            ),
+                          );
                         },
                       );
                     },
@@ -280,104 +364,66 @@ class _HomeMainContentState extends State<_HomeMainContent> {
         if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 16)),
         if (!isSearching)
           SliverToBoxAdapter(
-            child: CategorySection(onCategorySelected: widget.onCategorySelected),
+            child: CategorySection(
+              onCategorySelected: widget.onCategorySelected,
+            ),
           ),
         if (!isSearching) SliverToBoxAdapter(child: const SizedBox(height: 32)),
         // --- HASIL PENCARIAN ---
         if (isSearching)
           SliverToBoxAdapter(
-            child: _SearchResultSection(
-              query: searchQuery,
-              userUid: userUid,
-            ),
+            child: _SearchResultSection(query: searchQuery, userUid: userUid),
           ),
         // --- TAMPILAN NORMAL (tidak search) ---
         if (!isSearching) ...[
+          // Toko yang Tersedia
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                "Toko yang Tersedia",
-                style: GoogleFonts.dmSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF212121),
-                ),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(child: const SizedBox(height: 12)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: FutureBuilder<QuerySnapshot>(
-                future: FirebaseFirestore.instance
-                    .collection('stores')
-                    .limit(5)
-                    .get(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 30),
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: Text('Belum ada toko tersedia.')),
-                    );
-                  }
-                  final stores = snapshot.data!.docs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data['ownerId'] != userUid;
-                  }).toList();
-                  if (stores.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: Text('Belum ada toko tersedia.')),
-                    );
-                  }
-                  return Column(
-                    children: stores.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return StoreCard(
-                        imageUrl: data['logoUrl'] ?? '',
-                        storeName: data['name'] ?? '',
-                        rating: (data['rating'] ?? 0).toDouble(),
-                        ratingCount: (data['ratingCount'] ?? 0).toInt(),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  StoreDetailPage(store: {...data, 'id': doc.id}),
-                            ),
-                          );
-                        },
-                      );
-                    }).toList(),
-                  );
-                },
+              child: _StoresSection(
+                userUid: userUid,
+                onSeeAll: widget.onSeeAllStores,
               ),
             ),
           ),
           SliverToBoxAdapter(child: const SizedBox(height: 32)),
+
+          // Produk untuk Anda + Lihat Semua -> ke Catalog tab Produk
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                "Produk untuk Anda",
-                style: GoogleFonts.dmSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF212121),
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Produk untuk Anda",
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF212121),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: widget.onSeeAllProducts, // << ini yang arahkan
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        "Lihat Semua",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                          color: const Color(0xFF757575),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           SliverToBoxAdapter(child: const SizedBox(height: 12)),
+
+          // List produk preview (limit 5)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -442,6 +488,115 @@ class _HomeMainContentState extends State<_HomeMainContent> {
 }
 
 ///
+/// Card "Toko yang Tersedia" + tombol "Lihat Semua"
+///
+class _StoresSection extends StatelessWidget {
+  final String userUid;
+  final VoidCallback onSeeAll;
+
+  const _StoresSection({
+    required this.userUid,
+    required this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header: judul kiri + "Lihat Semua" kanan (tanpa card)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Toko yang Tersedia",
+              style: GoogleFonts.dmSans(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF232323),
+              ),
+            ),
+            GestureDetector(
+              onTap: onSeeAll,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  "Lihat Semua",
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: const Color(0xFF757575),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // List toko (preview 5) — tanpa container/card
+        FutureBuilder<QuerySnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('stores')
+              .limit(5)
+              .get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Belum ada toko tersedia.'),
+              );
+            }
+
+            final stores = snapshot.data!.docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data['ownerId'] != userUid;
+            }).toList();
+
+            if (stores.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Belum ada toko tersedia.'),
+              );
+            }
+
+            return Column(
+              children: stores.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 0),
+                  child: StoreCard(
+                    imageUrl: data['logoUrl'] ?? '',
+                    storeName: data['name'] ?? '',
+                    rating: (data['rating'] ?? 0).toDouble(),
+                    ratingCount: (data['ratingCount'] ?? 0).toInt(),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              StoreDetailPage(store: {...data, 'id': doc.id}),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+///
 /// WIDGET SEARCH RESULT UNTUK HOMEPAGE
 ///
 class _SearchResultSection extends StatelessWidget {
@@ -472,24 +627,20 @@ class _SearchResultSection extends StatelessWidget {
         }
 
         // Filter store
-        final stores = snapshot.data![0].docs
-            .where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              if (userUid.isNotEmpty && data['ownerId'] == userUid) return false;
-              final name = (data['name'] ?? '').toString().toLowerCase();
-              return name.contains(q);
-            })
-            .toList();
+        final stores = snapshot.data![0].docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (userUid.isNotEmpty && data['ownerId'] == userUid) return false;
+          final name = (data['name'] ?? '').toString().toLowerCase();
+          return name.contains(q);
+        }).toList();
 
         // Filter produk
-        final products = snapshot.data![1].docs
-            .where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              if (userUid.isNotEmpty && data['ownerId'] == userUid) return false;
-              final name = (data['name'] ?? '').toString().toLowerCase();
-              return name.contains(q);
-            })
-            .toList();
+        final products = snapshot.data![1].docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (userUid.isNotEmpty && data['ownerId'] == userUid) return false;
+          final name = (data['name'] ?? '').toString().toLowerCase();
+          return name.contains(q);
+        }).toList();
 
         if (stores.isEmpty && products.isEmpty) {
           return _emptySearch();
@@ -511,7 +662,10 @@ class _SearchResultSection extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 child: Column(
                   children: stores.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -523,7 +677,8 @@ class _SearchResultSection extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => StoreDetailPage(store: {...data, 'id': doc.id}),
+                            builder: (_) =>
+                                StoreDetailPage(store: {...data, 'id': doc.id}),
                           ),
                         );
                       },
@@ -545,7 +700,10 @@ class _SearchResultSection extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 child: Column(
                   children: products.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -556,7 +714,9 @@ class _SearchResultSection extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => ProductDetailPage(product: {...data, 'id': doc.id}),
+                            builder: (_) => ProductDetailPage(
+                              product: {...data, 'id': doc.id},
+                            ),
                           ),
                         );
                       },
@@ -590,10 +750,7 @@ class _SearchResultSection extends StatelessWidget {
             const SizedBox(height: 7),
             Text(
               "Coba cari dengan kata kunci lain.",
-              style: GoogleFonts.dmSans(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: GoogleFonts.dmSans(fontSize: 14, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
           ],

@@ -19,7 +19,6 @@ import 'package:abc_e_mart/seller/features/order/order_page.dart';
 import 'package:abc_e_mart/seller/features/transaction/transaction_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_payment_page.dart';
 import 'package:abc_e_mart/seller/features/wallet/withdraw_history_page.dart';
-// detail invoice
 import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
 
 class HomePageSeller extends StatefulWidget {
@@ -31,7 +30,7 @@ class HomePageSeller extends StatefulWidget {
 
 class _HomePageSellerState extends State<HomePageSeller> {
   String? _storeId;
-  Map<String, dynamic>? _storeData; // ⬅️ simpan data toko agar bisa dipakai di transaksi
+  Map<String, dynamic>? _storeData; // simpan data toko untuk detail transaksi
 
   Future<void> _setOnlineStatus(
     bool isOnline, {
@@ -52,16 +51,69 @@ class _HomePageSellerState extends State<HomePageSeller> {
   @override
   void dispose() {
     _setOnlineStatus(false, updateLastLogin: true);
-
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'isOnline': true,
       }, SetOptions(merge: true));
     }
-
     super.dispose();
   }
+
+  // ==================== RINGKASAN TOKO (AGGREGATE COUNT) =====================
+  Future<_OrderSummary> _fetchOrderSummary(String sellerId) async {
+    final col = FirebaseFirestore.instance.collection('orders');
+
+    Future<int> countWhere({
+      required String seller,
+      String? equalStatus,
+      List<String>? inStatuses,
+    }) async {
+      Query q = col.where('sellerId', isEqualTo: seller);
+      if (equalStatus != null) {
+        q = q.where('status', isEqualTo: equalStatus);
+      }
+      if (inStatuses != null) {
+        q = q.where('status', whereIn: inStatuses);
+      }
+      final agg = await q.count().get();
+      return agg.count ?? 0; // ✅ handle nullable count
+    }
+
+    // Kelompok status
+    const incoming = <String>[
+      'PLACED',
+      'PENDING',
+      'PAID',
+      'PROCESSING',
+      'CONFIRMED',
+      'ACCEPTED',
+      'READY_TO_SHIP',
+    ];
+    const shipping = <String>[
+      'SHIPPED',
+      'OUT_FOR_DELIVERY',
+      'ON_DELIVERY',
+      'IN_TRANSIT',
+    ];
+    const success = <String>['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'];
+    const failed = <String>['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'];
+
+    final results = await Future.wait<int>([
+      countWhere(seller: sellerId, inStatuses: incoming),
+      countWhere(seller: sellerId, inStatuses: shipping),
+      countWhere(seller: sellerId, inStatuses: success),
+      countWhere(seller: sellerId, inStatuses: failed),
+    ]);
+
+    return _OrderSummary(
+      masuk: results[0],
+      dikirim: results[1],
+      selesai: results[2],
+      batal: results[3],
+    );
+  }
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -105,18 +157,10 @@ class _HomePageSellerState extends State<HomePageSeller> {
                   }
 
                   final shopName = data['name'] ?? "-";
-                  final description = data['description'] ?? "Menjual berbagai kebutuhan";
+                  final description =
+                      data['description'] ?? "Menjual berbagai kebutuhan";
                   final address = data['address'] ?? "-";
                   final logoUrl = data['logoUrl'] ?? "";
-                  final phone = data['phone'] ?? "-";
-
-                  // dummy summary
-                  final pesananMasuk = 42;
-                  final pesananDikirim = 5;
-                  final pesananSelesai = 30;
-                  final pesananBatal = 15;
-                  final saldo = "Rp 1,25 Jt";
-                  final saldoTertahan = "Rp 250.000";
 
                   return SingleChildScrollView(
                     child: Padding(
@@ -130,7 +174,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             onNotif: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => const NotificationPageSeller(),
+                                  builder: (_) =>
+                                      const NotificationPageSeller(),
                                 ),
                               );
                             },
@@ -154,7 +199,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Saldo
+                          // Saldo (realtime dari users/<uid>.wallet.available)
                           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('users')
@@ -164,9 +209,12 @@ class _HomePageSellerState extends State<HomePageSeller> {
                               int available = 0;
                               if (snap.hasData) {
                                 final u = snap.data!.data();
-                                final wallet = (u?['wallet'] as Map<String, dynamic>?) ?? {};
+                                final wallet =
+                                    (u?['wallet'] as Map<String, dynamic>?) ??
+                                    {};
                                 if (wallet['available'] is num) {
-                                  available = (wallet['available'] as num).toInt();
+                                  available = (wallet['available'] as num)
+                                      .toInt();
                                 }
                               }
 
@@ -188,8 +236,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                     MaterialPageRoute(
                                       builder: (_) => WithdrawPaymentPage(
                                         currentBalance: available,
-                                        adminFee: 1000,
                                         minWithdraw: 15000,
+                                        storeId: storeId, // opsional
                                       ),
                                     ),
                                   );
@@ -197,7 +245,8 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 onHistory: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const WithdrawHistoryPageSeller(),
+                                      builder: (_) =>
+                                          const WithdrawHistoryPageSeller(),
                                     ),
                                   );
                                 },
@@ -211,71 +260,100 @@ class _HomePageSellerState extends State<HomePageSeller> {
                             onTap: (index) {
                               switch (index) {
                                 case 0:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => ProductsPage(storeId: storeId),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ProductsPage(storeId: storeId),
+                                    ),
+                                  );
                                   break;
                                 case 1:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => const SellerOrderPage(),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SellerOrderPage(),
+                                    ),
+                                  );
                                   break;
                                 case 2:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => const SellerChatListPage(),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const SellerChatListPage(),
+                                    ),
+                                  );
                                   break;
                                 case 3:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => StoreRatingPage(
-                                      storeId: storeId,
-                                      storeName: shopName,
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => StoreRatingPage(
+                                        storeId: storeId,
+                                        storeName: shopName,
+                                      ),
                                     ),
-                                  ));
+                                  );
                                   break;
                                 case 4:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => const TransactionPage(),
-                                  ));
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const TransactionPage(),
+                                    ),
+                                  );
                                   break;
                                 case 5:
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => AdsListPage(
-                                      sellerId: uid,
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          AdsListPage(sellerId: uid),
                                     ),
-                                  ));
+                                  );
                                   break;
                               }
                             },
                           ),
 
-                          // Summary
-                          SellerSummaryCard(
-                            pesananMasuk: pesananMasuk,
-                            pesananDikirim: pesananDikirim,
-                            pesananSelesai: pesananSelesai,
-                            pesananBatal: pesananBatal,
-                            saldo: saldo,
-                            saldoTertahan: saldoTertahan,
+                          // ================== RINGKASAN TOKO (LIVE) ==================
+                          FutureBuilder<_OrderSummary>(
+                            future: _fetchOrderSummary(uid),
+                            builder: (context, sumSnap) {
+                              if (sumSnap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+                              final s = sumSnap.data ?? _OrderSummary.zero();
+                              return SellerSummaryCard(
+                                pesananMasuk: s.masuk,
+                                pesananDikirim: s.dikirim,
+                                pesananSelesai: s.selesai,
+                                pesananBatal: s.batal,
+                                // field ini tidak dipakai pada UI card
+                                saldo: '-',
+                                saldoTertahan: '-',
+                              );
+                            },
                           ),
+                          // ============================================================
 
-                          // Transaction Section
+                          // Transaction Section (riwayat singkat)
                           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             stream: FirebaseFirestore.instance
                                 .collection('orders')
                                 .where('sellerId', isEqualTo: uid)
-                                .where('status', whereIn: [
-                                  'COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED',
-                                  'CANCELLED', 'CANCELED', 'REJECTED', 'FAILED',
-                                ])
                                 .orderBy('updatedAt', descending: true)
                                 .limit(5)
                                 .snapshots(),
                             builder: (context, txSnap) {
-                              if (txSnap.connectionState == ConnectionState.waiting) {
+                              if (txSnap.connectionState ==
+                                  ConnectionState.waiting) {
                                 return const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: Center(child: CircularProgressIndicator()),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
                                 );
                               }
 
@@ -285,7 +363,9 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                   transactions: const [],
                                   onSeeAll: () {
                                     Navigator.of(context).push(
-                                      MaterialPageRoute(builder: (_) => const TransactionPage()),
+                                      MaterialPageRoute(
+                                        builder: (_) => const TransactionPage(),
+                                      ),
                                     );
                                   },
                                 );
@@ -296,7 +376,10 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 return _mapOrderDocToCard(
                                   docId: d.id,
                                   data: od,
-                                  onDetail: () => _openTransactionDetail(orderId: d.id, data: od),
+                                  onDetail: () => _openTransactionDetail(
+                                    orderId: d.id,
+                                    data: od,
+                                  ),
                                 );
                               }).toList();
 
@@ -304,7 +387,9 @@ class _HomePageSellerState extends State<HomePageSeller> {
                                 transactions: cardsData,
                                 onSeeAll: () {
                                   Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => const TransactionPage()),
+                                    MaterialPageRoute(
+                                      builder: (_) => const TransactionPage(),
+                                    ),
                                   );
                                 },
                               );
@@ -320,7 +405,7 @@ class _HomePageSellerState extends State<HomePageSeller> {
     );
   }
 
-  // buka detail transaksi
+  // ======================== Detail Transaksi & Mapper ========================
   Future<void> _openTransactionDetail({
     required String orderId,
     required Map<String, dynamic> data,
@@ -330,7 +415,10 @@ class _HomePageSellerState extends State<HomePageSeller> {
       final buyerId = (data['buyerId'] ?? '') as String? ?? '';
       if (buyerId.isNotEmpty) {
         try {
-          final snap = await FirebaseFirestore.instance.collection('users').doc(buyerId).get();
+          final snap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(buyerId)
+              .get();
           buyerName = (snap.data()?['name'] ?? '-') as String? ?? '-';
         } catch (_) {
           buyerName = '-';
@@ -340,11 +428,17 @@ class _HomePageSellerState extends State<HomePageSeller> {
       }
     }
 
-    final txMap = _mapOrderToTransaction(orderId: orderId, data: data, buyerName: buyerName);
+    final txMap = _mapOrderToTransaction(
+      orderId: orderId,
+      data: data,
+      buyerName: buyerName,
+    );
 
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TransactionDetailPage(transaction: txMap)),
+      MaterialPageRoute(
+        builder: (_) => TransactionDetailPage(transaction: txMap),
+      ),
     );
   }
 
@@ -354,7 +448,9 @@ class _HomePageSellerState extends State<HomePageSeller> {
     required VoidCallback onDetail,
   }) {
     final invoice = (data['invoiceId'] as String?)?.trim();
-    final displayInvoice = (invoice != null && invoice.isNotEmpty) ? invoice : docId;
+    final displayInvoice = (invoice != null && invoice.isNotEmpty)
+        ? invoice
+        : docId;
 
     final ts = data['updatedAt'] ?? data['createdAt'];
     final dt = ts is Timestamp ? ts.toDate() : null;
@@ -391,12 +487,19 @@ class _HomePageSellerState extends State<HomePageSeller> {
     required String buyerName,
   }) {
     final statusRaw =
-        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED')
+                as String)
+            .toUpperCase();
 
     String uiStatus;
     if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(statusRaw)) {
       uiStatus = 'Sukses';
-    } else if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(statusRaw)) {
+    } else if ([
+      'CANCELLED',
+      'CANCELED',
+      'REJECTED',
+      'FAILED',
+    ].contains(statusRaw)) {
       uiStatus = 'Gagal';
     } else {
       uiStatus = 'Tertahan';
@@ -407,17 +510,20 @@ class _HomePageSellerState extends State<HomePageSeller> {
     final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
     final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
     final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax))
+        .toInt();
 
     final createdAt = (data['updatedAt'] ?? data['createdAt']);
     final date = createdAt is Timestamp ? createdAt.toDate() : null;
 
     final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
     final addressLabel = (ship['label'] ?? '-') as String;
-    final addressText = (ship['addressText'] ?? ship['address'] ?? '-') as String;
+    final addressText =
+        (ship['addressText'] ?? ship['address'] ?? '-') as String;
     final phone = (ship['phone'] ?? '-') as String;
 
-    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+    final method = ((data['payment']?['method'] ?? 'abc_payment') as String)
+        .toUpperCase();
 
     final inv = (data['invoiceId'] as String?)?.trim();
     final invoiceId = (inv != null && inv.isNotEmpty) ? inv : orderId;
@@ -426,14 +532,11 @@ class _HomePageSellerState extends State<HomePageSeller> {
       'invoiceId': invoiceId,
       'status': uiStatus,
       'date': date,
-
-      // ⬇️ Info toko ikut dikirim (supaya muncul di PDF)
       'store': {
         'name': _storeData?['name'] ?? '-',
         'phone': _storeData?['phone'] ?? '-',
         'address': _storeData?['address'] ?? '-',
       },
-
       'buyerName': buyerName,
       'shipping': {
         'recipient': buyerName,
@@ -443,12 +546,14 @@ class _HomePageSellerState extends State<HomePageSeller> {
       },
       'paymentMethod': method,
       'items': items
-          .map((it) => {
-                'name': (it['name'] ?? '-') as String,
-                'qty': ((it['qty'] as num?) ?? 0).toInt(),
-                'price': ((it['price'] as num?) ?? 0).toInt(),
-                'variant': (it['variant'] ?? it['note'] ?? '') as String,
-              })
+          .map(
+            (it) => {
+              'name': (it['name'] ?? '-') as String,
+              'qty': ((it['qty'] as num?) ?? 0).toInt(),
+              'price': ((it['price'] as num?) ?? 0).toInt(),
+              'variant': (it['variant'] ?? it['note'] ?? '') as String,
+            },
+          )
           .toList(),
       'amounts': {
         'subtotal': subtotal,
@@ -460,16 +565,43 @@ class _HomePageSellerState extends State<HomePageSeller> {
   }
 
   String _statusToUi(String raw) {
-    if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(raw)) return 'Sukses';
-    if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(raw)) return 'Gagal';
+    if (['COMPLETED', 'SUCCESS', 'SETTLED', 'DELIVERED'].contains(raw))
+      return 'Sukses';
+    if (['CANCELLED', 'CANCELED', 'REJECTED', 'FAILED'].contains(raw))
+      return 'Gagal';
     return 'Tertahan';
   }
 
   String _fmtDateIndo(DateTime d) {
     const bulan = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${d.day} ${bulan[d.month - 1]} ${d.year}';
   }
+}
+
+class _OrderSummary {
+  final int masuk;
+  final int dikirim;
+  final int selesai;
+  final int batal;
+  const _OrderSummary({
+    required this.masuk,
+    required this.dikirim,
+    required this.selesai,
+    required this.batal,
+  });
+  factory _OrderSummary.zero() =>
+      const _OrderSummary(masuk: 0, dikirim: 0, selesai: 0, batal: 0);
 }

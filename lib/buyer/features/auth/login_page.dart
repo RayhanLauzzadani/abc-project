@@ -9,6 +9,12 @@ import '../../../admin/features/home/home_page_admin.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// ADD: attach token setelah login
+import '../../../data/services/fcm_token_registrar.dart';
+
+// NEW: minta izin notifikasi sekali, DIPANGGIL SETELAH LOGIN SUKSES
+import '../../../data/services/notification_permission.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -20,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final FocusNode emailFocusNode = FocusNode();
-  final FocusNode passwordFocusNode = FocusNode();
+  final FocusNode passwordFocusNode = new FocusNode();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -37,14 +43,12 @@ class _LoginPageState extends State<LoginPage> {
 
   // --- Helpers --------------------------------------------------------------
 
-  // Pastikan role selalu berupa List<String>
   List<String> _roleToList(dynamic role) {
     if (role is String) return [role];
     if (role is List) return role.cast<String>();
     return ['buyer'];
   }
 
-  // Wallet default untuk self-heal
   Map<String, dynamic> _defaultWallet() => {
         'available': 0,
         'onHold': 0,
@@ -52,21 +56,19 @@ class _LoginPageState extends State<LoginPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-  // Self-heal doc user: normalisasi role, inject wallet, set lastLogin & isOnline
   Future<void> _selfHealUserDoc(
-      DocumentReference<Map<String, dynamic>> userDocRef,
-      Map<String, dynamic> data,
-      {bool ensureBuyerRole = false}) async {
+    DocumentReference<Map<String, dynamic>> userDocRef,
+    Map<String, dynamic> data, {
+    bool ensureBuyerRole = false,
+  }) async {
     final updates = <String, dynamic>{
       'lastLogin': FieldValue.serverTimestamp(),
       'isOnline': true,
     };
 
-    // Role normalisasi → List<String>
     if (data['role'] == null || data['role'] is! List) {
       updates['role'] = _roleToList(data['role']);
     } else if (ensureBuyerRole) {
-      // Untuk login Google: pastikan buyer ada
       final roles = _roleToList(data['role']);
       if (!roles.contains('buyer')) {
         roles.add('buyer');
@@ -74,7 +76,6 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
 
-    // Inject wallet jika belum ada
     if (data['wallet'] == null) {
       updates['wallet'] = _defaultWallet();
     }
@@ -97,6 +98,7 @@ class _LoginPageState extends State<LoginPage> {
     FocusScope.of(context).unfocus();
 
     if (email.isEmpty || password.isEmpty) {
+      if (!mounted) return;
       setState(() {
         _errorText = "Email dan password wajib diisi";
         _isLoading = false;
@@ -109,16 +111,17 @@ class _LoginPageState extends State<LoginPage> {
         email: email,
         password: password,
       );
-      if (!mounted) return;
 
+      if (!mounted) return;
       final user = credential.user;
+
       if (user != null) {
         final userDocRef =
             FirebaseFirestore.instance.collection('users').doc(user.uid);
         final userDoc = await userDocRef.get();
 
         if (!userDoc.exists) {
-          // Tetap pertahankan perilaku lama: tampilkan pesan jika doc tidak ada.
+          if (!mounted) return;
           setState(() {
             _errorText = "Data user tidak ditemukan di database.";
             _isLoading = false;
@@ -130,8 +133,8 @@ class _LoginPageState extends State<LoginPage> {
         final isActive = data['isActive'] ?? true;
         final roles = _roleToList(data['role']);
 
-        // ✅ SELF-HEAL: role -> List, wallet inject, lastLogin & isOnline
         await _selfHealUserDoc(userDocRef, data);
+        if (!mounted) return;
 
         if (!isActive) {
           setState(() {
@@ -141,18 +144,37 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
-        // Arahkan berdasarkan role
+        // ATTACH token setelah login sukses (guarded)
+        try {
+          await FcmTokenRegistrar.register();
+        } catch (_) {
+          // jangan blokir login kalau FCM bermasalah
+        }
+
+        // 🆕 Minta izin notifikasi SEKALI, setelah login sukses
+        try {
+          await NotificationPermission.askOnceIfNeeded();
+        } catch (_) {}
+
+        // Navigate by role
         if (roles.contains('admin')) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomePageAdmin()),
-          );
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomePageAdmin()),
+            );
+          });
         } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomePage()),
+            );
+          });
         }
       }
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       String message = "Gagal login. Silakan coba lagi.";
       if (e.code == 'user-not-found') {
         message = "Email tidak ditemukan.";
@@ -166,6 +188,7 @@ class _LoginPageState extends State<LoginPage> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorText = "Terjadi kesalahan: $e";
         _isLoading = false;
@@ -181,7 +204,9 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final userCredential = await GoogleAuthService.signInWithGoogle();
-      if (userCredential != null && mounted) {
+      if (!mounted) return;
+
+      if (userCredential != null) {
         final user = userCredential.user;
         if (user != null) {
           final userDoc =
@@ -189,12 +214,11 @@ class _LoginPageState extends State<LoginPage> {
           final snapshot = await userDoc.get();
 
           if (!snapshot.exists) {
-            // Buat dokumen user baru (termasuk wallet)
             await userDoc.set({
               'uid': user.uid,
               'email': user.email,
               'name': user.displayName ?? '',
-              'role': ['buyer'], // ROLE ALWAYS LIST
+              'role': ['buyer'],
               'createdAt': FieldValue.serverTimestamp(),
               'isActive': true,
               'isOnline': true,
@@ -202,30 +226,41 @@ class _LoginPageState extends State<LoginPage> {
               'wallet': _defaultWallet(),
             }, SetOptions(merge: true));
           } else {
-            // ✅ SELF-HEAL untuk user lama (nomor 2)
             final data = snapshot.data()!;
-            await _selfHealUserDoc(
-              userDoc,
-              data,
-              ensureBuyerRole: true, // pastikan 'buyer' ada
-            );
+            await _selfHealUserDoc(userDoc, data, ensureBuyerRole: true);
           }
         }
 
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
+        // ATTACH token setelah login Google (guarded)
+        try {
+          await FcmTokenRegistrar.register();
+        } catch (_) {}
+
+        // 🆕 Minta izin notifikasi SEKALI, setelah login sukses (Google)
+        try {
+          await NotificationPermission.askOnceIfNeeded();
+        } catch (_) {}
+
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          );
+        });
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Login dengan Google dibatalkan.")),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Gagal login dengan Google: $e")),
       );
     }
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
   }
 
@@ -265,7 +300,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 32),
 
-                // Email Field
                 CustomTextField(
                   controller: emailController,
                   label: "Email",
@@ -281,7 +315,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Password Field
                 CustomTextField(
                   controller: passwordController,
                   label: "Password",
@@ -341,7 +374,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 8),
 
-                // Tombol Masuk
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -374,7 +406,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Divider "Atau"
                 Row(
                   children: [
                     const Expanded(child: Divider(thickness: 1)),
@@ -393,7 +424,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Masuk dengan Google
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -422,7 +452,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 36),
 
-                // Belum punya akun? Daftar
                 Center(
                   child: GestureDetector(
                     onTap: _isLoading
@@ -461,7 +490,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// Transisi ke Signup
 Route _createRouteToSignUp() {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => const SignupPage(),
@@ -475,7 +503,6 @@ Route _createRouteToSignUp() {
   );
 }
 
-// Transisi ke Forgot Password
 Route _createRouteToForgotPassword() {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) =>

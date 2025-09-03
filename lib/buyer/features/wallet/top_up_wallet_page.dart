@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
 import 'package:abc_e_mart/buyer/features/wallet/waiting_payment_wallet_page.dart';
+import 'package:abc_e_mart/common/fees.dart';
 
 class TopUpWalletPage extends StatefulWidget {
   const TopUpWalletPage({super.key});
@@ -12,7 +14,12 @@ class TopUpWalletPage extends StatefulWidget {
 
 class _TopUpWalletPageState extends State<TopUpWalletPage> {
   int _amount = 20000;
-  final int _adminFee = 1000;
+
+  // biaya layanan & pajak 1% (dari nominal isi saldo)
+  final int _serviceFee = Fees.serviceFee;
+  int get _tax => Fees.taxOn(_amount);
+
+  // preset nominal
   final List<int> _presets = const [10000, 20000, 25000, 50000, 100000, 200000];
 
   String? _paymentMethod;
@@ -94,8 +101,6 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                           groupValue: temp,
                           onChanged: (label) =>
                               setSheetState(() => temp = label),
-                          // kalau mau langsung menutup saat tap, bisa:
-                          // onChanged: (label) => Navigator.pop(context, label),
                         );
                       },
                     ),
@@ -141,7 +146,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
 
   @override
   Widget build(BuildContext context) {
-    final total = _amount + _adminFee;
+    final total = _amount + _serviceFee + _tax;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -230,7 +235,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                           ),
                           const SizedBox(height: 12),
 
-                          // Preset chips (grid 3 kolom)
+                          // Preset chips (grid 3 kolom) — tetap ada
                           GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -304,8 +309,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                           border: Border.all(color: const Color(0xFFEDEFF5)),
                         ),
                         child: Row(
-                          children: [ 
-                          Icon(_selectedPaymentIcon(), size: 20, color: const Color(0xFF212121)),
+                          children: [
+                            Icon(_selectedPaymentIcon(),
+                                size: 20, color: const Color(0xFF212121)),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
@@ -339,7 +345,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Kotak 1: Isi Saldo + Biaya Admin
+                    // Box: rincian
                     Container(
                       decoration: BoxDecoration(
                         color: const Color(0xFFF7F8FB),
@@ -359,8 +365,14 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                           ),
                           const SizedBox(height: 6),
                           _BillRow(
-                            label: 'Biaya Admin',
-                            value: _formatRp(_adminFee),
+                            label: 'Biaya Layanan',
+                            value: _formatRp(_serviceFee),
+                            boldValue: true,
+                          ),
+                          const SizedBox(height: 6),
+                          _BillRow(
+                            label: 'Pajak (1%)',
+                            value: _formatRp(_tax),
                             boldValue: true,
                           ),
                         ],
@@ -368,7 +380,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Kotak 2: Total
+                    // Box: total
                     Container(
                       decoration: BoxDecoration(
                         color: const Color(0xFFF7F8FB),
@@ -392,6 +404,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
               ),
             ),
 
+            // Button
             SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
@@ -410,23 +423,29 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
                       onPressed: () {
                         if (_paymentMethod == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Silakan pilih metode pembayaran dulu.', style: GoogleFonts.dmSans())),
+                            SnackBar(
+                              content: Text('Silakan pilih metode pembayaran dulu.',
+                                  style: GoogleFonts.dmSans()),
+                            ),
                           );
                           return;
                         }
 
-                        final total = _amount + _adminFee;
-                        final orderId = 'TOPUP${DateTime.now().millisecondsSinceEpoch}';
+                        final total = _amount + _serviceFee + _tax;
+                        final orderId =
+                            'TOPUP${DateTime.now().millisecondsSinceEpoch}';
 
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => WaitingPaymentWalletPage(
-                              amount: total,
+                              amount: total, // total yang dibayar
                               orderId: orderId,
                               methodLabel: _paymentMethod!,
                               qrisAssetPath: 'assets/images/abc_qris.jpg',
-                              adminFee: _adminFee,
+                              // kirim breakdown barunya
+                              serviceFee: _serviceFee,
+                              tax: _tax,
                               topUpAmount: _amount,
                             ),
                           ),
@@ -461,9 +480,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage> {
 class _BillRow extends StatelessWidget {
   final String label;
   final String value;
-  final bool boldLabel; // tebal untuk label?
-  final bool boldValue; // tebal untuk angka?
-  final bool bigger; // sedikit lebih besar (untuk Total)
+  final bool boldLabel;
+  final bool boldValue;
+  final bool bigger;
 
   const _BillRow({
     required this.label,
@@ -565,7 +584,6 @@ class _PaymentOptionTile extends StatelessWidget {
   }
 }
 
-/// helper model item
 class _PayItem {
   final String label;
   final IconData icon;

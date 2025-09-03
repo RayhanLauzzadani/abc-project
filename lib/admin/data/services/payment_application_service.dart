@@ -11,31 +11,104 @@ class PaymentApplicationService {
   final _auth = FirebaseAuth.instance;
   final _st  = FirebaseStorage.instance;
 
-  /// Upload bukti transfer (admin) untuk withdrawal.
-  /// Disimpan ke: withdraw_proofs/{ownerId}/{timestamp}_<hint>
+  // --------------------------- UPLOAD PROOF ---------------------------
   Future<({String url, int bytes, String name})> uploadProof({
     required File file,
     required String filenameHint,
-    String? ownerId, // opsional: kalau null, ambil uid admin
   }) async {
-    final who = ownerId ?? (_auth.currentUser?.uid ?? 'unknown');
-    final ts  = DateTime.now().millisecondsSinceEpoch;
-    final name = '${ts}_$filenameHint';
-    final ref  = _st.ref('withdraw_proofs/$who/$name');
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('User belum login');
 
-    final bytes = await file.length();
-    await ref.putFile(
+    final ext = filenameHint.split('.').last.toLowerCase();
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+
+    final name = '${DateTime.now().millisecondsSinceEpoch}_$filenameHint';
+    final path = 'payment_proofs/$uid/$name';
+
+    final task = await _st.ref(path).putFile(
       file,
-      SettableMetadata(contentType: 'image/${name.split('.').last.toLowerCase()}'),
+      SettableMetadata(contentType: contentType),
     );
-    final url = await ref.getDownloadURL();
+    final url = await task.ref.getDownloadURL();
+    final bytes = await file.length();
     return (url: url, bytes: bytes, name: name);
   }
 
-  /// ===== ADMIN: APPROVE TOPUP =====
+  Future<({String url, int bytes, String name})> uploadAdminWithdrawProof({
+    required File file,
+    required String filenameHint,
+    required String ownerId,
+  }) async {
+    final ext = filenameHint.split('.').last.toLowerCase();
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    final name = '${DateTime.now().millisecondsSinceEpoch}_$filenameHint';
+    final path = 'withdraw_proofs/$ownerId/$name';
+
+    final task = await _st.ref(path).putFile(
+      file,
+      SettableMetadata(contentType: contentType),
+    );
+    final url = await task.ref.getDownloadURL();
+    final bytes = await file.length();
+    return (url: url, bytes: bytes, name: name);
+  }
+
+  // ------------------------------ TOPUP ------------------------------
+  Future<String> createTopUpApplication({
+    required String orderId,
+    required int amountTopUp, // tanpa fee
+    required int adminFee,
+    required int totalPaid,
+    required String methodLabel,
+    required ({String url, int bytes, String name}) proof,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User belum login');
+
+    final data = <String, dynamic>{
+      'type': 'topup',
+      'status': 'pending',
+      'orderId': orderId,
+      'buyerId': user.uid,
+      'buyerEmail': user.email,
+      'submittedAt': FieldValue.serverTimestamp(),
+      'method': methodLabel,               // <-- konsisten dgn UI admin
+      'amount': amountTopUp,
+      'fee': adminFee,
+      'totalPaid': totalPaid,
+      'proof': {
+        'url': proof.url,
+        'name': proof.name,
+        'bytes': proof.bytes,
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    final doc = await _fs.collection('paymentApplications').add(data);
+
+    // ❌ (DIHILANGKAN) Notif ke buyer: wallet_topup_submitted
+
+    // ✅ tetap kirim ke admin agar admin tahu ada pengajuan
+    await _fs.collection('admin_notifications').add({
+      'title': 'Pengajuan Isi Saldo',
+      'body': 'Pembeli mengajukan isi saldo.',
+      'type': 'wallet_topup_submitted',
+      'paymentAppId': doc.id,
+      'buyerId': user.uid,
+      'buyerEmail': user.email,
+      'isRead': false,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    return doc.id;
+  }
+
   Future<void> approveTopUpApplication({required String applicationId}) async {
     final adminUid = _auth.currentUser?.uid;
     if (adminUid == null) throw Exception('Admin belum login');
+
+    String buyerId = '';
+    int amount = 0;
 
     await _fs.runTransaction((tx) async {
       final appRef  = _fs.collection('paymentApplications').doc(applicationId);
@@ -46,19 +119,17 @@ class PaymentApplicationService {
       if ((data['type'] as String?) != 'topup') throw Exception('Tipe ajuan bukan topup');
       if ((data['status'] as String?) != 'pending') throw Exception('Ajuan sudah diproses');
 
-      final buyerId = data['buyerId'] as String?;
-      final amount  = (data['amount'] as num?)?.toInt() ?? 0;
-      if (buyerId == null) throw Exception('buyerId kosong');
+      buyerId = data['buyerId'] as String? ?? '';
+      amount  = (data['amount'] as num?)?.toInt() ?? 0;
+      if (buyerId.isEmpty) throw Exception('buyerId kosong');
 
       final userRef = _fs.collection('users').doc(buyerId);
 
-      // + Tambahkan saldo di users/{uid}/wallet.available
       tx.update(userRef, {
         'wallet.available': FieldValue.increment(amount),
         'wallet.updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Update status ajuan
       tx.update(appRef, {
         'status': 'approved',
         'verifiedBy': adminUid,
@@ -66,6 +137,18 @@ class PaymentApplicationService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
+
+    if (buyerId.isNotEmpty) {
+      await _fs.collection('users').doc(buyerId)
+        .collection('notifications').add({
+          'title': 'Isi Saldo Berhasil',
+          'body' : 'Saldo telah ditambahkan ke dompet kamu.',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'wallet_topup_approved',
+          'paymentAppId': applicationId,
+        });
+    }
   }
 
   Future<void> rejectTopUpApplication({
@@ -88,15 +171,83 @@ class PaymentApplicationService {
       'verifiedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    final buyerId = data['buyerId'] as String?;
+    if (buyerId != null) {
+      await _fs.collection('users').doc(buyerId)
+        .collection('notifications').add({
+          'title': 'Isi Saldo Ditolak',
+          'body' : 'Alasan: $reason',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'wallet_topup_rejected',
+          'paymentAppId': applicationId,
+        });
+    }
   }
 
-  /// ===== ADMIN: APPROVE WITHDRAWAL =====
+  // ---------------------------- WITHDRAWAL ----------------------------
+  Future<String> createWithdrawalApplication({
+    required String ownerId,
+    required String storeId,
+    required String bankName,
+    required String accountNumber,
+    required int amountRequested,
+    required int adminFee,
+    required int received,
+  }) async {
+    final data = <String, dynamic>{
+      'type': 'withdrawal',
+      'status': 'pending',
+      'storeId': storeId,
+      'ownerId': ownerId,
+      'submittedAt': FieldValue.serverTimestamp(),
+      'bankName': bankName,
+      'accountNumber': accountNumber,
+      'amount': amountRequested,
+      'fee': adminFee,
+      'received': received,
+      'proof': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    final doc = await _fs.collection('paymentApplications').add(data);
+
+    // Notif ke seller (riwayat user)
+    await _fs.collection('users').doc(ownerId)
+      .collection('notifications').add({
+        'title': 'Pengajuan Penarikan Dikirim',
+        'body' : 'Menunggu verifikasi admin.',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'type': 'wallet_withdraw_submitted',
+        'paymentAppId': doc.id,
+      });
+
+    // Notif ke admin
+    await _fs.collection('admin_notifications').add({
+      'title': 'Pengajuan Tarik Saldo',
+      'body' : 'Ada penjual mengajukan pencairan dana.',
+      'type' : 'wallet_withdraw_submitted',
+      'paymentAppId': doc.id,
+      'storeId': storeId,
+      'ownerId': ownerId,
+      'isRead': false,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    return doc.id;
+  }
+
   Future<void> approveWithdrawalApplication({
     required String applicationId,
     ({String url, int bytes, String name})? adminProof,
   }) async {
     final adminUid = _auth.currentUser?.uid;
     if (adminUid == null) throw Exception('Admin belum login');
+
+    String ownerId = '';
+    int amount = 0;
 
     await _fs.runTransaction((tx) async {
       final appRef  = _fs.collection('paymentApplications').doc(applicationId);
@@ -107,19 +258,17 @@ class PaymentApplicationService {
       if ((data['type'] as String?) != 'withdrawal') throw Exception('Tipe ajuan bukan withdrawal');
       if ((data['status'] as String?) != 'pending')    throw Exception('Ajuan sudah diproses');
 
-      final ownerId = data['ownerId'] as String?;
-      final amount  = (data['amount'] as num?)?.toInt() ?? 0;
-      if (ownerId == null) throw Exception('ownerId kosong');
+      ownerId = data['ownerId'] as String? ?? '';
+      amount  = (data['amount'] as num?)?.toInt() ?? 0;
+      if (ownerId.isEmpty) throw Exception('ownerId kosong');
 
       final userRef = _fs.collection('users').doc(ownerId);
 
-      // - Kurangi saldo di users/{uid}/wallet.available
       tx.update(userRef, {
         'wallet.available': FieldValue.increment(-amount),
         'wallet.updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Update status + simpan bukti transfer admin (opsional)
       final update = <String, dynamic>{
         'status': 'approved',
         'verifiedBy': adminUid,
@@ -128,13 +277,25 @@ class PaymentApplicationService {
       };
       if (adminProof != null) {
         update['proof'] = {
-          'url':   adminProof.url,
-          'name':  adminProof.name,
+          'url'  : adminProof.url,
+          'name' : adminProof.name,
           'bytes': adminProof.bytes,
         };
       }
       tx.update(appRef, update);
     });
+
+    if (ownerId.isNotEmpty) {
+      await _fs.collection('users').doc(ownerId)
+        .collection('notifications').add({
+          'title': 'Pencairan Dana Berhasil',
+          'body' : 'Permintaan penarikan saldo telah disetujui.',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'wallet_withdraw_approved',
+          'paymentAppId': applicationId,
+        });
+    }
   }
 
   Future<void> rejectWithdrawalApplication({
@@ -157,5 +318,18 @@ class PaymentApplicationService {
       'verifiedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    final ownerId = data['ownerId'] as String?;
+    if (ownerId != null) {
+      await _fs.collection('users').doc(ownerId)
+        .collection('notifications').add({
+          'title': 'Pencairan Dana Ditolak',
+          'body' : 'Alasan: $reason',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'type': 'wallet_withdraw_rejected',
+          'paymentAppId': applicationId,
+        });
+    }
   }
 }

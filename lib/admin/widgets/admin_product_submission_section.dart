@@ -25,14 +25,12 @@ class AdminProductSubmissionData {
   });
 }
 
-// Format tanggal Firestore
 String _formatDate(DateTime dt) {
   return "${dt.day.toString().padLeft(2, '0')}/"
       "${dt.month.toString().padLeft(2, '0')}/"
       "${dt.year}, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
 }
 
-// Widget Section Produk Baru (Ajuan)
 class AdminProductSubmissionSection extends StatelessWidget {
   final List<AdminProductSubmissionData>? submissions;
   final VoidCallback? onSeeAll;
@@ -108,7 +106,6 @@ class AdminProductSubmissionSection extends StatelessWidget {
   }
 }
 
-// Widget isi section
 class _SectionContent extends StatelessWidget {
   final List<AdminProductSubmissionData> submissions;
   final VoidCallback? onSeeAll;
@@ -119,7 +116,6 @@ class _SectionContent extends StatelessWidget {
   });
 
   Future<void> _openDetail(BuildContext context, String docId) async {
-    // Ambil data lengkap dari Firestore
     final doc = await FirebaseFirestore.instance
         .collection('productsApplication')
         .doc(docId)
@@ -145,7 +141,6 @@ class _SectionContent extends StatelessWidget {
     }
 
     final data = doc.data() as Map<String, dynamic>;
-    // Map data ke model seperti di AdminProductApprovalPage
     final categoryType = mapCategoryType(data['category']);
     String date = "-";
     final createdAt = data['createdAt'];
@@ -248,17 +243,27 @@ class _SectionContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
+
+            // ---------- EMPTY STATE DIBUAT TENGAH + ITALIC ----------
+            if (submissions.isEmpty)
+              const SizedBox(height: 4),
             if (submissions.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 25.0),
-                child: Text(
-                  "Belum ada ajuan produk baru.",
-                  style: GoogleFonts.dmSans(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                child: Center(
+                  child: Text(
+                    "Belum ada ajuan produk baru.",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF9A9A9A),
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
               )
+            // -------------------------------------------------------
             else
               ...submissions.map(
                 (submission) => Padding(
@@ -276,7 +281,7 @@ class _SectionContent extends StatelessWidget {
   }
 }
 
-// Badge Kategori
+// Badge Kategori, kartu, dst… (tidak berubah)
 class CategoryBadge extends StatelessWidget {
   final CategoryType type;
   const CategoryBadge({super.key, required this.type});
@@ -311,7 +316,6 @@ class CategoryBadge extends StatelessWidget {
   }
 }
 
-// Kartu Produk Ajuan
 class _AdminProductSubmissionCard extends StatelessWidget {
   final AdminProductSubmissionData data;
   final VoidCallback? onDetail;
@@ -446,4 +450,3 @@ class _AdminProductSubmissionCard extends StatelessWidget {
     );
   }
 }
-  

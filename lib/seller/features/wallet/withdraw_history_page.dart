@@ -48,7 +48,7 @@ class _SellerTxn {
     this.proofUrl,
     this.proofName,
     this.proofBytes,
-    this.tax, 
+    this.tax,
   });
 }
 
@@ -90,7 +90,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
     final digits = s.replaceAll(RegExp(r'\D'), '');
     if (digits.length >= 4) return '***${digits.substring(digits.length - 4)}';
     return '***';
-    }
+  }
 
   _SellerTxnStatus _mapStatus(String? s) {
     final k = (s ?? 'pending').toLowerCase();
@@ -124,7 +124,10 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     try {
       final fs = FirebaseFirestore.instance;
@@ -142,7 +145,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
           .where('storeId', isEqualTo: storeId)
           .orderBy('submittedAt', descending: true)
           .limit(100)
-          .get(); // QuerySnapshot<Map<String, dynamic>>
+          .get();
 
       final withdrawals = wdSnap.docs.map((d) {
         final data = d.data();
@@ -160,6 +163,9 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
         final received = (data['received'] as num?)?.toInt();
         final reason = data['rejectionReason'] as String?;
 
+        // + pajak (opsional)
+        final platformTax = (data['tax'] as num?)?.toInt();
+
         // + proof (opsional)
         final proof = (data['proof'] as Map<String, dynamic>?) ?? const {};
         final proofUrl = proof['url'] as String?;
@@ -171,7 +177,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
           type: _SellerTxnType.withdraw,
           title: 'Penarikan Saldo',
           subtitle: subtitle,
-          amount: amountRequested, 
+          amount: amountRequested,
           createdAt: created,
           status: status,
           adminFee: fee,
@@ -180,6 +186,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
           proofUrl: proofUrl,
           proofName: proofName,
           proofBytes: proofBytes,
+          tax: platformTax, // <-- simpan pajak
         );
       }).toList();
 
@@ -190,7 +197,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
           .where('status', whereIn: ['COMPLETED', 'SUCCESS'])
           .orderBy('updatedAt', descending: true)
           .limit(100)
-          .get(); // QuerySnapshot<Map<String, dynamic>>
+          .get();
 
       final incomes = orderSnap.docs.map((d) {
         final data = d.data();
@@ -200,9 +207,9 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
 
         final orderId = d.id; // tampilkan di subjudul
         final amounts = (data['amounts'] as Map<String, dynamic>?) ?? const {};
-        final total    = ((amounts['total'] as num?)    ?? (data['total'] as num?)    ?? 0).toInt();
+        final total = ((amounts['total'] as num?) ?? (data['total'] as num?) ?? 0).toInt();
         final shipping = ((amounts['shipping'] as num?) ?? (data['shipping'] as num?) ?? 0).toInt();
-        final tax      = ((amounts['tax'] as num?)      ?? (data['tax'] as num?)      ?? 0).toInt();
+        final tax = ((amounts['tax'] as num?) ?? (data['tax'] as num?) ?? 0).toInt();
 
         final rawItems = List<Map<String, dynamic>>.from((data['items'] as List?) ?? const []);
         final items = rawItems
@@ -384,9 +391,7 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
                                     };
                                   }
 
-                                  final sign = isIncome
-                                      ? (isSuccess ? '+' : '')
-                                      : '-';
+                                  final sign = isIncome ? (isSuccess ? '+' : '') : '-';
                                   final amountText = '$sign${_rp(e.amount)}';
 
                                   final amountColor = (isIncome && isSuccess)
@@ -524,23 +529,24 @@ class _WithdrawHistoryPageSellerState extends State<WithdrawHistoryPageSeller> {
                                                               createdAt: e.createdAt,
                                                               items: e.items,
                                                               shippingFeeOverride: e.shipping,
-                                                              tax: e.tax,                     // <-- baru
+                                                              tax: e.tax,
                                                             ),
                                                           ),
                                                         );
                                                       } else {
-                                                        // withdraw: Detail (Total diterima = received)
+                                                        // withdraw: Detail (Total diterima = requested - fee - tax)
                                                         Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
                                                             builder: (_) => DetailWalletSellerSuccessPage(
                                                               isIncome: false,
                                                               counterpartyName: e.subtitle,
-                                                              amount: e.amount,                // << requested amount (20.000)
+                                                              amount: e.amount, // requested amount
                                                               createdAt: e.createdAt,
                                                               adminFee: e.adminFee ?? 0,
-                                                              received: e.received,            // untuk hitung total diterima
-                                                              proofUrl: e.proofUrl,            // tampilkan bukti
+                                                              tax: e.tax ?? 0,   // <-- kirim pajak
+                                                              received: e.received,
+                                                              proofUrl: e.proofUrl,
                                                               proofName: e.proofName,
                                                               proofBytes: e.proofBytes,
                                                             ),

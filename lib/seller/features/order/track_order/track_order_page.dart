@@ -50,8 +50,7 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
     if (user == null) return;
 
     // Ambil storeId seller
-    final sellerDoc =
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final sellerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final storeId = (sellerDoc.data()?['storeId'] ?? '').toString();
     if (storeId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,27 +151,25 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
           }
           if (!snap.hasData || !snap.data!.exists) {
             return Center(
-                child:
-                    Text('Pesanan tidak ditemukan', style: GoogleFonts.dmSans()));
+                child: Text('Pesanan tidak ditemukan', style: GoogleFonts.dmSans()));
           }
 
           final data = snap.data!.data()!;
           final status = (data['status'] ?? 'PLACED') as String;
 
-          // === NEW: invoiceId tampilan (fallback ke doc.id)
+          // === invoiceId tampilan (fallback ke doc.id)
           final realDocId = snap.data!.id;
           final rawInvoice = (data['invoiceId'] as String?)?.trim();
-          final displayedInvoice = (rawInvoice != null && rawInvoice.isNotEmpty)
-              ? rawInvoice
-              : realDocId;
+          final displayedInvoice =
+              (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : realDocId;
 
           final storeName = (data['storeName'] ?? '-') as String;
           final buyerId = (data['buyerId'] ?? '') as String;
 
-          final addressMap =
-              (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+          final addressMap = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
           final addressLabel = (addressMap['label'] ?? '-') as String;
-          final addressText = (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
+          final addressText =
+              (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
 
           final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
           final stepIndex = _currentStepIndex(status);
@@ -182,19 +179,17 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
           final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
           final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
           final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
-          final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-          final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+          // final tax = ((amounts['tax'] as num?) ?? 0).toInt(); // tidak dipakai di seller
+          // final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
 
-          final methodRaw = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+          final methodRaw =
+              ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
           final methodText = methodRaw == 'ABC_PAYMENT' ? 'ABC Payment' : methodRaw;
 
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: buyerId.isEmpty
                 ? const Stream.empty()
-                : FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(buyerId)
-                    .snapshots(),
+                : FirebaseFirestore.instance.collection('users').doc(buyerId).snapshots(),
             builder: (context, buyerSnap) {
               final buyer = buyerSnap.data?.data();
               final buyerName = (buyer?['name'] ?? '-') as String;
@@ -291,11 +286,10 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                                       fontWeight: FontWeight.bold,
                                       color: const Color(0xFF373E3C))),
                               const SizedBox(height: 4),
-                              // === NEW: tampilkan invoice (fallback doc.id)
+                              // tampilkan invoice (fallback doc.id)
                               Text('#$displayedInvoice',
                                   style: GoogleFonts.dmSans(
-                                      fontSize: 12,
-                                      color: const Color(0xFF9A9A9A))),
+                                      fontSize: 12, color: const Color(0xFF9A9A9A))),
                             ],
                           ),
                         ),
@@ -368,7 +362,8 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                             subtitle: (it['variant'] ?? '') as String,
                             price: ((it['price'] as num?) ?? 0),
                             qty: ((it['qty'] as num?) ?? 0),
-                            imageUrl: (it['imageUrl'] ?? it['image'] ?? '') as String,
+                            imageUrl:
+                                (it['imageUrl'] ?? it['image'] ?? '') as String,
                           ),
                         )),
 
@@ -376,7 +371,7 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                     _divider(),
                     const SizedBox(height: 14),
 
-                    // Nota Pesanan (dinamis + tombol Lihat)
+                    // Nota Pesanan (dinamis + tombol Lihat) — VERSI SELLER
                     _notaPesananCard(
                       methodText: methodText,
                       onView: () {
@@ -388,14 +383,15 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
                         );
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => TransactionDetailPage(transaction: txMap),
+                            builder: (_) =>
+                                TransactionDetailPage(transaction: txMap),
                           ),
                         );
                       },
                       subtotal: subtotal,
                       shipping: shipping,
-                      tax: tax,
-                      total: total,
+                      tax: 0, // seller tidak menampilkan pajak
+                      total: subtotal + shipping, // total versi seller
                     ),
 
                     const SizedBox(height: 16),
@@ -521,7 +517,7 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
     required VoidCallback onView,
     required int subtotal,
     required int shipping,
-    required int tax,
+    required int tax, // akan disembunyikan bila 0
     required int total,
   }) {
     return Container(
@@ -543,10 +539,11 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
               const Spacer(),
               TextButton.icon(
                 onPressed: onView,
-                icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Color(0xFF2056D3)),
+                icon: const Icon(Icons.receipt_long_rounded,
+                    size: 18, color: Color(0xFF2056D3)),
                 label: Text('Lihat',
                     style: GoogleFonts.dmSans(
-                        fontSize: 13.5, color: const Color(0xFF2056D3))),
+                        fontSize: 13.5, color: Color(0xFF2056D3))),
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(0, 32),
@@ -561,7 +558,8 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Metode Pembayaran',
-                  style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFF828282))),
+                  style: GoogleFonts.dmSans(
+                      fontSize: 13, color: Color(0xFF828282))),
               Row(
                 children: [
                   Text(methodText,
@@ -604,11 +602,13 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title,
-            style: GoogleFonts.dmSans(
-                fontSize: 13.5, color: const Color(0xFF777777))),
+            style:
+                GoogleFonts.dmSans(fontSize: 13.5, color: const Color(0xFF777777))),
         Text('Rp ${_formatRupiahStatic(amount)}',
             style: GoogleFonts.dmSans(
-                fontSize: 13.5, fontWeight: FontWeight.w600, color: const Color(0xFF373E3C))),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF373E3C))),
       ],
     );
   }
@@ -625,20 +625,27 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
     return b.toString();
   }
 
-  // Map dokumen order → map untuk TransactionDetailPage
+  // Map dokumen order → map untuk TransactionDetailPage (VERSI SELLER)
   Map<String, dynamic> _mapOrderToTransaction({
-    required String displayedId,  // invoice tampilan
-    required String orderDocId,   // doc.id asli (opsional)
+    required String displayedId, // invoice tampilan
+    required String orderDocId, // doc.id asli (opsional)
     required Map<String, dynamic> data,
     required String buyerName,
   }) {
     final rawStatus =
-        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String).toUpperCase();
+        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String)
+            .toUpperCase();
 
     String labelStatus;
-    if (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SETTLED' || rawStatus == 'SUCCESS') {
+    if (rawStatus == 'COMPLETED' ||
+        rawStatus == 'DELIVERED' ||
+        rawStatus == 'SETTLED' ||
+        rawStatus == 'SUCCESS') {
       labelStatus = 'Sukses';
-    } else if (rawStatus == 'CANCELLED' || rawStatus == 'CANCELED' || rawStatus == 'REJECTED' || rawStatus == 'FAILED') {
+    } else if (rawStatus == 'CANCELLED' ||
+        rawStatus == 'CANCELED' ||
+        rawStatus == 'REJECTED' ||
+        rawStatus == 'FAILED') {
       labelStatus = 'Gagal';
     } else {
       labelStatus = 'Tertahan'; // PLACED / ACCEPTED / SHIPPED
@@ -648,19 +655,21 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
     final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
     final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
     final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
-    final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
 
-    final createdAt = (data['createdAt'] is Timestamp)
-        ? (data['createdAt'] as Timestamp).toDate()
-        : null;
+    // VERSI SELLER:
+    final tax = 0;
+    final total = subtotal + shipping;
+
+    final createdAt =
+        (data['createdAt'] is Timestamp) ? (data['createdAt'] as Timestamp).toDate() : null;
 
     final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
     final addressLabel = (ship['label'] ?? '-') as String;
     final addressText = (ship['addressText'] ?? ship['address'] ?? '-') as String;
     final phone = (ship['phone'] ?? '-') as String;
 
-    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
+    final method =
+        ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
 
     return {
       'invoiceId': displayedId,
@@ -675,19 +684,19 @@ class _TrackOrderPageSellerState extends State<TrackOrderPageSeller> {
         'phone': phone,
       },
       'paymentMethod': method,
-      'items': items.map((it) {
-        return {
-          'name': (it['name'] ?? '-') as String,
-          'qty': ((it['qty'] as num?) ?? 0).toInt(),
-          'price': ((it['price'] as num?) ?? 0).toInt(),
-          'variant': (it['variant'] ?? it['note'] ?? '') as String,
-        };
-      }).toList(),
+      'items': items
+          .map((it) => {
+                'name': (it['name'] ?? '-') as String,
+                'qty': ((it['qty'] as num?) ?? 0).toInt(),
+                'price': ((it['price'] as num?) ?? 0).toInt(),
+                'variant': (it['variant'] ?? it['note'] ?? '') as String,
+              })
+          .toList(),
       'amounts': {
         'subtotal': subtotal,
         'shipping': shipping,
-        'tax': tax,
-        'total': total,
+        'tax': tax, // 0
+        'total': total, // subtotal + shipping
       },
     };
   }

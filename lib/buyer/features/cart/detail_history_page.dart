@@ -1,10 +1,11 @@
+// lib/buyer/features/cart/detail_history_page.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:abc_e_mart/buyer/features/cart/give_store_rating_page.dart';
 
-// GANTI path ini sesuai struktur proyekmu bila berbeda
-import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
+// Pakai halaman nota versi BUYER
+import 'package:abc_e_mart/buyer/features/payment/note_pesanan_detail_page_buyer.dart';
 
 enum OrderStatus { selesai, dibatalkan, dikirim, menunggu }
 
@@ -51,7 +52,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                 ? invoiceRaw
                 : realOrderId;
 
-            // status (fallback ke shippingAddress.status kalau ada)
+            // status (fallback ke shippingAddress.status)
             final statusStr =
                 ((data['status'] ??
                             data['shippingAddress']?['status'] ??
@@ -83,12 +84,19 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
             final amounts =
                 (data['amounts'] ?? data['mounts'] ?? <String, dynamic>{})
                     as Map<String, dynamic>;
+
             final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
             final shippingFee = ((amounts['shipping'] as num?) ?? 0).toInt();
+            // ➕ SERVICE FEE
+            final serviceFee =
+                ((amounts['serviceFee'] ?? amounts['service_fee'] ?? 0) as num)
+                    .toInt();
             final taxFee = ((amounts['tax'] as num?) ?? 0).toInt();
+
+            // total dari Firestore jika ada; jika tidak, sum termasuk serviceFee
             final totalFee =
                 ((amounts['total'] as num?) ??
-                        (subtotal + shippingFee + taxFee))
+                        (subtotal + shippingFee + serviceFee + taxFee))
                     .toInt();
 
             // metode bayar
@@ -107,7 +115,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
             final bool showReviewButton =
                 orderStatus == OrderStatus.selesai && !alreadyRated;
 
-            // stream info toko buat logo & alamat/phone toko (untuk rating & PDF)
+            // stream info toko (logo dsb.)
             final storeStream = storeId.isEmpty
                 ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
                 : FirebaseFirestore.instance
@@ -123,9 +131,6 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                 final storeAddress =
                     (data['storeAddress'] ?? store['address'] ?? '-')
                         as String? ??
-                    '-';
-                final storePhone =
-                    (data['storePhone'] ?? store['phone'] ?? '-') as String? ??
                     '-';
 
                 return Stack(
@@ -220,11 +225,10 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        '#$displayId', // ← pakai invoiceId bila ada
+                                        '#$displayId',
                                         style: GoogleFonts.dmSans(
                                           fontSize: 13.3,
                                           color: const Color(0xFF888888),
-                                          fontWeight: FontWeight.w400,
                                         ),
                                       ),
                                     ],
@@ -393,8 +397,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                             child: Column(
                               children: items.map((it) {
                                 final img =
-                                    (it['imageUrl'] ?? it['image'])
-                                        as String?; // fallback
+                                    (it['imageUrl'] ?? it['image']) as String?;
                                 final name = (it['name'] ?? '-') as String;
                                 final note =
                                     (it['variant'] ?? it['note'] ?? '')
@@ -519,88 +522,47 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                           ),
                                         ),
                                         const Spacer(),
-                                        // === Tombol Lihat Nota ===
-                                        TextButton(
-                                          onPressed: () async {
-                                            // pastikan buyerName tersedia; ambil dari order atau users/{buyerId}
-                                            String buyerName =
-                                                (data['buyerName'] ?? '')
-                                                    as String? ??
-                                                '';
-                                            if (buyerName.trim().isEmpty) {
-                                              final buyerId =
-                                                  (data['buyerId'] ?? '')
-                                                      as String? ??
-                                                  '';
-                                              if (buyerId.isNotEmpty) {
-                                                try {
-                                                  final userSnap =
-                                                      await FirebaseFirestore
-                                                          .instance
-                                                          .collection('users')
-                                                          .doc(buyerId)
-                                                          .get();
-                                                  buyerName =
-                                                      (userSnap.data()?['name'] ??
-                                                              '-')
-                                                          as String? ??
-                                                      '-';
-                                                } catch (_) {
-                                                  buyerName = '-';
-                                                }
-                                              } else {
-                                                buyerName = '-';
-                                              }
-                                            }
-
-                                            final txMap = _mapOrderToTransaction(
-                                              displayInvoiceId:
-                                                  displayId, // tampil di header detail/PDF
-                                              data: data,
-                                              storeName: storeName,
-                                              storePhone:
-                                                  storePhone, // ➕ phone toko
-                                              storeAddress:
-                                                  storeAddress, // ➕ alamat toko
-                                              buyerName:
-                                                  buyerName, // ➕ nama pembeli (recipient)
-                                            );
-
-                                            if (!mounted) return;
+                                        GestureDetector(
+                                          behavior: HitTestBehavior
+                                              .opaque, // area tap melebar, tanpa ripple
+                                          onTap: () {
                                             Navigator.of(context).push(
                                               MaterialPageRoute(
                                                 builder: (_) =>
-                                                    TransactionDetailPage(
-                                                      transaction: txMap,
+                                                    NotePesananDetailPageBuyer(
+                                                      orderId:
+                                                          realOrderId, // pakai doc.id order yang sama
                                                     ),
                                               ),
                                             );
                                           },
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: const Size(0, 20),
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Text(
-                                                'Lihat',
-                                                style: GoogleFonts.dmSans(
-                                                  fontSize: 13.5,
-                                                  color: const Color(
-                                                    0xFF2056D3,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 6.0,
+                                              horizontal: 2.0,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'Lihat',
+                                                  style: GoogleFonts.dmSans(
+                                                    fontSize:
+                                                        13, // sama dgn "Metode Pembayaran"
+                                                    color: const Color(
+                                                      0xFF828282,
+                                                    ), // abu-abu seperti contoh
+                                                    fontWeight: FontWeight.w400,
                                                   ),
                                                 ),
-                                              ),
-                                              const Icon(
-                                                Icons.receipt_long_rounded,
-                                                color: Color(0xFF2056D3),
-                                                size: 17,
-                                              ),
-                                            ],
+                                                const SizedBox(width: 4),
+                                                const Icon(
+                                                  Icons.chevron_right_rounded,
+                                                  size: 16,
+                                                  color: Color(0xFF828282),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -614,7 +576,7 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                           'Metode Pembayaran',
                                           style: GoogleFonts.dmSans(
                                             fontSize: 13,
-                                            color: Color(0xFF828282),
+                                            color: const Color(0xFF828282),
                                           ),
                                         ),
                                         const Spacer(),
@@ -669,6 +631,15 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
                                         shippingFee,
                                         bold: true,
                                       ),
+                                      if (serviceFee > 0) ...[
+                                        const SizedBox(height: 3),
+                                        // ➕ TAMPILKAN BIAYA LAYANAN
+                                        _buildFeeRow(
+                                          'Biaya Layanan',
+                                          serviceFee,
+                                          bold: true,
+                                        ),
+                                      ],
                                       const SizedBox(height: 3),
                                       _buildFeeRow(
                                         'Pajak & Biaya Lainnya',
@@ -766,112 +737,6 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
     );
   }
 
-  // ---------- mapper untuk TransactionDetailPage ----------
-  Map<String, dynamic> _mapOrderToTransaction({
-    required String displayInvoiceId, // invoiceId bila ada; fallback doc.id
-    required Map<String, dynamic> data,
-    required String storeName,
-    String? storePhone, // ➕ untuk PDF
-    String? storeAddress, // ➕ untuk PDF
-    String? buyerName, // ➕ untuk penerima
-  }) {
-    final rawStatus =
-        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED')
-                as String)
-            .toUpperCase();
-
-    // Label status khusus buyer (Selesai/Dibatalkan)
-    final uiStatus =
-        (rawStatus == 'COMPLETED' ||
-            rawStatus == 'DELIVERED' ||
-            rawStatus == 'SUCCESS' ||
-            rawStatus == 'SETTLED')
-        ? 'Selesai'
-        : (rawStatus == 'CANCELLED' ||
-              rawStatus == 'CANCELED' ||
-              rawStatus == 'REJECTED' ||
-              rawStatus == 'FAILED')
-        ? 'Dibatalkan'
-        : 'Tertahan';
-
-    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-    final amts = (data['amounts'] as Map<String, dynamic>?) ?? {};
-    final subtotal = ((amts['subtotal'] as num?) ?? 0).toInt();
-    final shipping = ((amts['shipping'] as num?) ?? 0).toInt();
-    final tax = ((amts['tax'] as num?) ?? 0).toInt();
-    final total = ((amts['total'] as num?) ?? (subtotal + shipping + tax))
-        .toInt();
-
-    // tanggal untuk header/PDF: updatedAt fallback createdAt
-    final ts = (data['updatedAt'] ?? data['createdAt']);
-    final date = ts is Timestamp ? ts.toDate() : null;
-
-    final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
-    final addressLabel = (ship['label'] ?? '-') as String;
-    final addressText =
-        (ship['addressText'] ?? ship['address'] ?? '-') as String;
-    final phone = (ship['phone'] ?? '-') as String;
-
-    final method = ((data['payment']?['method'] ?? 'abc_payment') as String)
-        .toUpperCase();
-
-    // meta toko (order > store doc > '-')
-    final storePhoneFinal = (data['storePhone'] ?? storePhone ?? '-') as String;
-    final storeAddressFinal =
-        (data['storeAddress'] ?? storeAddress ?? '-') as String;
-
-    // nama pembeli (order.buyerName > arg buyerName > '-')
-    final buyerNameFinal = (data['buyerName'] ?? buyerName ?? '-') as String;
-
-    return {
-      // identitas
-      'invoiceId': displayInvoiceId,
-      'status': uiStatus,
-      'date': date,
-
-      // info toko (top-level & nested untuk kompatibilitas)
-      'storeName': storeName,
-      'storePhone': storePhoneFinal,
-      'storeAddress': storeAddressFinal,
-      'store': {
-        'name': storeName,
-        'phone': storePhoneFinal,
-        'address': storeAddressFinal,
-      },
-
-      // info pembeli & pengiriman
-      'buyerName': buyerNameFinal,
-      'shipping': {
-        // ✅ recipient = nama pembeli (bukan label “Rumah”)
-        'recipient': buyerNameFinal,
-        'addressLabel': addressLabel,
-        'addressText': addressText,
-        'phone': phone,
-      },
-
-      // pembayaran & amounts
-      'paymentMethod': method,
-      'amounts': {
-        'subtotal': subtotal,
-        'shipping': shipping,
-        'tax': tax,
-        'total': total,
-      },
-
-      // baris item
-      'items': items
-          .map(
-            (it) => {
-              'name': (it['name'] ?? '-') as String,
-              'qty': ((it['qty'] as num?) ?? 0).toInt(),
-              'price': ((it['price'] as num?) ?? 0).toInt(),
-              'variant': (it['variant'] ?? it['note'] ?? '') as String,
-            },
-          )
-          .toList(),
-    };
-  }
-
   // ---------- helpers ----------
   static OrderStatus _statusFrom(String s) {
     switch (s) {
@@ -898,7 +763,6 @@ class _DetailHistoryPageState extends State<DetailHistoryPage> {
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     final min = dt.minute.toString().padLeft(2, '0');
     return '$d/$m/$y, $h12:$min $ampm';
-    // (optional) pakai format Indo kalau mau
   }
 
   static String _rupiah(int v) {
@@ -1023,7 +887,6 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get minExtent => minHeight;
-
   @override
   double get maxExtent => maxHeight;
 

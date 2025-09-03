@@ -3,45 +3,177 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+// Seller pages (tetap – untuk kasus store_approved/store_rejected)
 import 'package:abc_e_mart/seller/features/home/home_page_seller.dart';
 import 'package:abc_e_mart/seller/widgets/shop_rejected_page.dart';
+
+// Buyer pages
 import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
+import 'package:abc_e_mart/buyer/features/order/order_tracking_page_buyer.dart';
 
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
 
+  /// Tipe notif Buyer (legacy + order flow baru—TANPA order_delivered)
   static const Set<String> buyerTypes = {
     'store_approved',
     'store_rejected',
     'order_update',
     'promo',
-    // 'chat_message', // Chat handle by chatNotifications
+    'wallet_topup_approved',
+    'wallet_topup_rejected',
+
+    // order flow baru (BUYER ONLY)
+    'order_accepted',
+    'order_shipped',
   };
+
+  bool _isTopup(String t) => t.startsWith('wallet_topup');
+
+  // ---------- style helpers ----------
+  Color _bgColorFor(String t) {
+    if (t == 'wallet_topup_rejected' || t == 'store_rejected') {
+      return const Color(0xFFFFF2F2);
+    }
+    if (t == 'wallet_topup_approved' || t == 'store_approved') {
+      return const Color(0xFFEFF8F1);
+    }
+    if (t == 'promo') return const Color(0xFFFFF7E6);
+    if (t == 'order_update' || t == 'order_shipped') {
+      return const Color(0xFFEAF4FF);
+    }
+    if (t == 'order_accepted') return const Color(0xFFF1FFF6);
+    if (t == 'chat_message') return const Color(0xFFE8ECFF);
+    return const Color(0xFFF5F5F5);
+  }
+
+  Color _iconBgFor(String t) {
+    if (t == 'wallet_topup_rejected' || t == 'store_rejected') {
+      return const Color(0xFFFFE1E1);
+    }
+    if (t == 'wallet_topup_approved' || t == 'store_approved') {
+      return const Color(0xFFD8F3DD);
+    }
+    if (t == 'promo') return const Color(0xFFFFECCC);
+    if (t == 'order_update' || t == 'order_shipped') {
+      return const Color(0xFFD6E8FF);
+    }
+    if (t == 'order_accepted') return const Color(0xFFE8FFF0);
+    if (t == 'chat_message') return const Color(0xFFDDE3FF);
+    return const Color(0xFFE0E0E0);
+  }
+
+  Color _iconColorFor(String t) {
+    if (t == 'wallet_topup_rejected' || t == 'store_rejected') {
+      return const Color(0xFFD32F2F);
+    }
+    if (t == 'wallet_topup_approved' || t == 'store_approved') {
+      return const Color(0xFF2E7D32);
+    }
+    if (t == 'promo') return const Color(0xFFEF6C00);
+    if (t == 'order_update' || t == 'order_shipped') {
+      return const Color(0xFF1976D2);
+    }
+    if (t == 'order_accepted') return const Color(0xFF2E7D32);
+    if (t == 'chat_message') return const Color(0xFF3F51B5);
+    return const Color(0xFF616161);
+  }
+
+  IconData _iconFor(String t) {
+    if (t == 'wallet_topup_rejected' || t == 'store_rejected') {
+      return Icons.close_rounded;
+    }
+    if (t == 'wallet_topup_approved' || t == 'store_approved') {
+      return Icons.check_rounded;
+    }
+    if (t == 'promo') return Icons.campaign_rounded;
+    if (t == 'order_update' || t == 'order_shipped') {
+      return Icons.local_shipping_rounded;
+    }
+    if (t == 'order_accepted') return Icons.task_alt_rounded;
+    if (t == 'chat_message') return Icons.chat_bubble_rounded;
+    return Icons.notifications_none_rounded;
+  }
+
+  // format waktu unify (pakai createdAt kalau ada)
+  String _formatTs(Map<String, dynamic> data) {
+    final ts = (data['createdAt'] is Timestamp)
+        ? data['createdAt'] as Timestamp
+        : (data['timestamp'] is Timestamp ? data['timestamp'] as Timestamp : null);
+    if (ts == null) return '-';
+    return DateFormat('dd MMM, yyyy | HH:mm').format(ts.toDate());
+  }
+
+  // Stream: user notifications (tanpa orderBy agar kompatibel field waktu)
+  Stream<QuerySnapshot<Map<String, dynamic>>> _userNotifStream(String uid) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .snapshots();
+  }
+
+  // Stream: chat notifications → filter hanya untuk sisi BUYER
+  Stream<QuerySnapshot<Map<String, dynamic>>> _chatNotifStream(String uid) {
+    return FirebaseFirestore.instance
+        .collection('chatNotifications')
+        .where('receiverId', isEqualTo: uid)
+        .where('type', isEqualTo: 'chat_message')
+        .where('receiverSide', isEqualTo: 'buyer')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  // ambil ts unify untuk sort
+  Timestamp? _pickTs(Map<String, dynamic> data) {
+    final c = data['createdAt'];
+    final t = data['timestamp'];
+    if (c is Timestamp) return c;
+    if (t is Timestamp) return t;
+    return null;
+  }
+
+  // tandai read (fire-and-forget agar tidak perlu double tap)
+  void _markUserRead({required String uid, required String docId}) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .doc(docId)
+        .update({'isRead': true});
+  }
+
+  void _markChatRead(String docId) {
+    FirebaseFirestore.instance
+        .collection('chatNotifications')
+        .doc(docId)
+        .update({'isRead': true});
+  }
+
+  // Rapikan body untuk order notif (hilangkan #xxxx, tampilkan invoice bila ada)
+  String _prettyOrderBody(Map<String, dynamic> data) {
+    final invoice = (data['invoiceId'] as String?)?.trim();
+    if (invoice != null && invoice.isNotEmpty) {
+      final t = (data['type'] as String? ?? '').toLowerCase();
+      final base = t == 'order_shipped'
+          ? 'Pesanan sedang dikirim'
+          : 'Pesanan telah diterima penjual';
+      return '$base (Invoice: $invoice).';
+    }
+    final body = (data['body'] as String?) ?? '';
+    final cleaned = body.replaceAll(RegExp(r'#[^\s]+'), '').trim();
+    return cleaned.isEmpty ? 'Status pesanan diperbarui.' : cleaned;
+  }
+
+  bool _isOrderFlow(String t) => t == 'order_accepted' || t == 'order_shipped';
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Anda belum login')),
-      );
+      return const Scaffold(body: Center(child: Text('Anda belum login')));
     }
-
-    // 1. Stream notif regular
-    final userNotifStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('notifications')
-        .orderBy('timestamp', descending: true)
-        .snapshots();
-
-    // 2. Stream notif chat dari root
-    final chatNotifStream = FirebaseFirestore.instance
-        .collection('chatNotifications')
-        .where('receiverId', isEqualTo: user.uid)
-        .where('type', isEqualTo: 'chat_message')
-        .orderBy('timestamp', descending: true)
-        .snapshots();
 
     return Scaffold(
       appBar: AppBar(
@@ -76,52 +208,69 @@ class NotificationPage extends StatelessWidget {
           ),
         ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: userNotifStream,
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _userNotifStream(user.uid),
         builder: (context, userSnap) {
-          return StreamBuilder<QuerySnapshot>(
-            stream: chatNotifStream,
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _chatNotifStream(user.uid),
             builder: (context, chatSnap) {
               if (userSnap.connectionState == ConnectionState.waiting ||
                   chatSnap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              // Gabungkan semua notif
-              final List<Map<String, dynamic>> allNotifs = [];
+              final List<Map<String, dynamic>> all = [];
 
-              // Notif regular
+              // user notifications (filter tipe & archived=false)
               if (userSnap.hasData) {
-                for (var doc in userSnap.data!.docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final type = data['type']?.toString() ?? '';
-                  if (buyerTypes.contains(type)) {
-                    allNotifs.add({
+                for (final doc in userSnap.data!.docs) {
+                  final data = doc.data();
+                  final type = (data['type']?.toString() ?? '').toLowerCase();
+                  final archived = data['archived'] == true;
+                  if (buyerTypes.contains(type) && !archived) {
+                    all.add({
                       ...data,
                       '_id': doc.id,
                       '_source': 'user',
+                      '_ts': _pickTs(data),
                     });
                   }
                 }
               }
 
-              // Notif chat dari root
+              // chat notifications (side=buyer) — skip self-chat bila metadata lengkap
               if (chatSnap.hasData) {
-                for (var doc in chatSnap.data!.docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  allNotifs.add({
+                for (final doc in chatSnap.data!.docs) {
+                  final data = doc.data();
+
+                  // guard opsional jika dokumen baru menyertakan buyerId & shopOwnerId
+                  final buyerId = data['buyerId'];
+                  final shopOwnerId = data['shopOwnerId'];
+                  if (buyerId == user.uid && shopOwnerId == user.uid) {
+                    // self-chat (akun yang sama punya 2 role) → skip
+                    continue;
+                  }
+
+                  all.add({
                     ...data,
                     '_id': doc.id,
                     '_source': 'chat',
+                    '_ts': (data['timestamp'] is Timestamp) ? data['timestamp'] : null,
                   });
                 }
               }
 
-              // Urutkan terbaru
-              allNotifs.sort((a, b) =>
-                  (b['timestamp'] as Timestamp).compareTo(a['timestamp'] as Timestamp));
+              // sort desc by time
+              all.sort((a, b) {
+                final ta = a['_ts'];
+                final tb = b['_ts'];
+                if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+                if (tb is Timestamp) return 1;
+                if (ta is Timestamp) return -1;
+                return 0;
+              });
 
-              if (allNotifs.isEmpty) {
+              if (all.isEmpty) {
                 return Center(
                   child: Text(
                     "Belum ada notifikasi.",
@@ -137,118 +286,59 @@ class NotificationPage extends StatelessWidget {
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemCount: allNotifs.length,
+                itemCount: all.length,
                 itemBuilder: (context, index) {
-                  final data = allNotifs[index];
-                  final type = data['type'] ?? '';
+                  final data = all[index];
+                  final type = (data['type'] ?? '').toString().toLowerCase();
+
                   final isRejected = type == 'store_rejected';
                   final isApproved = type == 'store_approved';
                   final isPromo = type == 'promo';
                   final isOrderUpdate = type == 'order_update';
+
+                  final isOrderAccepted = type == 'order_accepted';
+                  final isOrderShipped = type == 'order_shipped';
+                  final isOrderFlow = isOrderAccepted || isOrderShipped;
+
                   final isChatMessage = type == 'chat_message';
+                  final isTopupAny = _isTopup(type);
 
-                  // Colors & Icon
-                  final bgColor = isRejected
-                      ? Colors.red.shade50
-                      : isApproved
-                          ? Colors.green.shade50
-                          : isPromo
-                              ? Colors.yellow.shade50
-                              : isOrderUpdate
-                                  ? Colors.blue.shade50
-                                  : isChatMessage
-                                      ? Colors.indigo.shade50
-                                      : Colors.grey.shade100;
+                  final bgColor = _bgColorFor(type);
+                  final iconBg = _iconBgFor(type);
+                  final iconCol = _iconColorFor(type);
+                  final icon = _iconFor(type);
 
-                  final iconBg = isRejected
-                      ? Colors.red.shade100
-                      : isApproved
-                          ? Colors.green.shade100
-                          : isPromo
-                              ? Colors.yellow.shade200
-                              : isOrderUpdate
-                                  ? Colors.blue.shade100
-                                  : isChatMessage
-                                      ? Colors.indigo.shade100
-                                      : Colors.grey.shade300;
+                  // Title & body
+                  String title = (data['title'] as String?) ??
+                      (isOrderFlow ? 'Status Pesanan' : 'Notifikasi');
+                  String body = (data['body'] as String?) ?? '';
+                  if (isOrderFlow) {
+                    body = _prettyOrderBody(data);
+                    title = isOrderAccepted ? 'Pesanan Diterima' : 'Pesanan Dikirim';
+                  }
 
-                  final iconColor = isRejected
-                      ? Colors.red
-                      : isApproved
-                          ? Colors.green.shade800
-                          : isPromo
-                              ? Colors.orange
-                              : isOrderUpdate
-                                  ? Colors.blue
-                                  : isChatMessage
-                                      ? Colors.indigo
-                                      : Colors.grey;
-
-                  final iconData = isRejected
-                      ? Icons.close_rounded
-                      : isApproved
-                          ? Icons.check_rounded
-                          : isPromo
-                              ? Icons.campaign_rounded
-                              : isOrderUpdate
-                                  ? Icons.local_shipping_rounded
-                                  : isChatMessage
-                                      ? Icons.chat_bubble_rounded
-                                      : Icons.notifications_none_rounded;
+                  final tsText = _formatTs(data);
 
                   return GestureDetector(
                     onTap: () async {
-                      // Mark as read (ke collection sesuai sumber)
-                      if (data['isRead'] != true) {
-                        if (data['_source'] == 'user') {
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(user.uid)
-                              .collection('notifications')
-                              .doc(data['_id'])
-                              .update({'isRead': true});
-                        } else if (data['_source'] == 'chat') {
-                          await FirebaseFirestore.instance
-                              .collection('chatNotifications')
-                              .doc(data['_id'])
-                              .update({'isRead': true});
-                        }
+                      // tandai read (non-blocking)
+                      if (data['_source'] == 'user') {
+                        _markUserRead(uid: user.uid, docId: data['_id']);
+                      } else {
+                        _markChatRead(data['_id']);
                       }
 
-                      if (isApproved) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const HomePageSeller(),
-                          ),
-                        );
-                      } else if (isRejected) {
-                        await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(user.uid)
-                            .collection('notifications')
-                            .doc(data['_id'])
-                            .update({'hasOpenedRejectedPage': true});
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ShopRejectedPage(
-                              reason: data['body'] ?? '-',
-                            ),
-                          ),
-                        );
-                      } else if (isPromo || isOrderUpdate) {
+                      // ====== navigasi per tipe ======
+                      if (isTopupAny || isPromo || isOrderUpdate) {
+                        if (!context.mounted) return;
                         showDialog(
                           context: context,
                           builder: (_) => AlertDialog(
                             title: Text(
-                              data['title'] ?? '-',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              title,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            content: Text(
-                              data['body'] ?? '-',
-                              style: const TextStyle(fontSize: 15),
-                            ),
+                            content: Text(body, style: const TextStyle(fontSize: 15)),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
@@ -257,16 +347,54 @@ class NotificationPage extends StatelessWidget {
                             ],
                           ),
                         );
-                      } else if (isChatMessage) {
+                        return;
+                      }
+
+                      if (isApproved) {
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomePageSeller()),
+                        );
+                        return;
+                      }
+
+                      if (isRejected) {
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ShopRejectedPage(reason: body)),
+                        );
+                        return;
+                      }
+
+                      if (isChatMessage) {
                         final chatId = data['chatId'];
-                        if (chatId != null) {
+                        if (chatId != null && chatId.toString().isNotEmpty) {
                           final chatDoc = await FirebaseFirestore.instance
                               .collection('chats')
                               .doc(chatId)
                               .get();
                           final chatData = chatDoc.data();
 
+                          if (!context.mounted) return;
+
                           if (chatData != null) {
+                            // guard final: cegah self-chat (akun 2 role dengan UID sama)
+                            final buyerId = chatData['buyerId'];
+                            final shopOwnerId =
+                                chatData['shopOwnerId'] ?? chatData['ownerId'] ?? chatData['sellerId'];
+                            if (buyerId == user.uid && shopOwnerId == user.uid) {
+                              showDialog(
+                                context: context,
+                                builder: (_) => const AlertDialog(
+                                  title: Text('Chat tidak valid'),
+                                  content: Text('Anda tidak dapat membuka chat dengan diri sendiri.'),
+                                ),
+                              );
+                              return;
+                            }
+
                             final shopId = chatData['shopId'] ?? '';
                             final shopName = chatData['shopName'] ?? 'Toko';
                             Navigator.push(
@@ -285,21 +413,49 @@ class NotificationPage extends StatelessWidget {
                             );
                           }
                         }
+                        return;
+                      }
+
+                      if (isOrderFlow) {
+                        final orderId = (data['orderId'] as String?) ??
+                            (data['orderDocId'] as String?) ??
+                            '';
+                        if (!context.mounted) return;
+                        if (orderId.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => OrderTrackingPage(orderId: orderId),
+                            ),
+                          );
+                        } else {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Detail Pesanan'),
+                              content: Text(body),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Tutup'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return;
                       }
                     },
                     child: Container(
                       decoration: BoxDecoration(
                         color: bgColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.grey.shade300,
-                          width: 1.2,
-                        ),
-                        boxShadow: [
+                        border: Border.all(color: Colors.grey.shade300, width: 1.2),
+                        boxShadow: const [
                           BoxShadow(
-                            color: const Color.fromRGBO(0, 0, 0, 0.03),
+                            color: Color.fromRGBO(0, 0, 0, 0.03),
                             blurRadius: 4,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
@@ -307,27 +463,24 @@ class NotificationPage extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Icon Circle
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: iconBg,
+                              color: iconBg, // gunakan variabel agar tidak ada warning unused
                             ),
                             padding: const EdgeInsets.all(8),
-                            child: Icon(iconData, color: iconColor, size: 22),
+                            child: Icon(icon, color: iconCol, size: 22),
                           ),
                           const SizedBox(width: 12),
-                          // Text content
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Title + New Badge
                                 Row(
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        data['title'] ?? '-',
+                                        title,
                                         style: GoogleFonts.dmSans(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -335,17 +488,13 @@ class NotificationPage extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                    if (data['isRead'] == false || data['isRead'] == null)
+                                    if ((data['isRead'] != true) ||
+                                        (data['_source'] == 'chat' && data['isRead'] == false))
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         decoration: BoxDecoration(
                                           color: Colors.green,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: const Text(
                                           'New',
@@ -358,21 +507,13 @@ class NotificationPage extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                // Date
                                 Text(
-                                  data['timestamp'] != null
-                                      ? DateFormat('dd MMM, yyyy | HH:mm').format(
-                                          (data['timestamp'] as Timestamp).toDate())
-                                      : '-',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
+                                  tsText,
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                                 ),
                                 const SizedBox(height: 8),
-                                // Message
                                 Text(
-                                  data['body'] ?? '-',
+                                  _isOrderFlow(type) ? _prettyOrderBody(data) : (data['body'] ?? '-'),
                                   style: const TextStyle(fontSize: 14),
                                 ),
                               ],

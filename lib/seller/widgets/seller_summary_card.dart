@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 class SellerSummaryCard extends StatelessWidget {
   final int pesananMasuk;
   final int pesananDikirim;
   final int pesananSelesai;
   final int pesananBatal;
+  // Tetap ada untuk kompatibilitas, tapi tidak dipakai lagi:
   final String saldo;
   final String saldoTertahan;
 
@@ -89,18 +91,6 @@ class SellerSummaryCard extends StatelessWidget {
                       value: pesananBatal.toString(),
                       width: cardWidth,
                     ),
-                    _SummaryItem(
-                      title: "Jumlah Saldo",
-                      value: saldo,
-                      isCurrency: true,
-                      width: cardWidth,
-                    ),
-                    _SummaryItem(
-                      title: "Saldo Tertahan",
-                      value: saldoTertahan,
-                      isCurrency: true,
-                      width: cardWidth,
-                    ),
                   ];
 
                   return Wrap(spacing: gap, runSpacing: gap, children: items);
@@ -123,14 +113,19 @@ class _SummaryItem extends StatelessWidget {
   const _SummaryItem({
     required this.title,
     required this.value,
-    this.isCurrency = false,
+    bool? isCurrency, // param opsional
     required this.width,
-  });
+  }) : isCurrency = isCurrency ?? false; // initializer list → selalu terinisialisasi
 
   @override
   Widget build(BuildContext context) {
     final double cardHeight = 73;
-    final double circleDiameter = cardHeight * 2; // Besar agar kelihatan menonjol dari bawah
+    final double circleDiameter = cardHeight * 2;
+
+    final displayValue = isCurrency
+        ? NumberFormat.currency(locale: 'id', symbol: 'Rp ')
+            .format(int.tryParse(value) ?? 0)
+        : value;
 
     return SizedBox(
       width: width,
@@ -139,10 +134,9 @@ class _SummaryItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(13),
         child: Stack(
           children: [
-            // Setengah lingkaran, pusat tepat di bawah tengah card
             Positioned(
               left: (width - circleDiameter) / 2,
-              bottom: -(circleDiameter / 2 - cardHeight / 2),
+              bottom: -(circleDiameter / 1 - cardHeight / 2),
               child: CustomPaint(
                 size: Size(circleDiameter, circleDiameter),
                 painter: _HalfCirclePainter(
@@ -182,7 +176,7 @@ class _SummaryItem extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        value,
+                        displayValue,
                         style: GoogleFonts.dmSans(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -210,16 +204,8 @@ class _HalfCirclePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-    final rect = Rect.fromLTWH(100, 50, size.width, size.height);
-
-    // Mulai dari kiri (pi radian, 180°), sweep ke kanan 180°
-    canvas.drawArc(
-      rect,
-      math.pi,   // start dari kiri
-      math.pi / 2,   // sweep 180° ke kanan (bagian atas setengah lingkaran)
-      true,
-      paint,
-    );
+    final rect = Rect.fromLTWH(90, -10, size.width, size.height);
+    canvas.drawArc(rect, math.pi, math.pi / 2, true, paint);
   }
 
   @override

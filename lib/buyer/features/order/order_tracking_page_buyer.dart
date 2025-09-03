@@ -5,11 +5,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+// chat & popup sukses
 import 'package:abc_e_mart/buyer/features/chat/chat_detail_page.dart';
 import 'package:abc_e_mart/buyer/features/order/widgets/order_success_pop_up.dart';
 
-// Detail transaksi (PDF)
-import 'package:abc_e_mart/seller/features/transaction/transaction_detail_page.dart';
+// === DETAIL NOTA (khusus buyer)
+import 'package:abc_e_mart/buyer/features/payment/note_pesanan_detail_page_buyer.dart';
+
+// === NOTIF SERVICE (untuk order_delivered ke seller)
+import 'package:abc_e_mart/data/services/notification_service.dart';
+
+enum _BannerTone { info, success, warning }
 
 class OrderTrackingPage extends StatefulWidget {
   final String orderId;
@@ -30,17 +36,45 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     super.dispose();
   }
 
-  // Buyer menutup pesanan -> panggil CF completeOrder
+  // Kirim notif ke SELLER: order_delivered (buyer -> seller)
+  Future<void> _notifySellerDelivered() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(widget.orderId)
+          .get();
+
+      final data = snap.data() ?? {};
+      final buyerId = (data['buyerId'] ?? '') as String;
+      final sellerId = (data['sellerId'] ?? '') as String;
+      if (buyerId.isEmpty || sellerId.isEmpty) return;
+
+      await NotificationService.instance.notifyOrderDelivered(
+        sellerId: sellerId,
+        buyerId: buyerId,
+        orderId: widget.orderId,
+      );
+    } catch (_) {
+      // ignore error; UX tetap lanjut
+    }
+  }
+
+  // Buyer konfirmasi selesai -> Cloud Function completeOrder
   Future<void> _markAsCompleted() async {
     if (_completing) return;
     setState(() => _completing = true);
     try {
-      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast2');
-      await functions.httpsCallable('completeOrder').call({'orderId': widget.orderId});
+      final functions = FirebaseFunctions.instanceFor(
+        region: 'asia-southeast2',
+      );
+      await functions.httpsCallable('completeOrder').call({
+        'orderId': widget.orderId,
+      });
+
+      await _notifySellerDelivered();
 
       if (!mounted) return;
 
-      // Dialog sukses
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -80,7 +114,10 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     if (user == null) return;
 
     // profil buyer (untuk metadata chat)
-    final buyerDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final buyerDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
     final buyerName = (buyerDoc.data()?['name'] ?? '') as String;
     final buyerAvatar = (buyerDoc.data()?['photoUrl'] ?? '') as String;
 
@@ -101,7 +138,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         'shopId': storeId,
         'shopName': storeName,
         'shopAvatar': storeLogoUrl, // dipakai di list buyer
-        'logoUrl': storeLogoUrl,    // fallback bila widget lama pakai key ini
+        'logoUrl': storeLogoUrl, // fallback jika widget lama pakai key ini
         'buyerId': user.uid,
         'buyerName': buyerName,
         'buyerAvatar': buyerAvatar,
@@ -115,7 +152,11 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChatDetailPage(chatId: chatId, shopId: storeId, shopName: storeName),
+        builder: (_) => ChatDetailPage(
+          chatId: chatId,
+          shopId: storeId,
+          shopName: storeName,
+        ),
       ),
     );
   }
@@ -139,7 +180,7 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     return status.toUpperCase() == 'PLACED'
         ? 'Menunggu Seller menerima pesanan'
         : 'Produk disiapkan Toko';
-  }
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -162,27 +203,34 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
           flexibleSpace: ColoredBox(
             color: Colors.white,
             child: Padding(
-              // spacing lebih rapat seperti halaman seller
               padding: const EdgeInsets.only(left: 20, top: 40, bottom: 8),
               child: Row(
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
-                      width: 37, height: 37,
+                      width: 37,
+                      height: 37,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF1C55C0), shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_back_ios_new,
-                          color: Colors.white, size: 20),
+                        color: Color(0xFF1C55C0),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text('Lacak Pesanan',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF373E3C),
-                      )),
+                  Text(
+                    'Lacak Pesanan',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF373E3C),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -196,38 +244,51 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snap.hasData || !snap.data!.exists) {
-            return Center(child: Text('Pesanan tidak ditemukan',
-                style: GoogleFonts.dmSans()));
+            return Center(
+              child: Text('Pesanan tidak ditemukan', style: GoogleFonts.dmSans()),
+            );
           }
 
           final data = snap.data!.data()!;
           final status = (data['status'] ?? 'PLACED') as String;
+          final statusU = status.toUpperCase();
           final storeName = (data['storeName'] ?? '-') as String;
           final storeId = (data['storeId'] ?? '') as String;
-          final buyerId = (data['buyerId'] ?? '') as String;
 
           // invoice displayId
           final realOrderId = snap.data!.id;
           final rawInvoice = (data['invoiceId'] as String?)?.trim();
-          final displayId = (rawInvoice != null && rawInvoice.isNotEmpty) ? rawInvoice : realOrderId;
+          final displayId = (rawInvoice != null && rawInvoice.isNotEmpty)
+              ? rawInvoice
+              : realOrderId;
 
-          // alamat
-          final addressMap = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
+          // alamat (order doc boleh punya 'addressText' atau 'address')
+          final addressMap =
+              (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
           final addressLabel = (addressMap['label'] ?? '-') as String;
-          final addressText  = (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
+          final addressText =
+              (addressMap['addressText'] ?? addressMap['address'] ?? '-') as String;
 
           final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
           final stepIndex = _currentStepIndex(status);
           final step1Title = _step1Title(status);
 
-          // ambil logo + meta toko dari stores/{storeId}
+          // deadline konfirmasi penerimaan: updatedAt + 2 hari (fallback createdAt + 2 hari)
+          final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+          final updatedAt = (data['updatedAt'] as Timestamp?)?.toDate();
+          final DateTime? confirmDeadline =
+              (statusU == 'SHIPPED' || statusU == 'DELIVERED')
+                  ? (updatedAt ?? createdAt)?.add(const Duration(days: 2))
+                  : null;
+
+          // ambil logo/meta toko dari stores/{storeId}
           final Stream<DocumentSnapshot<Map<String, dynamic>>> storeStream =
-            storeId.isEmpty
-                ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
-                : FirebaseFirestore.instance
-                    .collection('stores')
-                    .doc(storeId)
-                    .snapshots();
+              storeId.isEmpty
+                  ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
+                  : FirebaseFirestore.instance
+                      .collection('stores')
+                      .doc(storeId)
+                      .snapshots();
 
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: storeStream,
@@ -235,16 +296,12 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
               final storeData = storeSnap.data?.data();
               final logoUrl = (storeData?['logoUrl'] ?? '') as String;
 
-              // phone & address toko (prioritas dari order doc, fallback ke store doc)
-              final storePhone   = (data['storePhone']   ?? storeData?['phone']   ?? '-') as String;
-              final storeAddress = (data['storeAddress'] ?? storeData?['address'] ?? '-') as String;
-
-              // nama buyer (kalau ada di dok order)
-              final buyerNameFromOrder = (data['buyerName'] ?? '') as String? ?? '';
-
               // label metode pembayaran untuk kartu nota
-              final methodRaw = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
-              final methodLabel = methodRaw == 'ABC_PAYMENT' ? 'ABC Payment' : methodRaw;
+              final methodRaw =
+                  ((data['payment']?['method'] ?? 'abc_payment') as String)
+                      .toUpperCase();
+              final methodLabel =
+                  methodRaw == 'ABC_PAYMENT' ? 'ABC Payment' : methodRaw;
 
               return SingleChildScrollView(
                 key: PageStorageKey('order-tracking-${widget.orderId}'),
@@ -254,10 +311,14 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    Text('Status Pesanan',
-                        style: GoogleFonts.dmSans(
-                            fontSize: 22, fontWeight: FontWeight.bold,
-                            color: const Color(0xFF373E3C))),
+                    Text(
+                      'Status Pesanan',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
+                    ),
                     const SizedBox(height: 12),
 
                     _statusItem(
@@ -271,7 +332,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _moreIcon(),
                     const SizedBox(height: 6),
 
-                    // step 2
                     _statusItem(
                       title: 'Produk Sedang Dikirim',
                       subtitle: '',
@@ -283,7 +343,6 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _moreIcon(),
                     const SizedBox(height: 6),
 
-                    // step 3
                     _statusItem(
                       title: 'Produk Sampai Tujuan',
                       subtitle: addressLabel,
@@ -292,21 +351,34 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                       isReached: stepIndex >= 2,
                     ),
 
+                    if (confirmDeadline != null) ...[
+                      const SizedBox(height: 14),
+                      _countdownBanner(
+                        title: 'Konfirmasi penerimaan sebelum',
+                        deadline: confirmDeadline,
+                        caption:
+                            'Tekan tombol di bawah jika barang sudah diterima agar dana dicairkan ke seller.',
+                        tone: _BannerTone.info,
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
                     _divider(),
                     const SizedBox(height: 16),
 
-                    // ===== Detail Pesanan =====
-                    Text('Detail Pesanan',
-                        style: GoogleFonts.dmSans(
-                            fontSize: 22, fontWeight: FontWeight.bold,
-                            color: const Color(0xFF373E3C))),
+                    Text(
+                      'Detail Pesanan',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
+                    ),
                     const SizedBox(height: 12),
 
-                    // Header toko
                     _storeHeader(
                       storeName: storeName,
-                      orderId: displayId, // tampilkan invoiceId/fallback
+                      orderId: displayId, // invoiceId/fallback doc.id
                       logoUrl: logoUrl,
                       onChatTap: storeId.isEmpty
                           ? null
@@ -321,84 +393,80 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                     _divider(),
                     const SizedBox(height: 12),
 
-                    // Alamat Pengiriman
-                    Text('Alamat Pengiriman',
-                        style: GoogleFonts.dmSans(
-                            fontSize: 16, fontWeight: FontWeight.bold,
-                            color: const Color(0xFF373E3C))),
+                    Text(
+                      'Alamat Pengiriman',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       _isAddressExpanded
                           ? '$addressLabel, $addressText'
                           : '$addressLabel, ${addressText.length > 38 ? "${addressText.substring(0, 38)}..." : addressText}',
                       style: GoogleFonts.dmSans(
-                          fontSize: 14, color: const Color(0xFF9A9A9A))),
+                        fontSize: 14,
+                        color: const Color(0xFF9A9A9A),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     InkWell(
                       onTap: () =>
                           setState(() => _isAddressExpanded = !_isAddressExpanded),
                       child: Text(
-                        _isAddressExpanded ? 'Lihat Lebih Sedikit' : 'Lihat Selengkapnya',
+                        _isAddressExpanded
+                            ? 'Lihat Lebih Sedikit'
+                            : 'Lihat Selengkapnya',
                         style: GoogleFonts.dmSans(
-                            fontSize: 14, color: const Color(0xFF1C55C0))),
+                          fontSize: 14,
+                          color: const Color(0xFF1C55C0),
+                        ),
+                      ),
                     ),
 
                     const SizedBox(height: 12),
                     _divider(),
                     const SizedBox(height: 12),
 
-                    // Produk yang dipesan
-                    Text('Produk yang Dipesan',
-                        style: GoogleFonts.dmSans(
-                            fontSize: 16, fontWeight: FontWeight.bold,
-                            color: const Color(0xFF373E3C))),
+                    Text(
+                      'Produk yang Dipesan',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF373E3C),
+                      ),
+                    ),
                     const SizedBox(height: 12),
 
-                    ...items.map((it) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _productRow(
-                            name: (it['name'] ?? '-') as String,
-                            subtitle: (it['variant'] ?? '') as String,
-                            price: (it['price'] ?? 0) as num,
-                            qty: (it['qty'] ?? 0) as num,
-                            imageUrl: (it['imageUrl'] ?? '') as String,
-                          ),
-                        )),
+                    ...items.map(
+                      (it) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _productRow(
+                          name: (it['name'] ?? '-') as String,
+                          subtitle: (it['variant'] ?? '') as String,
+                          price: (it['price'] ?? 0) as num,
+                          qty: (it['qty'] ?? 0) as num,
+                          imageUrl: (it['imageUrl'] ?? '') as String,
+                        ),
+                      ),
+                    ),
 
                     const SizedBox(height: 14),
                     _divider(),
                     const SizedBox(height: 14),
 
-                    // Nota Pesanan (tombol Lihat → TransactionDetailPage)
                     _notaPesananCard(
                       methodText: methodLabel,
-                      onView: () async {
-                        // pastikan buyerName ada
-                        String buyerName = buyerNameFromOrder;
-                        if (buyerName.trim().isEmpty && buyerId.isNotEmpty) {
-                          try {
-                            final uSnap = await FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(buyerId)
-                                .get();
-                            buyerName = (uSnap.data()?['name'] ?? '-') as String? ?? '-';
-                          } catch (_) {
-                            buyerName = '-';
-                          }
-                        }
-
-                        final tx = _mapOrderToTransaction(
-                          orderIdForInvoice: displayId,          // tampil di header detail
-                          data: data,
-                          storeName: storeName,
-                          storePhone: storePhone,                 // phone toko
-                          storeAddress: storeAddress,             // alamat toko
-                          buyerName: buyerName,                   // nama buyer ✅
-                        );
+                      onView: () {
+                        // → buka halaman detail NOTA khusus buyer (otomatis map & label)
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => TransactionDetailPage(transaction: tx),
+                            builder: (_) => NotePesananDetailPageBuyer(
+                              orderId: widget.orderId,
+                            ),
                           ),
                         );
                       },
@@ -413,9 +481,12 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
       ),
 
       // Tombol muncul saat status = SHIPPED (seller sudah kirim)
-      bottomNavigationBar: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      bottomNavigationBar:
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
-            .collection('orders').doc(widget.orderId).snapshots(),
+            .collection('orders')
+            .doc(widget.orderId)
+            .snapshots(),
         builder: (context, snap) {
           final s = (snap.data?.data()?['status'] ?? '') as String;
           final showBtn = s.toUpperCase() == 'SHIPPED';
@@ -432,18 +503,28 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1C55C0),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100)),
-                    elevation: 0),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    elevation: 0,
+                  ),
                   onPressed: _completing ? null : _markAsCompleted,
                   child: _completing
                       ? const SizedBox(
-                          width: 22, height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : Text('Produk Sudah Sampai',
+                      : Text(
+                          'Produk Sudah Sampai',
                           style: GoogleFonts.dmSans(
-                            fontSize: 16, fontWeight: FontWeight.w700,
-                            color: const Color(0xFFFAFAFA))),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFFAFAFA),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -470,14 +551,22 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title,
-                style: GoogleFonts.dmSans(
-                    fontSize: 12, fontWeight: FontWeight.bold,
-                    color: const Color(0xFF373E3C))),
+            Text(
+              title,
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF373E3C),
+              ),
+            ),
             if (subtitle.isNotEmpty)
-              Text(subtitle,
-                  style: GoogleFonts.dmSans(
-                      fontSize: 12, color: const Color(0xFF9A9A9A))),
+              Text(
+                subtitle,
+                style: GoogleFonts.dmSans(
+                  fontSize: 12,
+                  color: const Color(0xFF9A9A9A),
+                ),
+              ),
           ],
         ),
       ],
@@ -485,11 +574,15 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
   }
 
   Widget _moreIcon() => Row(
-    children: [
-      SvgPicture.asset('assets/icons/more.svg', width: 20, height: 20,
-          color: const Color(0xFFBABABA)),
-    ],
-  );
+        children: [
+          SvgPicture.asset(
+            'assets/icons/more.svg',
+            width: 20,
+            height: 20,
+            color: const Color(0xFFBABABA),
+          ),
+        ],
+      );
 
   Widget _divider() => Container(color: const Color(0xFFF2F2F3), height: 1);
 
@@ -503,10 +596,14 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Nama Toko',
+        Text(
+          'Nama Toko',
           style: GoogleFonts.dmSans(
-              fontSize: 16, fontWeight: FontWeight.bold,
-              color: const Color(0xFF373E3C))),
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF373E3C),
+          ),
+        ),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -523,26 +620,44 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
                   : _storePlaceholder(),
             ),
             const SizedBox(width: 16),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(storeName,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  storeName,
                   style: GoogleFonts.dmSans(
-                      fontSize: 16, fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C))),
-              const SizedBox(height: 4),
-              Text('#$orderId', // invoiceId / fallback doc.id
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF373E3C),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '#$orderId', // invoiceId / fallback doc.id
                   style: GoogleFonts.dmSans(
-                      fontSize: 12, color: const Color(0xFF9A9A9A))),
-            ]),
+                    fontSize: 12,
+                    color: const Color(0xFF9A9A9A),
+                  ),
+                ),
+              ],
+            ),
             const Spacer(),
             GestureDetector(
               onTap: onChatTap,
               child: Container(
-                width: 40, height: 40,
+                width: 40,
+                height: 40,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF1C55C0), shape: BoxShape.circle),
+                  color: Color(0xFF1C55C0),
+                  shape: BoxShape.circle,
+                ),
                 child: Center(
-                  child: SvgPicture.asset('assets/icons/chat.svg',
-                      width: 20, height: 20, color: Colors.white),
+                  child: SvgPicture.asset(
+                    'assets/icons/chat.svg',
+                    width: 20,
+                    height: 20,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -553,7 +668,8 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
   }
 
   Widget _storePlaceholder() => Container(
-        width: 89, height: 76,
+        width: 89,
+        height: 76,
         color: const Color(0xFFEDEDED),
         child: const Icon(Icons.store, color: Color(0xFF1C55C0), size: 28),
       );
@@ -569,16 +685,20 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 95, height: 80,
+          width: 95,
+          height: 80,
           decoration: BoxDecoration(
             color: const Color(0xFFEDEDED),
             borderRadius: BorderRadius.circular(10),
           ),
           clipBehavior: Clip.antiAlias,
           child: imageUrl.isNotEmpty
-              ? Image.network(imageUrl, fit: BoxFit.cover,
+              ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.image, color: Colors.grey))
+                      const Icon(Icons.image, color: Colors.grey),
+                )
               : const Icon(Icons.image, color: Colors.grey),
         ),
         const SizedBox(width: 16),
@@ -586,74 +706,121 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name,
-                  style: GoogleFonts.dmSans(
-                      fontSize: 16, fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C))),
+              Text(
+                name,
+                style: GoogleFonts.dmSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF373E3C),
+                ),
+              ),
               if (subtitle.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                Text(subtitle,
-                    style: GoogleFonts.dmSans(
-                        fontSize: 14, color: const Color(0xFF777777))),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 14,
+                    color: const Color(0xFF777777),
+                  ),
+                ),
               ],
               const SizedBox(height: 8),
-              Text('Rp ${_formatRupiah(price.toInt())}',
-                  style: GoogleFonts.dmSans(
-                      fontSize: 16, fontWeight: FontWeight.bold,
-                      color: const Color(0xFF373E3C))),
+              Text(
+                'Rp ${_formatRupiah(price.toInt())}',
+                style: GoogleFonts.dmSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF373E3C),
+                ),
+              ),
             ],
           ),
         ),
-        Text('x${qty.toInt()}',
-            style: GoogleFonts.dmSans(
-                fontSize: 12, color: const Color(0xFF9A9A9A))),
+        Text(
+          'x${qty.toInt()}',
+          style: GoogleFonts.dmSans(
+            fontSize: 12,
+            color: const Color(0xFF9A9A9A),
+          ),
+        ),
       ],
     );
   }
 
+  /// === Redesain: Kartu Nota Pesanan (2 baris sesuai mock) ===
   Widget _notaPesananCard({required String methodText, VoidCallback? onView}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F8F8),
-        borderRadius: BorderRadius.circular(10)),
-      child: Row(
+        color: Colors.white, // card putih
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // kiri: info metode
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Metode Pembayaran',
-                    style: GoogleFonts.dmSans(
-                        fontSize: 16, color: const Color(0xFF777777))),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(methodText,
-                        style: GoogleFonts.dmSans(
-                            fontSize: 14, fontWeight: FontWeight.w600,
-                            color: const Color(0xFF373E3C))),
-                    const SizedBox(width: 10),
-                    Image.asset('assets/images/paymentlogo.png', width: 32, height: 32),
-                  ],
+          // Row 1: "Nota Pesanan" — "Lihat >"
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Nota Pesanan',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF373E3C),
+                  ),
                 ),
-              ],
-            ),
+              ),
+              InkWell(
+                onTap: onView,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Lihat',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 16,
+                          color: const Color(0xFF777777),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right,
+                          size: 16, color: Color(0xFF777777)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          // kanan: tombol Lihat nota
-          TextButton(
-            onPressed: onView,
-            child: Row(
-              children: [
-                Text('Lihat',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 13.5, color: const Color(0xFF2056D3))),
-                const SizedBox(width: 4),
-                const Icon(Icons.receipt_long_rounded,
-                    color: Color(0xFF2056D3), size: 18),
-              ],
-            ),
+
+          const SizedBox(height: 12),
+
+          // Row 2: "Metode Pembayaran" — "ABC Payment"
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Metode Pembayaran',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    color: const Color(0xFF777777),
+                  ),
+                ),
+              ),
+              Text(
+                methodText,
+                textAlign: TextAlign.right,
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF373E3C),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -671,90 +838,146 @@ class _OrderTrackingPageState extends State<OrderTrackingPage> {
     return b.toString();
   }
 
-  // ========= mapper: dokumen order -> map utk TransactionDetailPage =========
-  Map<String, dynamic> _mapOrderToTransaction({
-    required String orderIdForInvoice, // tampilkan invoiceId (displayId)
-    required Map<String, dynamic> data,
-    required String storeName,
-    String? storePhone,         // ➕
-    String? storeAddress,       // ➕
-    String? buyerName,          // ➕
+  // ======== Countdown Banner (buyer confirm deadline) ========
+  Widget _countdownBanner({
+    required String title,
+    required DateTime deadline,
+    String? caption,
+    _BannerTone tone = _BannerTone.info,
   }) {
-    final rawStatus =
-        ((data['status'] ?? data['shippingAddress']?['status'] ?? 'PLACED') as String)
-            .toUpperCase();
+    final Color bg, border, textColor, iconBg;
+    switch (tone) {
+      case _BannerTone.success:
+        bg = const Color(0xFFF1FFF6);
+        border = const Color(0xFF28A745);
+        textColor = const Color(0xFF166534);
+        iconBg = const Color(0xFFE8FFF0);
+        break;
+      case _BannerTone.warning:
+        bg = const Color(0xFFFFFBF1);
+        border = const Color(0xFFEAB600);
+        textColor = const Color(0xFF6B4E00);
+        iconBg = const Color(0xFFFFF3C4);
+        break;
+      case _BannerTone.info:
+      default:
+        bg = const Color(0xFFF1F7FF);
+        border = const Color(0xFF1976D2);
+        textColor = const Color(0xFF0C3C78);
+        iconBg = const Color(0xFFE7F1FF);
+    }
 
-    // label UI
-    final uiStatus = (rawStatus == 'COMPLETED' || rawStatus == 'DELIVERED' || rawStatus == 'SUCCESS' || rawStatus == 'SETTLED')
-        ? 'Sukses'
-        : (rawStatus == 'CANCELLED' || rawStatus == 'CANCELED' || rawStatus == 'REJECTED' || rawStatus == 'FAILED')
-            ? 'Gagal'
-            : 'Tertahan';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: const Icon(
+              Icons.access_time_rounded,
+              size: 18,
+              color: Color(0xFF666666),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: StreamBuilder<DateTime>(
+              stream: Stream<DateTime>.periodic(
+                const Duration(seconds: 1),
+                (_) => DateTime.now(),
+              ),
+              builder: (_, tick) {
+                final now = tick.data ?? DateTime.now();
+                final remaining = deadline.difference(now);
+                final over = remaining.isNegative;
+                final text = over ? 'Waktu habis' : _fmtRemaining(remaining);
 
-    final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-    final amounts = (data['amounts'] as Map<String, dynamic>?) ?? {};
-    final subtotal = ((amounts['subtotal'] as num?) ?? 0).toInt();
-    final shipping = ((amounts['shipping'] as num?) ?? 0).toInt();
-    final tax = ((amounts['tax'] as num?) ?? 0).toInt();
-    final total = ((amounts['total'] as num?) ?? (subtotal + shipping + tax)).toInt();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$title ${_fmtDateTime(deadline)}',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.2,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: border, width: 1.1),
+                          ),
+                          child: Text(
+                            over
+                                ? 'Silakan hubungi penjual via chat'
+                                : 'Sisa waktu: $text',
+                            style: GoogleFonts.dmSans(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.2,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (caption != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        caption,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    final ts = (data['updatedAt'] ?? data['createdAt']);
-    final date = ts is Timestamp ? ts.toDate() : null;
+  static String _fmtRemaining(Duration d) {
+    var secs = d.inSeconds;
+    if (secs < 0) secs = 0;
+    final days = secs ~/ 86400;
+    secs %= 86400;
+    final hrs = secs ~/ 3600;
+    secs %= 3600;
+    final mins = secs ~/ 60;
+    secs %= 60;
+    if (days > 0) return '${days}h ${hrs}j ${mins}m ${secs}s';
+    if (hrs > 0) return '${hrs}j ${mins}m ${secs}s';
+    if (mins > 0) return '${mins}m ${secs}s';
+    return '${secs}s';
+  }
 
-    final ship = (data['shippingAddress'] as Map<String, dynamic>?) ?? {};
-    final addressLabel = (ship['label'] ?? '-') as String;
-    final addressText  = (ship['addressText'] ?? ship['address'] ?? '-') as String;
-    final phone        = (ship['phone'] ?? '-') as String;
-
-    final method = ((data['payment']?['method'] ?? 'abc_payment') as String).toUpperCase();
-
-    // Ambil store meta dari order bila ada; fallback ke argumen dari stores/{id}
-    final storePhoneFinal   = (data['storePhone']   ?? storePhone ?? '-') as String;
-    final storeAddressFinal = (data['storeAddress'] ?? storeAddress ?? '-') as String;
-
-    final buyerNameFinal = (data['buyerName'] ?? buyerName ?? '-') as String;
-
-    return {
-      // identitas
-      'invoiceId': orderIdForInvoice,
-      'status': uiStatus,
-      'date': date,
-
-      // info toko untuk PDF (flat & nested — TransactionDetailPage support keduanya)
-      'storeName': storeName,
-      'storePhone': storePhoneFinal,
-      'storeAddress': storeAddressFinal,
-      'store': {
-        'name': storeName,
-        'phone': storePhoneFinal,
-        'address': storeAddressFinal,
-      },
-
-      // info pembeli & pengiriman
-      'buyerName': buyerNameFinal,
-      'shipping': {
-        'recipient': buyerNameFinal.isNotEmpty ? buyerNameFinal : addressLabel,
-        'addressLabel': addressLabel,
-        'addressText': addressText,
-        'phone': phone,
-      },
-
-      // pembayaran & amounts
-      'paymentMethod': method,
-      'amounts': {
-        'subtotal': subtotal,
-        'shipping': shipping,
-        'tax': tax,
-        'total': total,
-      },
-
-      // item rows
-      'items': items.map((it) => {
-        'name': (it['name'] ?? '-') as String,
-        'qty': ((it['qty'] as num?) ?? 0).toInt(),
-        'price': ((it['price'] as num?) ?? 0).toInt(),
-        'variant': (it['variant'] ?? it['note'] ?? '') as String,
-      }).toList(),
-    };
+  static String _fmtDateTime(DateTime dt) {
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year.toString();
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y, $hour12:$min $ampm';
   }
 }

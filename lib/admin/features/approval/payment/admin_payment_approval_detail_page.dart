@@ -1,13 +1,17 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+
+// widgets
 import 'package:abc_e_mart/admin/widgets/admin_dual_action_buttons.dart';
 import 'package:abc_e_mart/admin/widgets/success_dialog.dart';
 import 'package:abc_e_mart/admin/widgets/admin_reject_reason_page.dart';
-import 'package:abc_e_mart/admin/data/services/payment_application_service.dart';
+
+// service
+import 'package:abc_e_mart/data/services/payment_application_service.dart';
 
 enum PaymentRequestType { topUp, withdrawal }
 
@@ -33,34 +37,95 @@ class _AdminPaymentApprovalDetailPageState
 
   bool get _hasProof => _adminProof != null;
 
+  // ---- status helpers ----
+  bool _isPending(String? status) {
+    final s = (status ?? '').toLowerCase().trim();
+    return s == 'pending' || s == 'menunggu';
+  }
+
+  String _statusUi(String? status) {
+    final s = (status ?? '').toLowerCase().trim();
+    if (s == 'approved' || s == 'disetujui' || s == 'sukses')
+      return 'Disetujui';
+    if (s == 'rejected' || s == 'ditolak' || s == 'gagal') return 'Ditolak';
+    return 'Menunggu';
+  }
+
+  Color _statusColor(String ui) {
+    switch (ui) {
+      case 'Disetujui':
+        return const Color(0xFF29B057);
+      case 'Ditolak':
+        return const Color(0xFFFF6161);
+      default:
+        return const Color(0xFFFFB800);
+    }
+  }
+
+  // ---- media helpers ----
   Future<void> _pickAdminProof() async {
     try {
-      final x =
-          await _picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
+      final x = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
       if (x == null) return;
+
       final ext = x.name.split('.').last.toLowerCase();
       if (!['jpg', 'jpeg', 'png'].contains(ext)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Format tidak didukung. Gunakan JPG/JPEG/PNG.', style: GoogleFonts.dmSans())),
+          SnackBar(
+            content: Text(
+              'Format tidak didukung. Gunakan JPG/JPEG/PNG.',
+              style: GoogleFonts.dmSans(),
+            ),
+          ),
         );
         return;
       }
       if (await x.length() > 2 * 1024 * 1024) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ukuran file maksimal 2 MB.', style: GoogleFonts.dmSans())),
+          SnackBar(
+            content: Text(
+              'Ukuran file maksimal 2 MB.',
+              style: GoogleFonts.dmSans(),
+            ),
+          ),
         );
         return;
       }
       setState(() => _adminProof = x);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memilih gambar: $e', style: GoogleFonts.dmSans())),
+        SnackBar(
+          content: Text(
+            'Gagal memilih gambar: $e',
+            style: GoogleFonts.dmSans(),
+          ),
+        ),
       );
     }
   }
 
   void _removeAdminProof() => setState(() => _adminProof = null);
 
+  void _zoomImage(String url) {
+    if (url.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: InteractiveViewer(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(url, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---- money ----
   String _rp(num n) {
     final s = n.toStringAsFixed(0);
     final b = StringBuffer();
@@ -72,12 +137,27 @@ class _AdminPaymentApprovalDetailPageState
     return 'Rp $b';
   }
 
+  // ---- actions ----
   Future<void> _onVerify(Map<String, dynamic> app) async {
-    final realType = (app['type'] as String?) ?? (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
+    final status = app['status'] as String?;
+    if (!_isPending(status)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ajuan ini sudah diproses.')),
+      );
+      return;
+    }
+
+    final realType =
+        (app['type'] as String?) ??
+        (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
     final isTopUp = realType == 'topup';
 
     try {
-      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
       if (isTopUp) {
         await PaymentApplicationService.instance.approveTopUpApplication(
@@ -87,15 +167,38 @@ class _AdminPaymentApprovalDetailPageState
         if (!_hasProof) {
           Navigator.of(context, rootNavigator: true).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Unggah bukti pembayaran terlebih dahulu.', style: GoogleFonts.dmSans())),
+            SnackBar(
+              content: Text(
+                'Unggah bukti pembayaran terlebih dahulu.',
+                style: GoogleFonts.dmSans(),
+              ),
+            ),
           );
           return;
         }
-        final proof = await PaymentApplicationService.instance.uploadProof(
-          file: File(_adminProof!.path),
-          filenameHint: 'withdraw_${widget.applicationId}.${_adminProof!.name.split('.').last}',
-          ownerId: app['ownerId'] as String?,
-        );
+
+        final ownerId = app['ownerId'] as String?;
+        if (ownerId == null || ownerId.isEmpty) {
+          Navigator.of(context, rootNavigator: true).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'ownerId tidak ditemukan di ajuan.',
+                style: GoogleFonts.dmSans(),
+              ),
+            ),
+          );
+          return;
+        }
+
+        final proof = await PaymentApplicationService.instance
+            .uploadAdminWithdrawProof(
+              file: File(_adminProof!.path),
+              filenameHint:
+                  'withdraw_${widget.applicationId}.${_adminProof!.name.split('.').last}',
+              ownerId: ownerId,
+            );
+
         await PaymentApplicationService.instance.approveWithdrawalApplication(
           applicationId: widget.applicationId,
           adminProof: proof,
@@ -108,7 +211,9 @@ class _AdminPaymentApprovalDetailPageState
         context: context,
         barrierDismissible: false,
         builder: (_) => SuccessDialog(
-          message: isTopUp ? "Pengisian Saldo Berhasil Diterima" : "Pencairan Saldo Berhasil",
+          message: isTopUp
+              ? "Pengisian Saldo Berhasil Diterima"
+              : "Pencairan Saldo Berhasil",
         ),
       );
       await Future.delayed(const Duration(milliseconds: 1200));
@@ -119,13 +224,25 @@ class _AdminPaymentApprovalDetailPageState
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal verifikasi: $e', style: GoogleFonts.dmSans())),
+        SnackBar(
+          content: Text('Gagal verifikasi: $e', style: GoogleFonts.dmSans()),
+        ),
       );
     }
   }
 
   Future<void> _onReject(Map<String, dynamic> app) async {
-    final realType = (app['type'] as String?) ?? (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
+    final status = app['status'] as String?;
+    if (!_isPending(status)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ajuan ini sudah diproses.')),
+      );
+      return;
+    }
+
+    final realType =
+        (app['type'] as String?) ??
+        (widget.type == PaymentRequestType.topUp ? 'topup' : 'withdrawal');
     final isTopUp = realType == 'topup';
 
     final reason = await Navigator.push<String>(
@@ -135,7 +252,11 @@ class _AdminPaymentApprovalDetailPageState
     if (reason == null || reason.trim().isEmpty) return;
 
     try {
-      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
       if (isTopUp) {
         await PaymentApplicationService.instance.rejectTopUpApplication(
@@ -154,9 +275,8 @@ class _AdminPaymentApprovalDetailPageState
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => SuccessDialog(
-          message: isTopUp ? "Pengisian Saldo Berhasil Ditolak" : "Pencairan Saldo Berhasil Ditolak",
-        ),
+        builder: (_) =>
+            const SuccessDialog(message: "Pengajuan berhasil ditolak"),
       );
       await Future.delayed(const Duration(milliseconds: 1200));
       if (!mounted) return;
@@ -166,21 +286,25 @@ class _AdminPaymentApprovalDetailPageState
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menolak: $e', style: GoogleFonts.dmSans())),
+        SnackBar(
+          content: Text('Gagal menolak: $e', style: GoogleFonts.dmSans()),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final docRef = FirebaseFirestore.instance
+        .collection('paymentApplications')
+        .doc(widget.applicationId);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance
-              .collection('paymentApplications')
-              .doc(widget.applicationId)
-              .get(),
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          // <<< PERBAIKAN: generic benar, tidak ada '>>>>'
+          stream: docRef.snapshots(),
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -189,17 +313,24 @@ class _AdminPaymentApprovalDetailPageState
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Text('Gagal memuat ajuan.', style: GoogleFonts.dmSans(color: Colors.red)),
+                  child: Text(
+                    'Gagal memuat ajuan.',
+                    style: GoogleFonts.dmSans(color: Colors.red),
+                  ),
                 ),
               );
             }
 
             final app = snap.data!.data()!;
             final isTopUp = (app['type'] as String? ?? '') == 'topup';
+            final statusUi = _statusUi(app['status'] as String?);
+            final statusColor = _statusColor(statusUi);
             final ts = (app['submittedAt'] as Timestamp?)?.toDate();
             final submittedAt = ts == null
                 ? '-'
                 : DateFormat('dd MMMM yyyy, HH:mm', 'id_ID').format(ts);
+
+            final adminProofUrl = (app['adminProof']?['url'] as String?) ?? '';
 
             return SingleChildScrollView(
               padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
@@ -219,16 +350,42 @@ class _AdminPaymentApprovalDetailPageState
                             color: Color(0xFF1C55C0),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
-                      Text("Detail Ajuan",
+                      Text(
+                        "Detail Ajuan",
+                        style: GoogleFonts.dmSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: const Color(0xFF232323),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(.15),
+                          border: Border.all(color: statusColor, width: 1),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          statusUi,
                           style: GoogleFonts.dmSans(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: const Color(0xFF232323))),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
 
@@ -237,11 +394,16 @@ class _AdminPaymentApprovalDetailPageState
                   const SizedBox(height: 3),
                   _plainText(submittedAt),
                   const SizedBox(height: 20),
-                  const Divider(color: Color(0xFFE5E7EB), thickness: 1, height: 1),
+                  const Divider(
+                    color: Color(0xFFE5E7EB),
+                    thickness: 1,
+                    height: 1,
+                  ),
                   const SizedBox(height: 22),
 
                   _sectionTitle(
-                      isTopUp ? "Data Pengisian Saldo" : "Data Pencairan Saldo"),
+                    isTopUp ? "Data Pengisian Saldo" : "Data Pencairan Saldo",
+                  ),
                   const SizedBox(height: 16),
 
                   if (isTopUp) ...[
@@ -256,14 +418,7 @@ class _AdminPaymentApprovalDetailPageState
                       onTap: () {
                         final url = app['proof']?['url'] as String?;
                         if (url == null) return;
-                        showDialog(
-                          context: context,
-                          builder: (_) => Dialog(
-                            child: InteractiveViewer(
-                              child: Image.network(url, fit: BoxFit.contain),
-                            ),
-                          ),
-                        );
+                        _zoomImage(url);
                       },
                     ),
                     const SizedBox(height: 16),
@@ -274,14 +429,15 @@ class _AdminPaymentApprovalDetailPageState
                       future: app['buyerId'] == null
                           ? null
                           : FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(app['buyerId'])
-                              .get(),
+                                .collection('users')
+                                .doc(app['buyerId'])
+                                .get(),
                       builder: (_, userSnap) {
                         final m = userSnap.data?.data();
-                        final name = (m?['displayName'] as String?) ??
-                                    (m?['name'] as String?) ??
-                                    (app['buyerEmail'] as String? ?? '-');
+                        final name =
+                            (m?['displayName'] as String?) ??
+                            (m?['name'] as String?) ??
+                            (app['buyerEmail'] as String? ?? '-');
                         return _plainText(name);
                       },
                     ),
@@ -294,29 +450,37 @@ class _AdminPaymentApprovalDetailPageState
 
                     _label("Detail Pembayaran"),
                     const SizedBox(height: 8),
-                    _kvBox(items: [
-                      _KV("Jumlah Pengisian Saldo", _rp((app['amount'] as num?) ?? 0)),
-                      _KV("Biaya Admin", _rp((app['fee'] as num?) ?? 0)),
-                    ]),
+                    _kvBox(
+                      items: [
+                        _KV(
+                          "Jumlah Pengisian Saldo",
+                          _rp((app['amount'] as num?) ?? 0),
+                        ),
+                        _KV("Biaya Admin", _rp((app['fee'] as num?) ?? 0)),
+                      ],
+                    ),
                     const SizedBox(height: 8),
-                    _emphasizedTotal("Total Dibayar Pembeli", _rp((app['totalPaid'] as num?) ?? 0)),
+                    _emphasizedTotal(
+                      "Total Dibayar Pembeli",
+                      _rp((app['totalPaid'] as num?) ?? 0),
+                    ),
                     const SizedBox(height: 40),
                   ] else ...[
-                    // WITHDRAWAL
                     _label("Nama Pemilik Rekening"),
                     const SizedBox(height: 4),
                     FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       future: app['ownerId'] == null
                           ? null
                           : FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(app['ownerId'])
-                              .get(),
+                                .collection('users')
+                                .doc(app['ownerId'])
+                                .get(),
                       builder: (_, uSnap) {
-                        final m  = uSnap.data?.data();          // <-- perbaikan di sini
-                        final nm = (m?['displayName'] as String?) ??
-                                  (m?['name'] as String?) ??
-                                  '-';
+                        final m = uSnap.data?.data();
+                        final nm =
+                            (m?['displayName'] as String?) ??
+                            (m?['name'] as String?) ??
+                            '-';
                         return _plainText(nm);
                       },
                     ),
@@ -334,71 +498,136 @@ class _AdminPaymentApprovalDetailPageState
 
                     _sectionTitle("Detail Pencairan Saldo"),
                     const SizedBox(height: 8),
-                    _kvBox(items: [
-                      _KV("Rekening Tujuan", app['accountNumber'] as String? ?? '-'),
-                      _KV("Nominal Diajukan", _rp((app['amount'] as num?) ?? 0)),
-                      _KV("Biaya Admin", _rp((app['fee'] as num?) ?? 0)),
-                    ]),
-                    const SizedBox(height: 8),
-                    _emphasizedTotal("Dana Diterima Penjual", _rp((app['received'] as num?) ?? 0)),
-                    const SizedBox(height: 12),
-
-                    _label("Bukti Pembayaran *"),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: _adminProof == null ? _pickAdminProof : null,
-                      child: Container(
-                        height: 152,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFFFF),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFDFE3E6)),
+                    _kvBox(
+                      items: [
+                        _KV(
+                          "Rekening Tujuan",
+                          app['accountNumber'] as String? ?? '-',
                         ),
-                        child: _adminProof == null
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.add, size: 22, color: Color(0xFF9A9A9A)),
-                                    const SizedBox(height: 4),
-                                    Text("Tambah Foto",
-                                        style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF9A9A9A))),
-                                  ],
-                                ),
-                              )
-                            : Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.file(File(_adminProof!.path), fit: BoxFit.cover),
-                                  ),
-                                  Positioned(
-                                    right: 8,
-                                    top: 8,
-                                    child: Row(
-                                      children: [
-                                        _IconAction(icon: Icons.delete_rounded, tooltip: 'Hapus', onTap: _removeAdminProof),
-                                        const SizedBox(width: 8),
-                                        _IconAction(icon: Icons.swap_horiz_rounded, tooltip: 'Ganti', onTap: _pickAdminProof),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
+                        _KV(
+                          "Nominal Diajukan",
+                          _rp((app['amount'] as num?) ?? 0),
+                        ),
+                        _KV("Biaya Admin", _rp((app['fee'] as num?) ?? 0)),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      "• Format yang Didukung : JPG, PNG, JPEG\n• Ukuran file maksimum: 2 MB",
-                      style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF9A9A9A), height: 1.35),
+                    _emphasizedTotal(
+                      "Dana Diterima Penjual",
+                      _rp((app['received'] as num?) ?? 0),
                     ),
                     const SizedBox(height: 16),
-                    const SizedBox(height: 6),
-                  ],
 
-                  const SizedBox(height: 16),
+                    if (!_isPending(app['status'] as String?) &&
+                        adminProofUrl.isNotEmpty) ...[
+                      _label("Bukti Pembayaran Admin"),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () => _zoomImage(adminProofUrl),
+                        child: Container(
+                          height: 152,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFFFF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFDFE3E6)),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Image.network(
+                            adminProofUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, st) => const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    if (_isPending(app['status'] as String?)) ...[
+                      _label("Bukti Pembayaran *"),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _adminProof == null ? _pickAdminProof : null,
+                        child: Container(
+                          height: 152,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFFFF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFDFE3E6)),
+                          ),
+                          child: _adminProof == null
+                              ? Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.add,
+                                        size: 22,
+                                        color: Color(0xFF9A9A9A),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Tambah Foto",
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 12,
+                                          color: Color(0xFF9A9A9A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.file(
+                                        File(_adminProof!.path),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 8,
+                                      top: 8,
+                                      child: Row(
+                                        children: [
+                                          _IconAction(
+                                            icon: Icons.delete_rounded,
+                                            tooltip: 'Hapus',
+                                            onTap: _removeAdminProof,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          _IconAction(
+                                            icon: Icons.swap_horiz_rounded,
+                                            tooltip: 'Ganti',
+                                            onTap: _pickAdminProof,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "• Format yang Didukung : JPG, PNG, JPEG\n• Ukuran file maksimum: 2 MB",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          color: Color(0xFF9A9A9A),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
                 ],
               ),
             );
@@ -408,28 +637,83 @@ class _AdminPaymentApprovalDetailPageState
 
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 16, offset: Offset(0, -3))],
-          ),
-          child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            future: FirebaseFirestore.instance
-                .collection('paymentApplications')
-                .doc(widget.applicationId)
-                .get(),
-            builder: (context, snap) {
-              final appData = snap.data?.data() ?? const <String, dynamic>{};
-              return AdminDualActionButtons(
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('paymentApplications')
+              .doc(widget.applicationId)
+              .snapshots(),
+          builder: (context, snap) {
+            final app = snap.data?.data();
+            final isPending = _isPending(app?['status'] as String?);
+
+            if (!isPending) {
+              final statusUi = _statusUi(app?['status'] as String?);
+              final color = _statusColor(statusUi);
+              return Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 16,
+                      offset: Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      statusUi == 'Disetujui'
+                          ? Icons.check_circle_rounded
+                          : Icons.cancel_rounded,
+                      color: color,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Pengajuan sudah $statusUi.",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF373E3C),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Tutup',
+                        style: GoogleFonts.dmSans(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final appData = app ?? const <String, dynamic>{};
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 16,
+                    offset: Offset(0, -3),
+                  ),
+                ],
+              ),
+              child: AdminDualActionButtons(
                 compact: true,
                 rejectText: "Tolak",
                 acceptText: "Verifikasi",
                 onReject: () => _onReject(appData),
                 onAccept: () => _onVerify(appData),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -437,33 +721,38 @@ class _AdminPaymentApprovalDetailPageState
 
   // ===== UI helpers =====
   Widget _sectionTitle(String text) => Text(
-        text,
-        style: GoogleFonts.dmSans(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF373E3C),
-        ),
-      );
+    text,
+    style: GoogleFonts.dmSans(
+      fontSize: 18,
+      fontWeight: FontWeight.bold,
+      color: const Color(0xFF373E3C),
+    ),
+  );
 
   Widget _label(String text) => Text(
-        text,
-        style: GoogleFonts.dmSans(
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-          color: const Color(0xFF373E3C),
-        ),
-      );
+    text,
+    style: GoogleFonts.dmSans(
+      fontWeight: FontWeight.bold,
+      fontSize: 14,
+      color: const Color(0xFF373E3C),
+    ),
+  );
 
   Widget _plainText(String text) => Text(
-        text,
-        style: GoogleFonts.dmSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          color: const Color(0xFF232323),
-        ),
-      );
+    text,
+    style: GoogleFonts.dmSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      color: const Color(0xFF232323),
+    ),
+  );
 
-  Widget _fileChip(String name, String size, {Widget? trailing, VoidCallback? onTap}) {
+  Widget _fileChip(
+    String name,
+    String size, {
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -476,13 +765,50 @@ class _AdminPaymentApprovalDetailPageState
           border: Border.all(color: const Color(0xFFDFE3E6)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          // biarkan default (max), jangan min — supaya Expanded bisa bekerja
           children: [
-            const Icon(Icons.insert_drive_file_rounded, size: 18, color: Color(0xFF808080)),
+            const Icon(
+              Icons.insert_drive_file_rounded,
+              size: 18,
+              color: Color(0xFF808080),
+            ),
             const SizedBox(width: 6),
-            Text(name, style: GoogleFonts.dmSans(fontSize: 12, color: const Color(0xFF373E3C), fontWeight: FontWeight.w600)),
-            const SizedBox(width: 6),
-            Text(size, style: GoogleFonts.dmSans(fontSize: 10, color: const Color(0xFF9A9A9A))),
+
+            // Nama file fleksibel + ellipsis
+            Expanded(
+              child: Row(
+                children: [
+                  // nama file akan memakan sisa ruang & terpotong rapi
+                  Expanded(
+                    child: Tooltip(
+                      message:
+                          name, // tampilkan nama lengkap saat long-press/hover
+                      waitDuration: const Duration(milliseconds: 400),
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          color: const Color(0xFF373E3C),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // ukuran file tetap terlihat, pendek
+                  Text(
+                    size,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 10,
+                      color: const Color(0xFF9A9A9A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             if (trailing != null) ...[const SizedBox(width: 6), trailing],
           ],
         ),
@@ -506,8 +832,23 @@ class _AdminPaymentApprovalDetailPageState
             padding: EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 10),
             child: Row(
               children: [
-                Expanded(child: Text(it.left, style: GoogleFonts.dmSans(fontSize: 12.5, color: const Color(0xFF6D6D6D)))),
-                Text(it.right, style: GoogleFonts.dmSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF373E3C))),
+                Expanded(
+                  child: Text(
+                    it.left,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12.5,
+                      color: const Color(0xFF6D6D6D),
+                    ),
+                  ),
+                ),
+                Text(
+                  it.right,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF373E3C),
+                  ),
+                ),
               ],
             ),
           );
@@ -528,18 +869,23 @@ class _AdminPaymentApprovalDetailPageState
       child: Row(
         children: [
           Expanded(
-              child: Text(left,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF373E3C),
-                  ))),
-          Text(right,
+            child: Text(
+              left,
               style: GoogleFonts.dmSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF373E3C),
-              )),
+              ),
+            ),
+          ),
+          Text(
+            right,
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF373E3C),
+            ),
+          ),
         ],
       ),
     );

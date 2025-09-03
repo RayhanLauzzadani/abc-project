@@ -164,7 +164,7 @@ class AdsDetailPage extends StatelessWidget {
                     clipBehavior: Clip.hardEdge,
                     child: (img.isEmpty)
                         ? Text(
-                            "Banner Iklan (390x160)",
+                            "Banner Iklan (320x160)",
                             style: GoogleFonts.dmSans(
                               color: const Color(0xFF9A9A9A),
                               fontSize: 13,
@@ -177,7 +177,7 @@ class AdsDetailPage extends StatelessWidget {
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Center(
                               child: Text(
-                                "Banner Iklan (390x160)",
+                                "Banner Iklan (320x160)",
                                 style: GoogleFonts.dmSans(
                                   color: const Color(0xFF9A9A9A),
                                   fontSize: 13,
