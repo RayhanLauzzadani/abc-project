@@ -113,16 +113,15 @@ class _SummaryItem extends StatelessWidget {
   const _SummaryItem({
     required this.title,
     required this.value,
-    this.isCurrency = false,
+    bool? isCurrency, // param opsional
     required this.width,
-  });
+  }) : isCurrency = isCurrency ?? false; // initializer list → selalu terinisialisasi
 
   @override
   Widget build(BuildContext context) {
     final double cardHeight = 73;
     final double circleDiameter = cardHeight * 2;
 
-    // Format angka jadi currency kalau isCurrency true
     final displayValue = isCurrency
         ? NumberFormat.currency(locale: 'id', symbol: 'Rp ')
             .format(int.tryParse(value) ?? 0)
