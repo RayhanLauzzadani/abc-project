@@ -31,7 +31,7 @@ plugins {
 }
 
 android {
-    namespace = "com.abce.mart"
+    namespace = "com.example.pasma_apps"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -46,7 +46,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.abce.mart"
+        applicationId = "com.example.pasma_apps"
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
