@@ -17,7 +17,10 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      return web;
+      throw UnsupportedError(
+        'DefaultFirebaseOptions have not been configured for web - '
+        'you can reconfigure this by running the FlutterFire CLI again.',
+      );
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -46,31 +49,22 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCF_ce64qjg74nWmbG-oD482ROAOL2j3IE',
-    appId: '1:787417913447:web:19ecd281bbc473d6fa5cc2',
-    messagingSenderId: '787417913447',
-    projectId: 'abc-e-mart-b0e05',
-    authDomain: 'abc-e-mart-b0e05.firebaseapp.com',
-    storageBucket: 'abc-e-mart-b0e05.firebasestorage.app',
-    measurementId: 'G-240BXY6WPS',
-  );
-
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBAmkD7hFTd5GkQm8YDDEtSssUjTi99Rqk',
-    appId: '1:787417913447:android:8fbbc78a96823ceefa5cc2',
-    messagingSenderId: '787417913447',
-    projectId: 'abc-e-mart-b0e05',
-    storageBucket: 'abc-e-mart-b0e05.firebasestorage.app',
+    apiKey: 'AIzaSyChSjUigIx_7o-dVLaNGWkEacsKtItFIsI',
+    appId: '1:32225794830:android:75f3b1c48ebc21811bd55f',
+    messagingSenderId: '32225794830',
+    projectId: 'pasma-apps-8d37e',
+    storageBucket: 'pasma-apps-8d37e.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA92q3HQutzl0B-4udLFKmqetj6ur2lOew',
-    appId: '1:787417913447:ios:1b2276e6efbe5813fa5cc2',
-    messagingSenderId: '787417913447',
-    projectId: 'abc-e-mart-b0e05',
-    storageBucket: 'abc-e-mart-b0e05.firebasestorage.app',
-    iosClientId: '787417913447-2bsctdek412kpsvcp7595disptfmsrnv.apps.googleusercontent.com',
-    iosBundleId: 'com.example.abcEMart',
+    apiKey: 'AIzaSyCvuZVyFHuMyHh6z4ncMAwEU7kdM97bWVc',
+    appId: '1:32225794830:ios:563ff920669d45de1bd55f',
+    messagingSenderId: '32225794830',
+    projectId: 'pasma-apps-8d37e',
+    storageBucket: 'pasma-apps-8d37e.firebasestorage.app',
+    iosClientId: '32225794830-87i6s44n9id22idu2me7342bt9t6eqil.apps.googleusercontent.com',
+    iosBundleId: 'com.example.pasmaApps',
   );
+
 }
